@@ -1,29 +1,29 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
-import { isEventMessageOptions } from '../EventMessageClasses/AbstractEventMessage';
+import { isEventMessageOptions } from '../event-message-classes/abstract-event-message';
 import { InstanceSettings } from 'n8n-core';
 import path, { parse } from 'path';
 import { Worker } from 'worker_threads';
 import { createReadStream, existsSync, rmSync } from 'fs';
 import readline from 'readline';
 import remove from 'lodash/remove';
-import type { EventMessageGenericOptions } from '../EventMessageClasses/EventMessageGeneric';
-import { EventMessageGeneric } from '../EventMessageClasses/EventMessageGeneric';
-import type { AbstractEventMessageOptions } from '../EventMessageClasses/AbstractEventMessageOptions';
-import type { EventMessageWorkflowOptions } from '../EventMessageClasses/EventMessageWorkflow';
-import { EventMessageWorkflow } from '../EventMessageClasses/EventMessageWorkflow';
+import type { EventMessageGenericOptions } from '../event-message-classes/event-message-generic';
+import { EventMessageGeneric } from '../event-message-classes/event-message-generic';
+import type { AbstractEventMessageOptions } from '../event-message-classes/abstract-event-message-options';
+import type { EventMessageWorkflowOptions } from '../event-message-classes/event-message-workflow';
+import { EventMessageWorkflow } from '../event-message-classes/event-message-workflow';
 import { EventMessageTypeNames, jsonParse } from 'n8n-workflow';
-import type { EventMessageAuditOptions } from '../EventMessageClasses/EventMessageAudit';
-import { EventMessageAudit } from '../EventMessageClasses/EventMessageAudit';
-import type { EventMessageNodeOptions } from '../EventMessageClasses/EventMessageNode';
-import { EventMessageNode } from '../EventMessageClasses/EventMessageNode';
-import type { EventMessageReturnMode } from '../MessageEventBus/MessageEventBus';
-import type { EventMessageTypes } from '../EventMessageClasses';
-import type { EventMessageConfirmSource } from '../EventMessageClasses/EventMessageConfirm';
+import type { EventMessageAuditOptions } from '../event-message-classes/event-message-audit';
+import { EventMessageAudit } from '../event-message-classes/event-message-audit';
+import type { EventMessageNodeOptions } from '../event-message-classes/event-message-node';
+import { EventMessageNode } from '../event-message-classes/event-message-node';
+import type { EventMessageReturnMode } from '../message-event-bus/message-event-bus';
+import type { EventMessageTypes } from '../event-message-classes';
+import type { EventMessageConfirmSource } from '../event-message-classes/event-message-confirm';
 import {
 	EventMessageConfirm,
 	isEventMessageConfirm,
-} from '../EventMessageClasses/EventMessageConfirm';
+} from '../event-message-classes/event-message-confirm';
 import { once as eventOnce } from 'events';
 import { inTest } from '@/constants';
 import { Logger } from '@/logger';
@@ -139,9 +139,10 @@ export class MessageEventBusLogWriter {
 		const parsedName = parse(__filename);
 		let workerFileName;
 		if (inTest) {
-			workerFileName = './dist/eventbus/MessageEventBusWriter/MessageEventBusLogWriterWorker.js';
+			workerFileName =
+				'./dist/eventbus/message-event-bus-writer/message-event-bus-log-writer-worker.js';
 		} else {
-			workerFileName = path.join(parsedName.dir, `${parsedName.name}Worker${parsedName.ext}`);
+			workerFileName = path.join(parsedName.dir, `${parsedName.name}-worker${parsedName.ext}`);
 		}
 		this._worker = new Worker(workerFileName);
 		if (this.worker) {

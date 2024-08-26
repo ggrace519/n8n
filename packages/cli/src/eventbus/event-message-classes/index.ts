@@ -1,9 +1,9 @@
-import type { EventMessageAiNode } from './EventMessageAiNode';
-import type { EventMessageAudit } from './EventMessageAudit';
-import type { EventMessageExecution } from './EventMessageExecution';
-import type { EventMessageGeneric } from './EventMessageGeneric';
-import type { EventMessageNode } from './EventMessageNode';
-import type { EventMessageWorkflow } from './EventMessageWorkflow';
+import type { EventMessageAiNode } from './event-message-ai-node';
+import type { EventMessageAudit } from './event-message-audit';
+import type { EventMessageExecution } from './event-message-execution';
+import type { EventMessageGeneric } from './event-message-generic';
+import type { EventMessageNode } from './event-message-node';
+import type { EventMessageWorkflow } from './event-message-workflow';
 import { eventNamesAiNodes, type EventNamesAiNodesType } from 'n8n-workflow';
 
 export const eventNamesWorkflow = [

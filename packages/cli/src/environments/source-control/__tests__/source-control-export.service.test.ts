@@ -1,6 +1,6 @@
 import mock from 'jest-mock-extended/lib/Mock';
-import { SourceControlExportService } from '../sourceControlExport.service.ee';
-import type { SourceControlledFile } from '../types/sourceControlledFile';
+import { SourceControlExportService } from '../source-control-export.service.ee';
+import type { SourceControlledFile } from '../types/source-controlled-file';
 import { Cipher, type InstanceSettings } from 'n8n-core';
 import { SharedCredentialsRepository } from '@/databases/repositories/sharedCredentials.repository';
 import { mockInstance } from '@test/mocking';

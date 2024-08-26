@@ -1,10 +1,10 @@
 import { MessageEventBusDestinationTypeNames } from 'n8n-workflow';
 import type { EventDestinations } from '@db/entities/EventDestinations';
-import type { MessageEventBus } from '../MessageEventBus/MessageEventBus';
-import type { MessageEventBusDestination } from './MessageEventBusDestination.ee';
-import { MessageEventBusDestinationSentry } from './MessageEventBusDestinationSentry.ee';
-import { MessageEventBusDestinationSyslog } from './MessageEventBusDestinationSyslog.ee';
-import { MessageEventBusDestinationWebhook } from './MessageEventBusDestinationWebhook.ee';
+import type { MessageEventBus } from '../message-event-bus/message-event-bus';
+import type { MessageEventBusDestination } from './message-event-bus-destination.ee';
+import { MessageEventBusDestinationSentry } from './message-event-bus-destination-sentry.ee';
+import { MessageEventBusDestinationSyslog } from './message-event-bus-destination-syslog.ee';
+import { MessageEventBusDestinationWebhook } from './message-event-bus-destination-webhook.ee';
 import { Container } from 'typedi';
 import { Logger } from '@/logger';
 

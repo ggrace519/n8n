@@ -14,29 +14,29 @@ import { WorkflowRepository } from '@db/repositories/workflow.repository';
 import { OrchestrationService } from '@/services/orchestration.service';
 import { Logger } from '@/logger';
 
-import type { EventMessageTypes } from '../EventMessageClasses/';
-import type { MessageEventBusDestination } from '../MessageEventBusDestination/MessageEventBusDestination.ee';
-import { MessageEventBusLogWriter } from '../MessageEventBusWriter/MessageEventBusLogWriter';
-import { messageEventBusDestinationFromDb } from '../MessageEventBusDestination/MessageEventBusDestinationFromDb';
-import type { EventMessageConfirmSource } from '../EventMessageClasses/EventMessageConfirm';
-import type { EventMessageAuditOptions } from '../EventMessageClasses/EventMessageAudit';
-import { EventMessageAudit } from '../EventMessageClasses/EventMessageAudit';
-import type { EventMessageWorkflowOptions } from '../EventMessageClasses/EventMessageWorkflow';
-import { EventMessageWorkflow } from '../EventMessageClasses/EventMessageWorkflow';
-import type { EventMessageNodeOptions } from '../EventMessageClasses/EventMessageNode';
-import { EventMessageNode } from '../EventMessageClasses/EventMessageNode';
+import type { EventMessageTypes } from '../event-message-classes/';
+import type { MessageEventBusDestination } from '../message-event-bus-destination/message-event-bus-destination.ee';
+import { MessageEventBusLogWriter } from '../message-event-bus-writer/message-event-bus-log-writer';
+import { messageEventBusDestinationFromDb } from '../message-event-bus-destination/message-event-bus-destination-from-db';
+import type { EventMessageConfirmSource } from '../event-message-classes/event-message-confirm';
+import type { EventMessageAuditOptions } from '../event-message-classes/event-message-audit';
+import { EventMessageAudit } from '../event-message-classes/event-message-audit';
+import type { EventMessageWorkflowOptions } from '../event-message-classes/event-message-workflow';
+import { EventMessageWorkflow } from '../event-message-classes/event-message-workflow';
+import type { EventMessageNodeOptions } from '../event-message-classes/event-message-node';
+import { EventMessageNode } from '../event-message-classes/event-message-node';
 import {
 	EventMessageGeneric,
 	eventMessageGenericDestinationTestEvent,
-} from '../EventMessageClasses/EventMessageGeneric';
+} from '../event-message-classes/event-message-generic';
 import { ExecutionRecoveryService } from '../../executions/execution-recovery.service';
 import {
 	EventMessageAiNode,
 	type EventMessageAiNodeOptions,
-} from '../EventMessageClasses/EventMessageAiNode';
+} from '../event-message-classes/event-message-ai-node';
 import { License } from '@/license';
-import type { EventMessageExecutionOptions } from '../EventMessageClasses/EventMessageExecution';
-import { EventMessageExecution } from '../EventMessageClasses/EventMessageExecution';
+import type { EventMessageExecutionOptions } from '../event-message-classes/event-message-execution';
+import { EventMessageExecution } from '../event-message-classes/event-message-execution';
 import { GlobalConfig } from '@n8n/config';
 
 export type EventMessageReturnMode = 'sent' | 'unsent' | 'all' | 'unfinished';

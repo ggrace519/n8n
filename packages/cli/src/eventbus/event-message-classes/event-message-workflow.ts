@@ -1,8 +1,8 @@
-import { AbstractEventMessage, isEventMessageOptionsWithType } from './AbstractEventMessage';
+import { AbstractEventMessage, isEventMessageOptionsWithType } from './abstract-event-message';
 import type { IWorkflowBase, JsonObject } from 'n8n-workflow';
 import { EventMessageTypeNames } from 'n8n-workflow';
-import type { AbstractEventMessageOptions } from './AbstractEventMessageOptions';
-import type { AbstractEventPayload } from './AbstractEventPayload';
+import type { AbstractEventMessageOptions } from './abstract-event-message-options';
+import type { AbstractEventPayload } from './abstract-event-payload';
 import type { IExecutionBase } from '@/Interfaces';
 import type { EventNamesWorkflowType } from '.';
 

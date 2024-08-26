@@ -1,5 +1,5 @@
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
-import type { SourceControlledFile } from './sourceControlledFile';
+import type { SourceControlledFile } from './source-controlled-file';
 
 export class SourceControlPushWorkFolder {
 	@IsBoolean()

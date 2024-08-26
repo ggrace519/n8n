@@ -1,15 +1,15 @@
 import type { AuthenticatedRequest } from '@/requests';
-import type { SourceControlPreferences } from './sourceControlPreferences';
-import type { SourceControlSetBranch } from './sourceControlSetBranch';
-import type { SourceControlCommit } from './sourceControlCommit';
-import type { SourceControlStage } from './sourceControlStage';
-import type { SourceControlPush } from './sourceControlPush';
-import type { SourceControlPushWorkFolder } from './sourceControlPushWorkFolder';
-import type { SourceControlPullWorkFolder } from './sourceControlPullWorkFolder';
-import type { SourceControlDisconnect } from './sourceControlDisconnect';
-import type { SourceControlSetReadOnly } from './sourceControlSetReadOnly';
-import type { SourceControlGetStatus } from './sourceControlGetStatus';
-import type { SourceControlGenerateKeyPair } from './sourceControlGenerateKeyPair';
+import type { SourceControlPreferences } from './source-control-preferences';
+import type { SourceControlSetBranch } from './source-control-set-branch';
+import type { SourceControlCommit } from './source-control-commit';
+import type { SourceControlStage } from './source-control-stage';
+import type { SourceControlPush } from './source-control-push';
+import type { SourceControlPushWorkFolder } from './source-control-push-work-folder';
+import type { SourceControlPullWorkFolder } from './source-control-pull-work-folder';
+import type { SourceControlDisconnect } from './source-control-disconnect';
+import type { SourceControlSetReadOnly } from './source-control-set-read-only';
+import type { SourceControlGetStatus } from './source-control-get-status';
+import type { SourceControlGenerateKeyPair } from './source-control-generate-key-pair';
 
 export declare namespace SourceControlRequest {
 	type UpdatePreferences = AuthenticatedRequest<{}, {}, Partial<SourceControlPreferences>, {}>;

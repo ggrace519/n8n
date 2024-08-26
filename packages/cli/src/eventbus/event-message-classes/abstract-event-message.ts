@@ -2,8 +2,8 @@
 import { DateTime } from 'luxon';
 import type { EventMessageTypeNames, JsonObject } from 'n8n-workflow';
 import { v4 as uuid } from 'uuid';
-import type { AbstractEventPayload } from './AbstractEventPayload';
-import type { AbstractEventMessageOptions } from './AbstractEventMessageOptions';
+import type { AbstractEventPayload } from './abstract-event-payload';
+import type { AbstractEventMessageOptions } from './abstract-event-message-options';
 import type { EventNamesTypes } from '.';
 
 function modifyUnderscoredKeys(

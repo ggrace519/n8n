@@ -1,8 +1,8 @@
 import type { JsonObject } from 'n8n-workflow';
 import { EventMessageTypeNames } from 'n8n-workflow';
-import { AbstractEventMessage, isEventMessageOptionsWithType } from './AbstractEventMessage';
-import type { AbstractEventPayload } from './AbstractEventPayload';
-import type { AbstractEventMessageOptions } from './AbstractEventMessageOptions';
+import { AbstractEventMessage, isEventMessageOptionsWithType } from './abstract-event-message';
+import type { AbstractEventPayload } from './abstract-event-payload';
+import type { AbstractEventMessageOptions } from './abstract-event-message-options';
 
 export const eventMessageGenericDestinationTestEvent = 'n8n.destination.test';
 
