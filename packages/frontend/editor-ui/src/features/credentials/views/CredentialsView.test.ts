@@ -1,13 +1,14 @@
 import { createComponentRenderer } from '@/__tests__/render';
 import { createTestProject } from '@/features/projects/__tests__/utils';
 import { createTestingPinia } from '@pinia/testing';
-import { useCredentialsStore } from '@/stores/credentials.store';
-import CredentialsView from '@/views/CredentialsView.vue';
+import { useCredentialsStore } from '../credentials.store';
+import CredentialsView from './CredentialsView.vue';
 import { useUIStore } from '@/stores/ui.store';
 import { mockedStore } from '@/__tests__/utils';
 import { waitFor, within, fireEvent } from '@testing-library/vue';
 import { STORES } from '@n8n/stores';
-import { CREDENTIAL_SELECT_MODAL_KEY, VIEWS } from '@/constants';
+import { CREDENTIAL_SELECT_MODAL_KEY } from '../credentials.constants';
+import { VIEWS } from '@/constants';
 import { useProjectsStore } from '@/features/projects/projects.store';
 import { createRouter, createWebHistory } from 'vue-router';
 import { flushPromises } from '@vue/test-utils';

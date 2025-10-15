@@ -1,4 +1,4 @@
-import type { ICredentialMap, ICredentialTypeMap } from '@/Interface';
+import type { ICredentialMap, ICredentialTypeMap } from '../../credentials.types';
 
 export const TEST_CREDENTIALS: ICredentialMap = {
 	// OpenAI credential in personal

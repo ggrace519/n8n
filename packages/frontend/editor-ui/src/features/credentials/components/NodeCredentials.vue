@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import type { ICredentialsResponse, INodeUi, INodeUpdatePropertiesInformation } from '@/Interface';
-import {
-	type ICredentialType,
-	type INodeCredentialDescription,
-	type INodeCredentialsDetails,
-	type NodeParameterValueType,
+import type { ICredentialsResponse } from '../credentials.types';
+import type { INodeUi, INodeUpdatePropertiesInformation } from '@/Interface';
+import type {
+	ICredentialType,
+	INodeCredentialDescription,
+	INodeCredentialsDetails,
+	NodeParameterValueType,
 } from 'n8n-workflow';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -16,7 +17,7 @@ import { useI18n } from '@n8n/i18n';
 import { useTelemetry } from '@/composables/useTelemetry';
 import { CREDENTIAL_ONLY_NODE_PREFIX } from '@/constants';
 import { ndvEventBus } from '@/event-bus';
-import { useCredentialsStore } from '@/stores/credentials.store';
+import { useCredentialsStore } from '../credentials.store';
 import { useNDVStore } from '@/stores/ndv.store';
 import { useNodeTypesStore } from '@/stores/nodeTypes.store';
 import { useUIStore } from '@/stores/ui.store';
@@ -28,7 +29,7 @@ import {
 	updateNodeAuthType,
 } from '@/utils/nodeTypesUtils';
 import { isEmpty } from '@/utils/typesUtils';
-import { useNodeCredentialOptions } from '@/composables/useNodeCredentialOptions';
+import { useNodeCredentialOptions } from '../composables/useNodeCredentialOptions';
 
 import {
 	N8nIcon,

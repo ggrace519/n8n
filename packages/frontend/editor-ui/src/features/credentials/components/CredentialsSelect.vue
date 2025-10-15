@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { ICredentialType, INodeProperties } from 'n8n-workflow';
 import { computed, ref } from 'vue';
-import ScopesNotice from '@/components/ScopesNotice.vue';
-import NodeCredentials from '@/components/NodeCredentials.vue';
-import { useCredentialsStore } from '@/stores/credentials.store';
+import ScopesNotice from './ScopesNotice.vue';
+import NodeCredentials from './NodeCredentials.vue';
+import { useCredentialsStore } from '../credentials.store';
 import type { INodeUi, INodeUpdatePropertiesInformation } from '@/Interface';
 import { useI18n } from '@n8n/i18n';
 

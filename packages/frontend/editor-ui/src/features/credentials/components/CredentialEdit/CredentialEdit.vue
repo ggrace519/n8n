@@ -1,13 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
 
-import type {
-	ICredentialsDecryptedResponse,
-	ICredentialsResponse,
-	IUpdateInformation,
-} from '@/Interface';
+import type { ICredentialsDecryptedResponse, ICredentialsResponse } from '../../credentials.types';
+import type { IUpdateInformation } from '@/Interface';
 
-import CredentialIcon from '@/components/CredentialIcon.vue';
+import CredentialIcon from '../CredentialIcon.vue';
 import type {
 	CredentialInformation,
 	ICredentialDataDecryptedObject,
@@ -19,16 +16,17 @@ import type {
 } from 'n8n-workflow';
 import { NodeHelpers } from 'n8n-workflow';
 
-import CredentialConfig from '@/components/CredentialEdit/CredentialConfig.vue';
-import CredentialInfo from '@/components/CredentialEdit/CredentialInfo.vue';
-import CredentialSharing from '@/components/CredentialEdit/CredentialSharing.ee.vue';
+import CredentialConfig from './CredentialConfig.vue';
+import CredentialInfo from './CredentialInfo.vue';
+import CredentialSharing from './CredentialSharing.ee.vue';
 import Modal from '@/components/Modal.vue';
 import SaveButton from '@/components/SaveButton.vue';
 import { useMessage } from '@/composables/useMessage';
 import { useNodeHelpers } from '@/composables/useNodeHelpers';
 import { useToast } from '@/composables/useToast';
-import { CREDENTIAL_EDIT_MODAL_KEY, EnterpriseEditionFeature, MODAL_CONFIRM } from '@/constants';
-import { useCredentialsStore } from '@/stores/credentials.store';
+import { CREDENTIAL_EDIT_MODAL_KEY } from '../../credentials.constants';
+import { EnterpriseEditionFeature, MODAL_CONFIRM } from '@/constants';
+import { useCredentialsStore } from '../../credentials.store';
 import { useNDVStore } from '@/stores/ndv.store';
 import { useNodeTypesStore } from '@/stores/nodeTypes.store';
 import { useSettingsStore } from '@/stores/settings.store';

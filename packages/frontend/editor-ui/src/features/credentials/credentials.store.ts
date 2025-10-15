@@ -1,14 +1,14 @@
+import type { INodeUi } from '@/Interface';
 import type {
 	ICredentialMap,
 	ICredentialsDecryptedResponse,
 	ICredentialsResponse,
 	ICredentialsState,
 	ICredentialTypeMap,
-	INodeUi,
 	IUsedCredential,
-} from '@/Interface';
-import * as credentialsApi from '@/api/credentials';
-import * as credentialsEeApi from '@/api/credentials.ee';
+} from './credentials.types';
+import * as credentialsApi from './credentials.api';
+import * as credentialsEeApi from './credentials.ee.api';
 import { EnterpriseEditionFeature } from '@/constants';
 import { STORES } from '@n8n/stores';
 import { i18n } from '@n8n/i18n';
@@ -27,9 +27,9 @@ import type {
 } from 'n8n-workflow';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { useNodeTypesStore } from './nodeTypes.store';
+import { useNodeTypesStore } from '@/stores/nodeTypes.store';
 import { useRootStore } from '@n8n/stores/useRootStore';
-import { useSettingsStore } from './settings.store';
+import { useSettingsStore } from '@/stores/settings.store';
 import * as aiApi from '@/api/ai';
 
 const DEFAULT_CREDENTIAL_NAME = 'Unnamed credential';

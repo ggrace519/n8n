@@ -1,4 +1,4 @@
-import type { ICredentialsDecryptedResponse, ICredentialsResponse } from '@/Interface';
+import type { ICredentialsDecryptedResponse, ICredentialsResponse } from './credentials.types';
 import type { IRestApiContext } from '@n8n/rest-api-client';
 import { makeRestApiRequest } from '@n8n/rest-api-client';
 import type {

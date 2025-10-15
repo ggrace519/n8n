@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { useCredentialsStore } from '@/stores/credentials.store';
+import { useCredentialsStore } from '../credentials.store';
 import { useI18n } from '@n8n/i18n';
 import { computed } from 'vue';
 

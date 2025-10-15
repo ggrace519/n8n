@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { useExternalHooks } from '@/composables/useExternalHooks';
 import { useTelemetry } from '@/composables/useTelemetry';
-import { useCredentialsStore } from '@/stores/credentials.store';
+import { useCredentialsStore } from '../credentials.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useWorkflowsStore } from '@/stores/workflows.store';
 import { createEventBus } from '@n8n/utils/event-bus';
 import { onMounted, ref } from 'vue';
-import { CREDENTIAL_SELECT_MODAL_KEY } from '../constants';
-import Modal from './Modal.vue';
+import { CREDENTIAL_SELECT_MODAL_KEY } from '../credentials.constants';
+import Modal from '@/components/Modal.vue';
 import { useI18n } from '@n8n/i18n';
 
 import { N8nButton, N8nIcon, N8nOption, N8nSelect } from '@n8n/design-system';

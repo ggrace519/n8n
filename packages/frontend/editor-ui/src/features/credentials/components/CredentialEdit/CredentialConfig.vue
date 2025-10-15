@@ -10,7 +10,7 @@ import type {
 import { isCommunityPackageName } from 'n8n-workflow';
 
 import type { IUpdateInformation } from '@/Interface';
-import AuthTypeSelector from '@/components/CredentialEdit/AuthTypeSelector.vue';
+import AuthTypeSelector from './AuthTypeSelector.vue';
 import EnterpriseEdition from '@/components/EnterpriseEdition.ee.vue';
 import { useI18n, addCredentialTranslation } from '@n8n/i18n';
 import { useTelemetry } from '@/composables/useTelemetry';
@@ -21,13 +21,13 @@ import {
 	NEW_ASSISTANT_SESSION_MODAL,
 } from '@/constants';
 import type { PermissionsRecord } from '@n8n/permissions';
-import { useCredentialsStore } from '@/stores/credentials.store';
+import { useCredentialsStore } from '../../credentials.store';
 import { useNDVStore } from '@/stores/ndv.store';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { useUIStore } from '@/stores/ui.store';
 import { useWorkflowsStore } from '@/stores/workflows.store';
-import Banner from '../Banner.vue';
-import CopyInput from '../CopyInput.vue';
+import Banner from '@/components/Banner.vue';
+import CopyInput from '@/components/CopyInput.vue';
 import CredentialInputs from './CredentialInputs.vue';
 import GoogleAuthButton from './GoogleAuthButton.vue';
 import OauthButton from './OauthButton.vue';

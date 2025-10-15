@@ -1,7 +1,8 @@
 import { useNodeHelpers } from '@/composables/useNodeHelpers';
 import { KEEP_AUTH_IN_NDV_FOR_NODES } from '@/constants';
-import type { ICredentialsResponse, INodeUi } from '@/Interface';
-import { useCredentialsStore } from '@/stores/credentials.store';
+import type { INodeUi } from '@/Interface';
+import type { ICredentialsResponse } from '../credentials.types';
+import { useCredentialsStore } from '../credentials.store';
 import {
 	getAllNodeCredentialForAuthType,
 	getMainAuthField,

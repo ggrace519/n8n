@@ -1,6 +1,6 @@
 import { createComponentRenderer } from '@/__tests__/render';
 import { mockedStore } from '@/__tests__/utils';
-import { useCredentialsStore } from '@/stores/credentials.store';
+import { useCredentialsStore } from '../../credentials.store';
 import { createTestingPinia } from '@pinia/testing';
 import CredentialPicker from './CredentialPicker.vue';
 import {

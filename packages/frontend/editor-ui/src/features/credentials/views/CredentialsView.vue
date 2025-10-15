@@ -1,22 +1,19 @@
 <script setup lang="ts">
-import CredentialCard from '@/components/CredentialCard.vue';
+import CredentialCard from '../components/CredentialCard.vue';
 import EmptySharedSectionActionBox from '@/features/folders/components/EmptySharedSectionActionBox.vue';
 import ResourcesListLayout from '@/components/layouts/ResourcesListLayout.vue';
-import type { BaseFilters, Resource, ICredentialTypeMap } from '@/Interface';
+import type { BaseFilters, Resource } from '@/Interface';
+import type { ICredentialTypeMap } from '../credentials.types';
 import ProjectHeader from '@/features/projects/components/ProjectHeader.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useProjectPages } from '@/features/projects/composables/useProjectPages';
 import { useTelemetry } from '@/composables/useTelemetry';
-import {
-	CREDENTIAL_EDIT_MODAL_KEY,
-	CREDENTIAL_SELECT_MODAL_KEY,
-	EnterpriseEditionFeature,
-	VIEWS,
-} from '@/constants';
+import { CREDENTIAL_EDIT_MODAL_KEY, CREDENTIAL_SELECT_MODAL_KEY } from '../credentials.constants';
+import { EnterpriseEditionFeature, VIEWS } from '@/constants';
 import InsightsSummary from '@/features/insights/components/InsightsSummary.vue';
 import { useInsightsStore } from '@/features/insights/insights.store';
 import { getResourcePermissions } from '@n8n/permissions';
-import { useCredentialsStore } from '@/stores/credentials.store';
+import { useCredentialsStore } from '../credentials.store';
 import useEnvironmentsStore from '@/features/environments.ee/environments.store';
 import { useExternalSecretsStore } from '@/features/externalSecrets/externalSecrets.ee.store';
 import { useNodeTypesStore } from '@/stores/nodeTypes.store';

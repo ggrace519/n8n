@@ -5,11 +5,11 @@ import { createTestingPinia } from '@pinia/testing';
 import NodeCredentials from './NodeCredentials.vue';
 import type { RenderOptions } from '@/__tests__/render';
 import { createComponentRenderer } from '@/__tests__/render';
-import { useCredentialsStore } from '@/stores/credentials.store';
+import { useCredentialsStore } from '../credentials.store';
 import { mockedStore } from '@/__tests__/utils';
 import type { INodeUi } from '@/Interface';
 import { useNDVStore } from '@/stores/ndv.store';
-import { useUIStore } from '../stores/ui.store';
+import { useUIStore } from '@/stores/ui.store';
 import { useWorkflowsStore } from '@/stores/workflows.store';
 
 const httpNode: INodeUi = {

@@ -1,7 +1,7 @@
 import userEvent from '@testing-library/user-event';
 import { createTestingPinia } from '@pinia/testing';
 import { createComponentRenderer } from '@/__tests__/render';
-import OauthButton from '@/components/CredentialEdit/OauthButton.vue';
+import OauthButton from './OauthButton.vue';
 
 const renderComponent = createComponentRenderer(OauthButton, {
 	pinia: createTestingPinia(),

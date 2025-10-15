@@ -1,11 +1,11 @@
 import { createComponentRenderer } from '@/__tests__/render';
-import CredentialEdit from '@/components/CredentialEdit/CredentialEdit.vue';
+import CredentialEdit from './CredentialEdit.vue';
 import { createTestingPinia } from '@pinia/testing';
-import { CREDENTIAL_EDIT_MODAL_KEY } from '@/constants';
+import { CREDENTIAL_EDIT_MODAL_KEY } from '../../credentials.constants';
 import { STORES } from '@n8n/stores';
 import { retry, mockedStore } from '@/__tests__/utils';
-import { useCredentialsStore } from '@/stores/credentials.store';
-import type { ICredentialsResponse } from '@/Interface';
+import { useCredentialsStore } from '../../credentials.store';
+import type { ICredentialsResponse } from '../../credentials.types';
 import { within } from '@testing-library/vue';
 import type { ICredentialType } from 'n8n-workflow';
 

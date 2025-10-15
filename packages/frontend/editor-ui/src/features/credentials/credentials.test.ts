@@ -1,7 +1,7 @@
 import { afterAll, beforeAll } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { setupServer } from '@/__tests__/server';
-import { useCredentialsStore } from '@/stores/credentials.store';
+import { useCredentialsStore } from './credentials.store';
 
 describe('store', () => {
 	let server: ReturnType<typeof setupServer>;

@@ -3,7 +3,7 @@ import { within } from '@testing-library/vue';
 import userEvent from '@testing-library/user-event';
 import { createTestingPinia } from '@pinia/testing';
 import { createComponentRenderer } from '@/__tests__/render';
-import CredentialCard from '@/components/CredentialCard.vue';
+import CredentialCard from './CredentialCard.vue';
 import type { CredentialsResource } from '@/Interface';
 import type { ProjectSharingData } from '@/features/projects/projects.types';
 import { useProjectsStore } from '@/features/projects/projects.store';

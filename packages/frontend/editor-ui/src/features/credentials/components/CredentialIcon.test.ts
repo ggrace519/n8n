@@ -2,12 +2,12 @@ import { createTestingPinia, type TestingPinia } from '@pinia/testing';
 import type { ICredentialType, INodeTypeDescription } from 'n8n-workflow';
 import { mock } from 'vitest-mock-extended';
 
-import CredentialIcon from '@/components/CredentialIcon.vue';
+import CredentialIcon from './CredentialIcon.vue';
 
 import { createComponentRenderer } from '@/__tests__/render';
-import { useCredentialsStore } from '@/stores/credentials.store';
+import { useCredentialsStore } from '../credentials.store';
 import { useRootStore } from '@n8n/stores/useRootStore';
-import { useNodeTypesStore } from '../stores/nodeTypes.store';
+import { useNodeTypesStore } from '@/stores/nodeTypes.store';
 
 describe('CredentialIcon', () => {
 	const renderComponent = createComponentRenderer(CredentialIcon, {
