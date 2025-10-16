@@ -7,7 +7,8 @@ import {
 	type WorkflowState,
 } from '@/composables/useWorkflowState';
 import { useExecutionDebugging } from './useExecutionDebugging';
-import type { INodeUi, IExecutionResponse } from '@/Interface';
+import type { INodeUi } from '@/Interface';
+import type { IExecutionResponse } from '../executions.types';
 import type { Workflow } from 'n8n-workflow';
 import { useToast } from '@/composables/useToast';
 

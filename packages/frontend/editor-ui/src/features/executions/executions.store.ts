@@ -10,14 +10,14 @@ import type {
 	IExecutionResponse,
 	IExecutionsListResponse,
 	IExecutionsStopData,
-} from '@/Interface';
+} from './executions.types';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { makeRestApiRequest } from '@n8n/rest-api-client';
 import {
 	unflattenExecutionData,
 	executionFilterToQueryFilter,
 	getDefaultExecutionFilters,
-} from '@/utils/executionUtils';
+} from './executions.utils';
 import { useProjectsStore } from '@/features/projects/projects.store';
 import { useSettingsStore } from '@/stores/settings.store';
 

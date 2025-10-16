@@ -1,6 +1,6 @@
 import userEvent from '@testing-library/user-event';
 import { createComponentRenderer } from '@/__tests__/render';
-import GlobalExecutionsListItemQueuedTooltip from '@/components/executions/global/GlobalExecutionsListItemQueuedTooltip.vue';
+import GlobalExecutionsListItemQueuedTooltip from './GlobalExecutionsListItemQueuedTooltip.vue';
 
 const renderComponent = createComponentRenderer(GlobalExecutionsListItemQueuedTooltip);
 

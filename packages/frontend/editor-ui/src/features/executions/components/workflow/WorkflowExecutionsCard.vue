@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import type { IExecutionUIData } from '@/composables/useExecutionHelpers';
+import type { IExecutionUIData } from '../../composables/useExecutionHelpers';
 import { EnterpriseEditionFeature, VIEWS } from '@/constants';
-import ExecutionsTime from '@/components/executions/ExecutionsTime.vue';
-import { useExecutionHelpers } from '@/composables/useExecutionHelpers';
+import ExecutionsTime from '../ExecutionsTime.vue';
+import { useExecutionHelpers } from '../../composables/useExecutionHelpers';
 import type { ExecutionSummary } from 'n8n-workflow';
 import { useWorkflowsStore } from '@/stores/workflows.store';
 import { useI18n } from '@n8n/i18n';

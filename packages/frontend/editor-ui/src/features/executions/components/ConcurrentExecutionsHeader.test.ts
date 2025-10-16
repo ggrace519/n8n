@@ -1,7 +1,7 @@
 import { createTestingPinia } from '@pinia/testing';
 import userEvent from '@testing-library/user-event';
 import { createComponentRenderer } from '@/__tests__/render';
-import ConcurrentExecutionsHeader from '@/components/executions/ConcurrentExecutionsHeader.vue';
+import ConcurrentExecutionsHeader from './ConcurrentExecutionsHeader.vue';
 
 vi.mock('vue-router', () => {
 	return {

@@ -1,5 +1,5 @@
 import { createComponentRenderer } from '@/__tests__/render';
-import WorkflowExecutionsCard from '@/components/executions/workflow/WorkflowExecutionsCard.vue';
+import WorkflowExecutionsCard from './WorkflowExecutionsCard.vue';
 import { setActivePinia } from 'pinia';
 import { createTestingPinia } from '@pinia/testing';
 import { STORES } from '@n8n/stores';

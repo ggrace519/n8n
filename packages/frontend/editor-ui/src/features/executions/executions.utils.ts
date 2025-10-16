@@ -12,13 +12,13 @@ import type {
 	Workflow,
 	IWorkflowDataProxyAdditionalKeys,
 } from 'n8n-workflow';
+import type { INodeUi } from '@/Interface';
 import type {
 	ExecutionFilterType,
 	ExecutionsQueryFilter,
 	IExecutionFlattedResponse,
 	IExecutionResponse,
-	INodeUi,
-} from '@/Interface';
+} from './executions.types';
 import { isEmpty } from '@/utils/typesUtils';
 import {
 	CORE_NODES_CATEGORY,
@@ -27,7 +27,7 @@ import {
 	SCHEDULE_TRIGGER_NODE_TYPE,
 	WEBHOOK_NODE_TYPE,
 	WORKFLOW_TRIGGER_NODE_TYPE,
-} from '../constants';
+} from '@/constants';
 import { useWorkflowsStore } from '@/stores/workflows.store';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { i18n } from '@n8n/i18n';

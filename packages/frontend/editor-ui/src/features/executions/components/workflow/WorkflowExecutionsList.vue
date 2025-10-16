@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import WorkflowExecutionsSidebar from '@/components/executions/workflow/WorkflowExecutionsSidebar.vue';
+import WorkflowExecutionsSidebar from './WorkflowExecutionsSidebar.vue';
 import { useWorkflowSaving } from '@/composables/useWorkflowSaving';
 import { MAIN_HEADER_TABS } from '@/constants';
-import type { ExecutionFilterType, IWorkflowDb } from '@/Interface';
+import type { IWorkflowDb } from '@/Interface';
+import type { ExecutionFilterType } from '../../executions.types';
 import { getNodeViewTab } from '@/utils/nodeViewUtils';
 import type { ExecutionSummary } from 'n8n-workflow';
 import { computed } from 'vue';

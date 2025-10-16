@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import ConcurrentExecutionsHeader from '@/components/executions/ConcurrentExecutionsHeader.vue';
-import ExecutionsFilter from '@/components/executions/ExecutionsFilter.vue';
-import GlobalExecutionsListItem from '@/components/executions/global/GlobalExecutionsListItem.vue';
+import ConcurrentExecutionsHeader from '../ConcurrentExecutionsHeader.vue';
+import ExecutionsFilter from '../ExecutionsFilter.vue';
+import GlobalExecutionsListItem from './GlobalExecutionsListItem.vue';
 import SelectedItemsInfo from '@/components/common/SelectedItemsInfo.vue';
 import { useI18n } from '@n8n/i18n';
 import { useMessage } from '@/composables/useMessage';
@@ -9,13 +9,14 @@ import { usePageRedirectionHelper } from '@/composables/usePageRedirectionHelper
 import { useTelemetry } from '@/composables/useTelemetry';
 import { useToast } from '@/composables/useToast';
 import { EnterpriseEditionFeature, MODAL_CONFIRM } from '@/constants';
-import type { ExecutionFilterType, ExecutionSummaryWithScopes, IWorkflowDb } from '@/Interface';
+import type { IWorkflowDb } from '@/Interface';
+import type { ExecutionFilterType, ExecutionSummaryWithScopes } from '../../executions.types';
 import type { PermissionsRecord } from '@n8n/permissions';
 import { getResourcePermissions } from '@n8n/permissions';
-import { useExecutionsStore } from '@/stores/executions.store';
+import { useExecutionsStore } from '../../executions.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useWorkflowsStore } from '@/stores/workflows.store';
-import { executionRetryMessage } from '@/utils/executionUtils';
+import { executionRetryMessage } from '../../executions.utils';
 import { useIntersectionObserver } from '@vueuse/core';
 import type { ExecutionSummary } from 'n8n-workflow';
 import { computed, ref, useTemplateRef, watch, type ComponentPublicInstance } from 'vue';

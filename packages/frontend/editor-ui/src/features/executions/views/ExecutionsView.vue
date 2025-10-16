@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import type { ExecutionFilterType } from '@/Interface';
+import type { ExecutionFilterType } from '../executions.types';
 import ProjectHeader from '@/features/projects/components/ProjectHeader.vue';
-import GlobalExecutionsList from '@/components/executions/global/GlobalExecutionsList.vue';
+import GlobalExecutionsList from '../components/global/GlobalExecutionsList.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useExternalHooks } from '@/composables/useExternalHooks';
 import { useI18n } from '@n8n/i18n';
@@ -10,7 +10,7 @@ import { useTelemetry } from '@/composables/useTelemetry';
 import { useToast } from '@/composables/useToast';
 import InsightsSummary from '@/features/insights/components/InsightsSummary.vue';
 import { useInsightsStore } from '@/features/insights/insights.store';
-import { useExecutionsStore } from '@/stores/executions.store';
+import { useExecutionsStore } from '../executions.store';
 import { useWorkflowsStore } from '@/stores/workflows.store';
 import { storeToRefs } from 'pinia';
 import { onBeforeMount, onBeforeUnmount, onMounted } from 'vue';

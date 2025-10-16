@@ -7,7 +7,7 @@ import {
 	getExecutionErrorMessage,
 	getExecutionErrorToastConfiguration,
 	findTriggerNodeToAutoSelect,
-} from './executionUtils';
+} from './executions.utils';
 import type {
 	INode,
 	IRunData,
@@ -16,7 +16,7 @@ import type {
 	INodeTypeDescription,
 	Workflow,
 } from 'n8n-workflow';
-import { type INodeUi } from '../Interface';
+import { type INodeUi } from '@/Interface';
 import {
 	CHAT_TRIGGER_NODE_TYPE,
 	CORE_NODES_CATEGORY,

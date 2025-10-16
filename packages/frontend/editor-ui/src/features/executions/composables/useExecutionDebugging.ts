@@ -4,21 +4,17 @@ import { useI18n } from '@n8n/i18n';
 import { useMessage } from '@/composables/useMessage';
 import { useToast } from '@/composables/useToast';
 import { injectWorkflowState } from '@/composables/useWorkflowState';
-import {
-	DEBUG_PAYWALL_MODAL_KEY,
-	EnterpriseEditionFeature,
-	MODAL_CONFIRM,
-	VIEWS,
-} from '@/constants';
+import { EnterpriseEditionFeature, MODAL_CONFIRM, VIEWS } from '@/constants';
+import { DEBUG_PAYWALL_MODAL_KEY } from '../executions.constants';
 import type { INodeUi } from '@/Interface';
 import { useWorkflowsStore } from '@/stores/workflows.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useUIStore } from '@/stores/ui.store';
-import { useTelemetry } from './useTelemetry';
+import { useTelemetry } from '@/composables/useTelemetry';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { isFullExecutionResponse } from '@/utils/typeGuards';
 import { sanitizeHtml } from '@/utils/htmlUtils';
-import { usePageRedirectionHelper } from './usePageRedirectionHelper';
+import { usePageRedirectionHelper } from '@/composables/usePageRedirectionHelper';
 
 export const useExecutionDebugging = () => {
 	const telemetry = useTelemetry();

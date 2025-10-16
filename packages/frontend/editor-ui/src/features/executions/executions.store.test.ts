@@ -1,8 +1,8 @@
 import { vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 
-import type { ExecutionSummaryWithScopes } from '@/Interface';
-import { useExecutionsStore } from '@/stores/executions.store';
+import type { ExecutionSummaryWithScopes } from './executions.types';
+import { useExecutionsStore } from './executions.store';
 
 vi.mock('@n8n/rest-api-client', () => ({
 	makeRestApiRequest: vi.fn(),

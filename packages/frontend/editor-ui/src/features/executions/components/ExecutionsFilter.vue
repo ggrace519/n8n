@@ -5,12 +5,8 @@ import { useDebounce } from '@/composables/useDebounce';
 import { usePageRedirectionHelper } from '@/composables/usePageRedirectionHelper';
 import { useTelemetry } from '@/composables/useTelemetry';
 import { EnterpriseEditionFeature } from '@/constants';
-import type {
-	ExecutionFilterMetadata,
-	ExecutionFilterType,
-	IWorkflowDb,
-	IWorkflowShortResponse,
-} from '@/Interface';
+import type { IWorkflowDb, IWorkflowShortResponse } from '@/Interface';
+import type { ExecutionFilterMetadata, ExecutionFilterType } from '../executions.types';
 import { i18n as locale } from '@n8n/i18n';
 import { useSettingsStore } from '@/stores/settings.store';
 import { isEmpty } from '@/utils/typesUtils';

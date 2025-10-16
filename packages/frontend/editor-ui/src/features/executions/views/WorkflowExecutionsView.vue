@@ -1,9 +1,10 @@
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import WorkflowExecutionsList from '@/components/executions/workflow/WorkflowExecutionsList.vue';
-import { useExecutionsStore } from '@/stores/executions.store';
+import WorkflowExecutionsList from '../components/workflow/WorkflowExecutionsList.vue';
+import { useExecutionsStore } from '../executions.store';
 import { useI18n } from '@n8n/i18n';
-import type { ExecutionFilterType, IWorkflowDb } from '@/Interface';
+import type { ExecutionFilterType } from '../executions.types';
+import type { IWorkflowDb } from '@/Interface';
 import { useWorkflowsStore } from '@/stores/workflows.store';
 import { useNodeTypesStore } from '@/stores/nodeTypes.store';
 import { useProjectsStore } from '@/features/projects/projects.store';
@@ -15,7 +16,7 @@ import type { ExecutionSummary } from 'n8n-workflow';
 import { useDebounce } from '@/composables/useDebounce';
 import { useTelemetry } from '@/composables/useTelemetry';
 import { useCanvasOperations } from '@/composables/useCanvasOperations';
-import { executionRetryMessage } from '@/utils/executionUtils';
+import { executionRetryMessage } from '../executions.utils';
 
 const executionsStore = useExecutionsStore();
 const workflowsStore = useWorkflowsStore();
