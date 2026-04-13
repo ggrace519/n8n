@@ -1,5 +1,11 @@
-export function getDocumentation(): string {
-	return `# Best Practices: Scheduling Workflows
+import type { BestPracticesDocument } from '../types';
+import { WorkflowTechnique } from '../types';
+
+export class SchedulingBestPractices implements BestPracticesDocument {
+	readonly technique = WorkflowTechnique.SCHEDULING;
+	readonly version = '1.0.0';
+
+	private readonly documentation = `# Best Practices: Scheduling Workflows
 
 ## Workflow Design
 
@@ -138,4 +144,8 @@ n8n supports both 5-field and 6-field (with seconds) cron syntax. Use 6 fields i
 
 For simple schedules, prefer Interval mode over cron for better readability.
 `;
+
+	getDocumentation(): string {
+		return this.documentation;
+	}
 }

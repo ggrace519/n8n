@@ -1,5 +1,11 @@
-export function getDocumentation(): string {
-	return `# Best Practices: Content Generation Workflows
+import type { BestPracticesDocument } from '../types';
+import { WorkflowTechnique } from '../types';
+
+export class ContentGenerationBestPractices implements BestPracticesDocument {
+	readonly technique = WorkflowTechnique.CONTENT_GENERATION;
+	readonly version = '1.0.0';
+
+	private readonly documentation = `# Best Practices: Content Generation Workflows
 
 ## Workflow Design
 
@@ -101,4 +107,8 @@ Binary Data Handling: For media uploads, use binary fields rather than URLs to p
 
 Async Processing: For long-running content generation tasks (especially video), implement proper wait/polling mechanisms. Don't assume instant completion - many AI services process requests asynchronously.
 `;
+
+	getDocumentation(): string {
+		return this.documentation;
+	}
 }

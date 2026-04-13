@@ -1,5 +1,11 @@
-export function getDocumentation(): string {
-	return `# Best Practices: Notification Workflows
+import type { BestPracticesDocument } from '../types';
+import { WorkflowTechnique } from '../types';
+
+export class NotificationBestPractices implements BestPracticesDocument {
+	readonly technique = WorkflowTechnique.NOTIFICATION;
+	readonly version = '1.0.0';
+
+	private readonly documentation = `# Best Practices: Notification Workflows
 
 ## Workflow Design
 
@@ -121,4 +127,8 @@ Add logging nodes to track sent notifications for audit trails and duplicate pre
 - Use cases: Format notification content, add metadata
 - Best practice: Use to centralize message construction logic
 `;
+
+	getDocumentation(): string {
+		return this.documentation;
+	}
 }

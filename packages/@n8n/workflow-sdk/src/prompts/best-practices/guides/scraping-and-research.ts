@@ -1,5 +1,11 @@
-export function getDocumentation(): string {
-	return `# Best Practices: Scraping & Research Workflows
+import type { BestPracticesDocument } from '../types';
+import { WorkflowTechnique } from '../types';
+
+export class ScrapingAndResearchBestPractices implements BestPracticesDocument {
+	readonly technique = WorkflowTechnique.SCRAPING_AND_RESEARCH;
+	readonly version = '1.0.0';
+
+	private readonly documentation = `# Best Practices: Scraping & Research Workflows
 
 ## Performance & Resource Management
 
@@ -144,4 +150,8 @@ Empty or Unexpected Data: Some sites use JavaScript to render content, which may
 requests. Standard HTTP and HTML parsing nodes fail because sites load data asynchronously via JavaScript, leaving the
 initial HTML empty of actual content. Web scraping nodes can be used to avoid this.
 `;
+
+	getDocumentation(): string {
+		return this.documentation;
+	}
 }

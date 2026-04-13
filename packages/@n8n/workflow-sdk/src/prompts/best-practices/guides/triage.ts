@@ -1,5 +1,11 @@
-export function getDocumentation(): string {
-	return `# Best Practices: Triage Workflows
+import type { BestPracticesDocument } from '../types';
+import { WorkflowTechnique } from '../types';
+
+export class TriageBestPractices implements BestPracticesDocument {
+	readonly technique = WorkflowTechnique.TRIAGE;
+	readonly version = '1.0.0';
+
+	private readonly documentation = `# Best Practices: Triage Workflows
 
 ## Workflow Design
 
@@ -21,7 +27,7 @@ Include a default/fallback path to catch unclassified items so data is tracked r
 ### Rule-Based Classification
 Use IF/Switch nodes for keyword detection, sender addresses, or numeric thresholds. Chain multiple conditions or use Switch for multi-way branching.
 
-Example: IF email contains "urgent" -> High Priority branch
+Example: IF email contains "urgent" → High Priority branch
 
 ### AI-Powered Classification
 For unstructured text or nuanced decisions, use AI nodes with clear prompts and defined output labels.
@@ -135,4 +141,8 @@ For all AI nodes (Text Classifier, AI Agent):
 - Order checks from most specific to general
 - Use Switch with distinct values instead of multiple IF nodes
 `;
+
+	getDocumentation(): string {
+		return this.documentation;
+	}
 }

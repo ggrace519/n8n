@@ -1,5 +1,11 @@
-export function getDocumentation(): string {
-	return `# Best Practices: Form Input Workflows
+import type { BestPracticesDocument } from '../types';
+import { WorkflowTechnique } from '../types';
+
+export class FormInputBestPractices implements BestPracticesDocument {
+	readonly technique = WorkflowTechnique.FORM_INPUT;
+	readonly version = '1.0.0';
+
+	private readonly documentation = `# Best Practices: Form Input Workflows
 
 ## Workflow Design
 
@@ -159,4 +165,8 @@ node expects. Test thoroughly with the Test URL before going live.
 When writing to Google Sheets or other destinations, ensure field names match exactly. Mismatched names
 will cause data to be written to wrong columns or fail entirely.
 `;
+
+	getDocumentation(): string {
+		return this.documentation;
+	}
 }

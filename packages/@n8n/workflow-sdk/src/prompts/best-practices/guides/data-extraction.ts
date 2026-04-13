@@ -1,5 +1,11 @@
-export function getDocumentation(): string {
-	return `# Best Practices: Data Extraction Workflows
+import type { BestPracticesDocument } from '../types';
+import { WorkflowTechnique } from '../types';
+
+export class DataExtractionBestPractices implements BestPracticesDocument {
+	readonly technique = WorkflowTechnique.DATA_EXTRACTION;
+	readonly version = '1.0.0';
+
+	private readonly documentation = `# Best Practices: Data Extraction Workflows
 
 ## Node Selection by Data Type
 
@@ -62,7 +68,7 @@ Purpose: Scrapes data from web pages using CSS selectors
 
 Purpose: Processes arrays of items individually for sequential operations.
 Example: If retrieving a JSON array using a HTTP request, this will return a single item,
-containing that array. If you wish to use a Loop Over Items (n8n-nodes-base.splitInBatches) node,
+containing that array. If you wish to use a Loop Over Items (n8n-nodes-base.splitInBatches) node]
 then you will need to split out the array into items before looping over it. In a scenario like
 this a split out node MUST be used before looping over the items.
 
@@ -108,4 +114,8 @@ Binary Data Loss: Binary data can be lost if intermediate nodes (Set, Code) do n
 
 Large Data Display Issues: n8n displaying large amounts of information can be hard to view during development. Use the Edit Fields node to help organize and view data more clearly.
 `;
+
+	getDocumentation(): string {
+		return this.documentation;
+	}
 }

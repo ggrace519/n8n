@@ -1,10 +1,16 @@
-export function getDocumentation(): string {
-	return `# Best Practices: Data Transformation
+import type { BestPracticesDocument } from '../types';
+import { WorkflowTechnique } from '../types';
+
+export class DataTransformationBestPractices implements BestPracticesDocument {
+	readonly technique = WorkflowTechnique.DATA_TRANSFORMATION;
+	readonly version = '1.0.0';
+
+	private readonly documentation = `# Best Practices: Data Transformation
 
 ## Workflow Design
 
 ### Core Principles
-- **Structure**: Always follow Input -> Transform -> Output pattern
+- **Structure**: Always follow Input → Transform → Output pattern
 - **Optimization**: Filter and reduce data early to improve performance
 
 ### Design Best Practices
@@ -125,11 +131,15 @@ return items; // or return [{ json: {...} }];
 - **Fix**: Normalize field names with Edit Fields before merging
 
 ### Performance Pitfalls
-- Processing large datasets without batching -> timeouts
-- Not filtering early -> unnecessary processing overhead
-- Excessive node chaining -> visual clutter and slow execution
+- Processing large datasets without batching → timeouts
+- Not filtering early → unnecessary processing overhead
+- Excessive node chaining → visual clutter and slow execution
 
 ### Data Validation Pitfalls
-- Assuming input data is always perfect -> runtime errors
+- Assuming input data is always perfect → runtime errors
 `;
+
+	getDocumentation(): string {
+		return this.documentation;
+	}
 }

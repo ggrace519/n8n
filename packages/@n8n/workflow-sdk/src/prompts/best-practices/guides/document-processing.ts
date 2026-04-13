@@ -1,30 +1,36 @@
-export function getDocumentation(): string {
-	return `# Best Practices: Document Processing Workflows
+import type { BestPracticesDocument } from '../types';
+import { WorkflowTechnique } from '../types';
+
+export class DocumentProcessingBestPractices implements BestPracticesDocument {
+	readonly technique = WorkflowTechnique.DOCUMENT_PROCESSING;
+	readonly version = '1.0.0';
+
+	private readonly documentation = `# Best Practices: Document Processing Workflows
 
 ## Workflow Design
 
 Document processing workflows extract and act on content from files like PDFs, images, Word documents, and spreadsheets. Design your workflow following these core patterns:
 
 ### Core Architecture Pattern
-Trigger -> Capture Binary -> Extract Text -> Parse/Transform -> Route to Destination -> Notify
+Trigger → Capture Binary → Extract Text → Parse/Transform → Route to Destination → Notify
 
 ### Common Flow Patterns
 
 **Simple Document Processing:**
-- Gmail Trigger -> Check file type -> Extract from File -> DataTable -> Slack notification
+- Gmail Trigger → Check file type → Extract from File → DataTable → Slack notification
 - Best for: Basic text-based PDFs with straightforward data extraction
 
 **Complex Document Processing with AI:**
-- Webhook -> File Type Check -> OCR (if image) -> AI Extract -> Validate -> CRM Update -> Multiple notifications
+- Webhook → File Type Check → OCR (if image) → AI Extract → Validate → CRM Update → Multiple notifications
 - Best for: Varied document formats requiring intelligent parsing
 
 **Batch Document Processing:**
-- Main workflow: Schedule Trigger -> Fetch Files -> Split In Batches -> Sub-workflow -> Merge Results -> Bulk Update
+- Main workflow: Schedule Trigger → Fetch Files → Split In Batches → Sub-workflow → Merge Results → Bulk Update
 - Sub-workflow When Executed by Another Workflow -> Process result
 - Best for: High-volume processing with API rate limits
 
 **Multi-Source Document Aggregation:**
-- Multiple Triggers (Email + Drive + Webhook) -> Set common fields -> Standardize -> Process -> Store
+- Multiple Triggers (Email + Drive + Webhook) → Set common fields → Standardize → Process → Store
 - Best for: Documents from various channels needing unified processing
 
 ### Branching Strategy
@@ -78,10 +84,10 @@ Choose extraction method based on document type and content:
 - Using the wrong operation will result in errors or empty output
 
 ### Decision Tree for Extraction
-1. **Check file type** -> Route to appropriate extraction method
-2. **Scanned image/PDF?** -> Use OCR service (OCR.space, AWS Textract, Google Vision)
-3. **Structured invoice/receipt?** -> Use specialized parser (Mindee) or AI extraction
-4. **Text-based document?** -> Use Extract from File with the correct operation for that file type
+1. **Check file type** → Route to appropriate extraction method
+2. **Scanned image/PDF?** → Use OCR service (OCR.space, AWS Textract, Google Vision)
+3. **Structured invoice/receipt?** → Use specialized parser (Mindee) or AI extraction
+4. **Text-based document?** → Use Extract from File with the correct operation for that file type
 
 ### Fallback Strategy
 Always implement fallback for extraction failures:
@@ -317,6 +323,9 @@ Critical: NEVER set API keys directly in the request - user can set credentials 
 **Solution**:
 - Configure email triggers to mark as read
 - Use "unseen" filters for email fetching
-- Implement deduplication logic based on file hash or name
-`;
+- Implement deduplication logic based on file hash or name`;
+
+	getDocumentation(): string {
+		return this.documentation;
+	}
 }
