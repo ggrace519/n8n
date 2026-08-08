@@ -3,7 +3,7 @@ import {
 	GLOBAL_CUSTOM_ROLE_SCOPE_GROUPS,
 	GLOBAL_CUSTOM_ROLE_SCOPES,
 	PROJECT_CUSTOM_ROLE_SCOPES,
-} from '@/roles/custom-role-scopes.ee';
+} from '@/roles/custom-role-scopes';
 import { ALL_SCOPES } from '@/scope-information';
 
 describe('custom role scope whitelists', () => {

@@ -1,0 +1,73 @@
+import {
+	PROJECT_OWNER_ROLE_SLUG,
+	PROJECT_ADMIN_ROLE_SLUG,
+	PROJECT_EDITOR_ROLE_SLUG,
+	PROJECT_VIEWER_ROLE_SLUG,
+	PROJECT_CHAT_USER_ROLE_SLUG,
+} from '../constants';
+import type {
+	CredentialSharingRole,
+	GlobalRole,
+	ProjectRole,
+	Scope,
+	SecretsProviderConnectionSharingRole,
+	WorkflowSharingRole,
+} from '../types';
+import {
+	CREDENTIALS_SHARING_OWNER_SCOPES,
+	CREDENTIALS_SHARING_USER_SCOPES,
+} from './scopes/credential-sharing-scopes';
+import {
+	GLOBAL_ADMIN_SCOPES,
+	GLOBAL_CHAT_USER_SCOPES,
+	GLOBAL_MEMBER_SCOPES,
+	GLOBAL_OWNER_SCOPES,
+} from './scopes/global-scopes';
+import {
+	PERSONAL_PROJECT_OWNER_SCOPES,
+	PROJECT_CHAT_USER_SCOPES,
+	PROJECT_EDITOR_SCOPES,
+	PROJECT_VIEWER_SCOPES,
+	REGULAR_PROJECT_ADMIN_SCOPES,
+} from './scopes/project-scopes';
+import {
+	SECRETS_PROVIDER_CONNECTION_SHARING_OWNER_SCOPES,
+	SECRETS_PROVIDER_CONNECTION_SHARING_USER_SCOPES,
+} from './scopes/secrets-provider-connection-sharing-scopes';
+import {
+	WORKFLOW_SHARING_EDITOR_SCOPES,
+	WORKFLOW_SHARING_OWNER_SCOPES,
+} from './scopes/workflow-sharing-scopes';
+
+export const GLOBAL_SCOPE_MAP: Record<GlobalRole, Scope[]> = {
+	'global:owner': GLOBAL_OWNER_SCOPES,
+	'global:admin': GLOBAL_ADMIN_SCOPES,
+	'global:member': GLOBAL_MEMBER_SCOPES,
+	'global:chatUser': GLOBAL_CHAT_USER_SCOPES,
+};
+
+export const PROJECT_SCOPE_MAP: Record<ProjectRole, Scope[]> = {
+	[PROJECT_OWNER_ROLE_SLUG]: PERSONAL_PROJECT_OWNER_SCOPES,
+	[PROJECT_ADMIN_ROLE_SLUG]: REGULAR_PROJECT_ADMIN_SCOPES,
+	[PROJECT_EDITOR_ROLE_SLUG]: PROJECT_EDITOR_SCOPES,
+	[PROJECT_VIEWER_ROLE_SLUG]: PROJECT_VIEWER_SCOPES,
+	[PROJECT_CHAT_USER_ROLE_SLUG]: PROJECT_CHAT_USER_SCOPES,
+};
+
+export const CREDENTIALS_SHARING_SCOPE_MAP: Record<CredentialSharingRole, Scope[]> = {
+	'credential:owner': CREDENTIALS_SHARING_OWNER_SCOPES,
+	'credential:user': CREDENTIALS_SHARING_USER_SCOPES,
+};
+
+export const WORKFLOW_SHARING_SCOPE_MAP: Record<WorkflowSharingRole, Scope[]> = {
+	'workflow:owner': WORKFLOW_SHARING_OWNER_SCOPES,
+	'workflow:editor': WORKFLOW_SHARING_EDITOR_SCOPES,
+};
+
+export const SECRETS_PROVIDER_CONNECTION_SHARING_SCOPE_MAP: Record<
+	SecretsProviderConnectionSharingRole,
+	Scope[]
+> = {
+	'secretsProviderConnection:owner': SECRETS_PROVIDER_CONNECTION_SHARING_OWNER_SCOPES,
+	'secretsProviderConnection:user': SECRETS_PROVIDER_CONNECTION_SHARING_USER_SCOPES,
+};

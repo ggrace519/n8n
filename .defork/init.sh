@@ -15,12 +15,11 @@ echo "== guardrail: zero .ee files in tree =="
 n=$(git ls-files | grep -Ec '\.ee(\.|/)' || true)
 if [ "$n" != "0" ]; then echo "  FAIL: $n .ee paths present (recontamination)"; FAIL=1; else echo "  ok (0)"; fi
 
-echo "== Phase A front: @n8n/permissions verified tests =="
-# Expand this list as items A2..A6 land; today only the catalog+types are green.
-pnpm --filter @n8n/permissions exec vitest run \
-  src/__tests__/scope-information.test.ts \
-  src/__tests__/types.test.ts >/dev/null 2>&1 \
-  && echo "  ok (catalog+types)" || { echo "  FAIL: permissions catalog/types tests"; FAIL=1; }
+echo "== Phase A: @n8n/permissions typecheck + full test suite =="
+pnpm --filter @n8n/permissions typecheck >/dev/null 2>&1 \
+  && echo "  ok (typecheck)" || { echo "  FAIL: permissions typecheck"; FAIL=1; }
+pnpm --filter @n8n/permissions exec vitest run >/dev/null 2>&1 \
+  && echo "  ok (105 tests)" || { echo "  FAIL: permissions tests"; FAIL=1; }
 
 # TODO(A12): once green, add:  pnpm build && node <boot smoke>
 echo "== result =="

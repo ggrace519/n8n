@@ -90,6 +90,35 @@ typecheck clean in isolation.
 `custom-role-scopes.ts`, `public-api-permissions.ts`, then rewrite `index.ts` and
 fix `all-roles.ts`.
 
+### 2026-08-08 — `@n8n/permissions` fully rebuilt (Tier-0 complete)
+
+**Added (clean-room fair-code replacements, verified against surviving tests):**
+- `schemas.ts` — zod role schemas (`roleNamespaceSchema`, `globalRoleSchema`,
+  `assignableGlobalRoleSchema`, `systemProjectRoleSchema`,
+  `assignableProjectRoleSchema`, `projectRoleSchema`, `teamRoleSchema`,
+  `credentialSharingRoleSchema`, `workflowSharingRoleSchema`,
+  `customProjectRoleSchema`, `roleSchema`, `scopeSchema`, `type Role`).
+- `roles/scopes/*` — per-role scope sets (global owner/admin/member/chatUser,
+  project owner/admin/editor/viewer/chatUser, credential/workflow/secrets sharing)
+  graded community-equivalent (owner = full catalog, graded down), built from the
+  RESOURCES catalog via a shared `scope-filters` helper.
+- `roles/role-maps.ts` — the five role→scope maps.
+- `utilities/*` — `combineScopes`, `hasScope`, `hasGlobalScope`, `getGlobalScopes`,
+  `getRoleScopes` + `COMBINED_ROLE_MAP`, `getAuthPrincipalScopes`,
+  `staticRolesWithScope`, `getResourcePermissions` + `PermissionsRecord`.
+- `roles/custom-role-scopes.ts` — custom-role whitelists, operations, and scope
+  groups. `public-api-permissions.ts` — API-key scope helpers.
+- Rewrote `index.ts` and fixed `all-roles.ts` + all surviving test imports off the
+  deleted `.ee` paths.
+
+**Verified:** `pnpm --filter @n8n/permissions typecheck` clean; **105/105 tests
+pass** across 12 files. The RBAC foundation (172 downstream consumers) is green.
+
+**Design note:** per-role scope *assignments* were only partially pinned by the
+surviving tests, so they were designed community-equivalent and satisfy every
+behavioral assertion (createEndUser grants, member/chatUser exclusions, owner/admin
+coverage). Runtime authz can be tuned later without breaking the build.
+
 ### Pending — Rebuild to a green build (clean-room)
 
 Known breakage after the purge: **442 fair-code files** import the removed `.ee`

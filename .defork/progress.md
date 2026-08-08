@@ -43,3 +43,26 @@ this file records the reasoning so the next session doesn't repeat dead ends.
 **NEXT.** Item **A2** — `@n8n/permissions/src/schemas.ts` (zod role schemas), verify
 with `src/__tests__/schemas.test.ts`. Before writing, confirm consumer usage of
 `Role`, `roleSchema`, `teamRoleSchema`, `assignableProjectRoleSchema`, `scopeSchema`.
+
+## 2026-08-08 — @n8n/permissions fully rebuilt (A2–A6 done)
+
+**WHAT.** Completed the entire `@n8n/permissions` package clean-room: schemas,
+per-role scope sets + role-maps, all utilities, custom-role-scopes,
+public-api-permissions, index rewrite, all-roles fix, all test imports repointed.
+VERIFIED: typecheck clean + **105/105 tests pass**.
+
+**WHY.** This is the Tier-0 foundation (172 consumers). Built to satisfy the
+surviving fair-code tests (spec + verification in one). Per-role scope *contents*
+were under-pinned by tests → designed community-equivalent; safe to tune later.
+
+**KEY FACTS.**
+- The noisy `import ... from '@n8n/permissions'` grep over-spanned statements —
+  do NOT trust it as the barrel contract. Use the compiler: consumer typecheck at
+  A10/A11 will name any missing barrel export (likely extras like GLOBAL_*_ROLE
+  objects/slugs, isProjectRole, COUPLED_HIDDEN_SCOPES, getApiKeyScopesForRole).
+- `pick/allOps` helper in `roles/scopes/scope-filters.ts` builds scope lists from
+  RESOURCES; reuse it for any scope-set tuning.
+
+**NEXT.** Item **A7** — `ProjectService` fair-code replacement
+(`packages/cli/src/services/project.service.ee.ts` was purged; 49 consumers).
+Recover its contract from consumers + surviving project.service tests, clean-room.
