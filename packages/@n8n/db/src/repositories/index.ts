@@ -1,9 +1,3 @@
-export { AgentEvalDatasetRepository } from './agent-eval-dataset.repository.ee';
-export { AgentEvalRunRepository } from './agent-eval-run.repository.ee';
-export { AgentEvalResultRepository } from './agent-eval-result.repository.ee';
-export { AgentEvalRatingRepository } from './agent-eval-rating.repository.ee';
-export { AnnotationTagMappingRepository } from './annotation-tag-mapping.repository.ee';
-export { AnnotationTagRepository } from './annotation-tag.repository.ee';
 export { AiBuilderTemporaryWorkflowRepository } from './ai-builder-temporary-workflow.repository';
 export { ApiKeyRepository } from './api-key.repository';
 export { AuthIdentityRepository } from './auth-identity.repository';
@@ -18,12 +12,6 @@ export {
 	type DeploymentKeySortDirection,
 	type ListDeploymentKeysOptions,
 } from './deployment-key.repository';
-export {
-	EvaluationCollectionRepository,
-	type EvaluationCollectionListItem,
-} from './evaluation-collection.repository';
-export { EvaluationConfigRepository } from './evaluation-config.repository';
-export { ExecutionAnnotationRepository } from './execution-annotation.repository';
 export { ExecutionDataRepository } from './execution-data.repository';
 export { ExecutionMetadataRepository } from './execution-metadata.repository';
 export {
@@ -57,8 +45,6 @@ export type {
 export { ProcessedDataRepository } from './processed-data.repository';
 export { SettingsRepository } from './settings.repository';
 export { TagRepository } from './tag.repository';
-export { TestCaseExecutionRepository } from './test-case-execution.repository.ee';
-export { TestRunRepository } from './test-run.repository.ee';
 export { VariablesRepository } from './variables.repository';
 export { WorkflowHistoryRepository } from './workflow-history.repository';
 export { WorkflowStatisticsRepository } from './workflow-statistics.repository';
@@ -77,22 +63,8 @@ export {
 } from './workflow-published-version.repository';
 export { WorkflowPublishHistoryRepository } from './workflow-publish-history.repository';
 export {
-	WorkflowReviewRequestRepository,
-	type InboxCursor,
-	type WorkflowReviewRequestForWorkflowRow,
-} from './workflow-review-request.repository';
-export {
-	WorkflowReviewRequestWorkflowRepository,
-	type WorkflowReviewRequestLinkedWorkflow,
-	type WorkflowReviewRequestWorkflowDetailRow,
-} from './workflow-review-request-workflow.repository';
-export { WorkflowReviewRequestReviewerRepository } from './workflow-review-request-reviewer.repository';
-export { WorkflowReviewRequestAuthorRepository } from './workflow-review-request-author.repository';
-export {
 	WorkflowDependencyRepository,
 	WorkflowDependencies,
 } from './workflow-dependency.repository';
 export { WebhookRepository } from './webhook.repository';
 export { UserRepository } from './user.repository';
-export { SecretsProviderConnectionRepository } from './secrets-provider-connection.repository.ee';
-export { ProjectSecretsProviderAccessRepository } from './project-secrets-provider-access.repository.ee';
