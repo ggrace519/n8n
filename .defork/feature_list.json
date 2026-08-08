@@ -1,0 +1,34 @@
+{
+  "project": "n8n de-fork: fair-code rebuild + AI-native features",
+  "iron_law": "One task per iteration. Memory is files, not context. Evidence before flipping passes:true.",
+  "completion_promise": "DEFORK_LOOP_COMPLETE",
+  "iteration_cap": 200,
+  "phases": {
+    "A": "Green build — clean-room fair-code replacements for purged .ee plumbing",
+    "B": "Re-add chosen feature modules (fair-code)",
+    "C": "AI-native innovations (INNOVATIONS.md) — on innovation/<slug> branches, after green build"
+  },
+  "items": [
+    {"id": "A0-guardrails", "phase": "A", "title": "Recontamination guardrails (eslint ban + AGENTS.md + changelog)", "passes": true, "notes": "no-import-enterprise-edition hardened+enabled; AGENTS.md policy; DEFORK_CHANGELOG.md"},
+    {"id": "A1-perm-constants-types", "phase": "A", "title": "@n8n/permissions constants.ts + types.ts (scope catalog + scope types)", "passes": true, "verify": "pnpm --filter @n8n/permissions vitest run src/__tests__/scope-information.test.ts src/__tests__/types.test.ts", "notes": "snapshot byte-exact; 46 resources/180 scopes"},
+    {"id": "A2-perm-schemas", "phase": "A", "title": "@n8n/permissions schemas.ts (zod role schemas)", "passes": false, "verify": "pnpm --filter @n8n/permissions vitest run src/__tests__/schemas.test.ts"},
+    {"id": "A3-perm-scope-sets", "phase": "A", "title": "roles/scopes/* per-role scope sets + role-maps.ts (GLOBAL/PROJECT/sharing maps, community-equivalent)", "passes": false, "verify": "pnpm --filter @n8n/permissions vitest run src/utilities/__tests__/get-global-scopes.test.ts src/utilities/__tests__/get-role-scopes.test.ts src/roles/__tests__/end-user-credential-scope.test.ts"},
+    {"id": "A4-perm-utilities", "phase": "A", "title": "utilities/* (hasScope, hasGlobalScope, combineScopes, getResourcePermissions, getRoleScopes, getGlobalScopes, staticRolesWithScope, getAuthPrincipalScopes)", "passes": false, "verify": "pnpm --filter @n8n/permissions vitest run src/utilities"},
+    {"id": "A5-perm-custom-roles", "phase": "A", "title": "custom-role-scopes.ts + public-api-permissions.ts", "passes": false, "verify": "pnpm --filter @n8n/permissions vitest run src/roles/__tests__/custom-role-scopes.test.ts"},
+    {"id": "A6-perm-index", "phase": "A", "title": "Rewrite index.ts (drop .ee paths) + fix all-roles.ts; package typecheck+test green", "passes": false, "verify": "pnpm --filter @n8n/permissions typecheck && pnpm --filter @n8n/permissions test"},
+    {"id": "A7-project-service", "phase": "A", "title": "ProjectService fair-code replacement (49 consumers) in packages/cli", "passes": false, "verify": "pnpm --filter n8n-core-cli typecheck (scoped) or cli build"},
+    {"id": "A8-db-entities-repos", "phase": "A", "title": "@n8n/db .ee entities/repositories replacements (or remove features that drop)", "passes": false, "verify": "pnpm --filter @n8n/db typecheck && pnpm --filter @n8n/db build"},
+    {"id": "A9-core-service-halves", "phase": "A", "title": "workflow/credentials/execution/worker-status/multi-main service .ee halves", "passes": false},
+    {"id": "A10-cli-green", "phase": "A", "title": "packages/cli typechecks & builds (all consumers rewired)", "passes": false, "verify": "pnpm --filter n8n build"},
+    {"id": "A11-frontend-green", "phase": "A", "title": "editor-ui + frontend packages build (253 .ee.vue consumers rewired)", "passes": false, "verify": "pnpm --filter n8n-editor-ui build"},
+    {"id": "A12-app-smoke", "phase": "A", "title": "Full build green + app boots (init.sh full smoke)", "passes": false, "verify": "pnpm build && node smoke"},
+    {"id": "A13-ungate-faircode-features", "phase": "A", "title": "Ungate fair-code features that had no .ee (Insights, Folders, instance-ai) via LicenseState override", "passes": false},
+
+    {"id": "C1-ai-provider-byo", "phase": "C", "branch": "innovation/ai-model-provider", "title": "Bring-your-own-model provider layer incl. local Ollama", "passes": false, "blocked_by": "A12-app-smoke"},
+    {"id": "C2-ai-workflow-composer", "phase": "C", "branch": "innovation/ai-workflow-composer", "title": "Fair-code AI Workflow Composer (NL -> workflow via workflow-sdk + structured output)", "passes": false, "blocked_by": "A12-app-smoke"},
+    {"id": "C3-instance-copilot", "phase": "C", "branch": "innovation/instance-copilot", "title": "Intent-driven Settings/Admin Copilot (NL -> app settings, RBAC-scoped, dry-run+confirm+audit)", "passes": false, "blocked_by": "A12-app-smoke"},
+    {"id": "C4-node-rag-index", "phase": "C", "branch": "innovation/node-rag-index", "title": "Local embedding index over node types + user workflows for AI grounding", "passes": false, "blocked_by": "A12-app-smoke"},
+    {"id": "C5-exec-self-heal", "phase": "C", "branch": "innovation/exec-self-heal", "title": "AI explain-and-fix for failed executions", "passes": false, "blocked_by": "A12-app-smoke"},
+    {"id": "C6-gen-evals", "phase": "C", "branch": "innovation/ai-gen-evals", "title": "Guardrailed structured generation + LLM-as-judge eval suite", "passes": false, "blocked_by": "C2-ai-workflow-composer"}
+  ]
+}
