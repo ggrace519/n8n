@@ -121,3 +121,30 @@ errors, 29/29 unit tests pass.
 `GLOBAL_ROLES[role]` is a db-entity `Role` whose `scopes` are db `Scope` OBJECTS.
 Likely fix: `getApiKeyScopesForRole({ role: { scopes: dbRole.scopes.map(s => s.slug) } })`.
 That should make `pnpm --filter @n8n/db build` fully green, then item **A7**.
+
+## 2026-08-08 — A8c + A8d done; @n8n/db fully green (build + tests)
+
+**WHAT.**
+- **A8c**: `1742918400000-AddScopesColumnToApiKeys.ts` — `getApiKeyScopesForRole`
+  wants the `@n8n/permissions` string-union `Scope[]`, but `GLOBAL_ROLES[role]`
+  is a db-entity `Role` whose `scopes` are db `Scope` OBJECTS. Fixed by mapping
+  `dbRole.scopes.map((s) => s.slug)`. `pnpm --filter @n8n/db build` now exit 0.
+- **A8d**: running the FULL db suite (first time since A8a) surfaced 10 test files
+  that fail to *load* because they import purged `.ee` modules (agent-eval-*,
+  evaluation-*, workflow-review-request-*). No fair-code source survives for any
+  of those 7 features → orphaned. Deleted all 10. VERIFIED: `pnpm --filter
+  @n8n/db test` → **31 files / 409 tests pass, exit 0**. Zero `.ee` refs remain
+  anywhere in `packages/@n8n/db/src`.
+
+**WHY / GOTCHAS.**
+- A8b's per-item verify only ran the single execution.repository test, so the
+  orphaned-test breakage was invisible until the full suite ran under A8c. Lesson:
+  run the *package* test suite, not just the changed file, before declaring a
+  package green.
+- Deleting orphaned `.ee` tests is the correct de-fork move (they specify removed
+  licensed features); do NOT try to rebuild agent-eval/evaluation/review-request
+  unless a fair-code decision says so — they are not in the feature_list.
+
+**NEXT.** `@n8n/db` is now fully green. Item **A7** — ProjectService fair-code
+replacement in `packages/cli` (`project.service.ee.ts` purged; 49 consumers).
+Recover the contract from consumers + surviving `project.service` tests, clean-room.

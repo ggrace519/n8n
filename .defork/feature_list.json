@@ -79,7 +79,7 @@
       "id": "A8d-orphaned-ee-tests",
       "phase": "A",
       "title": "Remove 10 orphaned .ee-importing test files in @n8n/db (agent-eval, evaluation, workflow-review-request)",
-      "passes": false,
+      "passes": true,
       "verify": "pnpm --filter @n8n/db test",
       "notes": "These test files import purged .ee entities/repositories (e.g. entities/workflow-review-request.ee, agent-eval-run.repository.ee). No fair-code source survives for any of the 7 features -> tests are orphaned, delete. They fail to load (0 assertion failures; 409/409 real tests pass). Surfaced when running full db test suite during A8c."
     },
