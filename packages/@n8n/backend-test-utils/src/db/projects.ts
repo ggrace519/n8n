@@ -80,7 +80,7 @@ export const getProjectRoleForUser = async (
 			where: { projectId, userId },
 			relations: { role: true },
 		})
-	)?.role?.slug;
+	)?.role?.slug as AssignableProjectRole | undefined;
 };
 
 export const getAllProjectRelations = async ({

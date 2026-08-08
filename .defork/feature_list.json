@@ -131,6 +131,14 @@
       "passes": false
     },
     {
+      "id": "B-eval-node",
+      "phase": "B",
+      "title": "Rebuild or drop the Evaluation node (fair-code) — node classes were .ee",
+      "passes": false,
+      "decision_needed": true,
+      "notes": "The Evaluation node CLASSES were .ee and purged (Evaluation.node.ee.ts, EvaluationTrigger.node.ee.ts). For Phase A green-build we DEREGISTERED them (removed the 2 package.json node entries) so generate-metadata stops loading missing modules. Substantial fair-code SURVIVES and still compiles (dead until rewired): nodes/Evaluation/{Evaluation/Description.node.ts, methods/*, utils/{metricHandlers,evaluationUtils,evaluationTriggerUtils}.ts} + CannedMetricPrompts.ts (clean-room rebuilt in A). 3 orphaned tests import the purged .node.ee (Evaluation.node.test.ts, EvaluationTrigger.node.test.ts) — spec material for a rebuild. DECISION: rebuild the 2 node classes clean-room from the surviving helpers + tests, OR drop the node entirely (delete nodes/Evaluation). Good delegation candidate if rebuilding."
+    },
+    {
       "id": "C1-ai-provider-byo",
       "phase": "C",
       "branch": "innovation/ai-model-provider",

@@ -74,6 +74,10 @@ export type ProjectRole =
 	| 'project:viewer'
 	| 'project:chatUser';
 
+/** Project roles assignable to a team-project member (excludes the fixed
+ * personal-project owner). Mirrors `assignableProjectRoleSchema`. */
+export type AssignableProjectRole = Exclude<ProjectRole, 'project:personalOwner'>;
+
 export type CredentialSharingRole = 'credential:owner' | 'credential:user';
 
 export type WorkflowSharingRole = 'workflow:owner' | 'workflow:editor';
