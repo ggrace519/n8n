@@ -66,3 +66,27 @@ were under-pinned by tests → designed community-equivalent; safe to tune later
 **NEXT.** Item **A7** — `ProjectService` fair-code replacement
 (`packages/cli/src/services/project.service.ee.ts` was purged; 49 consumers).
 Recover its contract from consumers + surviving project.service tests, clean-room.
+
+## 2026-08-08 — Downstream build unwiring (session continued)
+
+**WHAT.** Full `pnpm build` now reaches 51/59 packages. Fixed blob-storage,
+rest-api-client (dropped purged .ee barrel re-exports). Fixed a real permissions
+bug: `Role` must be the role DTO object (`RoleObject`), not the slug string —
+db's `builtInRoleToRoleObject` maps over `ALL_ROLES.*` (RoleObject[]). Added
+`settings.ts` + `getApiKeyScopesForRole({role})` to permissions. db partially
+unwired (entities + most repos done).
+
+**WHY / GOTCHAS.**
+- Stale TS `.tsbuildinfo` caused 22 phantom cascade errors (constants/tag/
+  credentials createdAt) — ALWAYS `rm -rf dist *.tsbuildinfo .turbo` for a package
+  before trusting its isolated build after a dependency's types change.
+- Build in topological order via `pnpm build`; it halts at the first failing
+  package (no --continue), so fix that one and re-run.
+
+**NEXT (db-green, then cli).** Item **A8b**: strip execution-annotations from
+`packages/@n8n/db/src/repositories/execution.repository.ts` (5 regions: imports,
+serializeAnnotation, findSingleExecution, softDeletePrunableExecutions subquery,
+and the toQueryBuilder/toQueryBuilderWithAnnotations/reduceExecutionsWithAnnotations
+list flow). Verify with the surviving execution.repository tests + `pnpm --filter
+@n8n/db build`. THEN item **A7** ProjectService (49 consumers) and the rest of cli
+(worklist: scratchpad/dangling_files.txt — 73 source files).

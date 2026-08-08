@@ -133,3 +133,29 @@ layer. Rebuild order:
 Fair-code features that only need the license *gate* removed (no reimplementation
 — they had no `.ee` files): **Insights** dashboard, **Folders**, **instance-ai**
 backend module.
+
+### 2026-08-08 — Downstream build unwiring (blob-storage, rest-api-client, db, permissions)
+
+**Build progress:** 51/59 packages build (was 45). Fixed in topological order:
+- `@n8n/blob-storage` — dropped purged S3/Azure object-store exports (local
+  FsByteStore stays); cli tsconfig no longer references purged ai-workflow-builder.
+- `@n8n/rest-api-client` — dropped purged eventbus/externalSecrets/secretsProvider
+  frontend API re-exports.
+- `@n8n/permissions` — **fixed `Role` to be the role DTO (`RoleObject`)** not the
+  slug string (db's `builtInRoleToRoleObject` proved the shape); added
+  `getApiKeyScopesForRole({ role })`; added `settings.ts`
+  (`PERSONAL_SPACE_PUBLISHING_SETTING`, `PERSONAL_SPACE_SHARING_SETTING`,
+  `EXTERNAL_SECRETS_SYSTEM_ROLES_ENABLED_SETTING`). Still builds + 105 tests pass.
+- `@n8n/db` (partial) — removed purged `.ee` entities from the entity barrel +
+  registry; stripped the `annotation`/`testRuns` relations from the core
+  `execution`/`workflow` entities; deleted purged-feature repositories
+  (evaluation-*, workflow-review-request*, execution-annotation) and their barrel
+  exports; removed review-request logic from `workflow-history.repository`; deleted
+  orphan `get-final-test-result` util.
+
+**Remaining for `@n8n/db` green (next iteration):** `execution.repository.ts` still
+has the execution-annotations feature woven into its core list flow
+(`findManyByRangeQuery` → `toQueryBuilderWithAnnotations` →
+`reduceExecutionsWithAnnotations`, plus a prune-exclusion subquery and
+`findSingleExecution` handling). Strip it carefully and verify against the
+surviving execution.repository tests — the raw-SQL column mapping must stay correct.
