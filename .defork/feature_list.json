@@ -71,9 +71,17 @@
       "id": "A8c-migration-scope-divergence",
       "phase": "A",
       "title": "Fix Scope-type divergence in db migrations (Role.scopes: db Scope entity vs @n8n/permissions Scope)",
-      "passes": false,
+      "passes": true,
       "verify": "pnpm --filter @n8n/db build",
       "notes": "Surfaced during A8b build. src/migrations/common/1742918400000-AddScopesColumnToApiKeys.ts(32): getApiKeyScopesForRole (public-api-permissions.ts) wants role: Pick<RoleObject,'scopes'> where scopes is @n8n/permissions string-union Scope[]; but GLOBAL_ROLES is Record<GlobalRole, db-entity Role> whose scopes are db entities/scope.ts Scope OBJECTS ({slug,displayName,description}). LIKELY FIX (verify): pass getApiKeyScopesForRole({ role: { scopes: dbRole.scopes.map(s => s.slug) } }). Clean-room, minimal. NOT part of A8b."
+    },
+    {
+      "id": "A8d-orphaned-ee-tests",
+      "phase": "A",
+      "title": "Remove 10 orphaned .ee-importing test files in @n8n/db (agent-eval, evaluation, workflow-review-request)",
+      "passes": false,
+      "verify": "pnpm --filter @n8n/db test",
+      "notes": "These test files import purged .ee entities/repositories (e.g. entities/workflow-review-request.ee, agent-eval-run.repository.ee). No fair-code source survives for any of the 7 features -> tests are orphaned, delete. They fail to load (0 assertion failures; 409/409 real tests pass). Surfaced when running full db test suite during A8c."
     },
     {
       "id": "A7-project-service",

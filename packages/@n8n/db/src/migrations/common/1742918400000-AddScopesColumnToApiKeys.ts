@@ -28,8 +28,10 @@ export class AddScopesColumnToApiKeys1742918400000 implements ReversibleMigratio
 
 		for (const { id, role } of apiKeysWithRoles) {
 			const dbRole = GLOBAL_ROLES[role];
+			// db Role.scopes are Scope entity objects; getApiKeyScopesForRole wants
+			// the scope slugs (the @n8n/permissions string-union Scope).
 			const scopes = getApiKeyScopesForRole({
-				role: dbRole,
+				role: { scopes: dbRole.scopes.map((scope) => scope.slug) },
 			});
 			await queryRunner.manager.update(ApiKey, { id }, { scopes });
 		}
