@@ -1,13 +1,16 @@
 {
-  "project": "n8n de-fork: fair-code rebuild + AI-native features",
-  "iron_law": "One task per iteration. Memory is files, not context. Evidence before flipping passes:true.",
+  "project": "n8n de-fork: fair-code clean-room rebuild + AI-native features",
+  "iron_law": "One task per iteration. Memory is files, not context. Evidence before flipping passes:true. NEVER read .ee source from git history/other branches/upstream — clean-room only.",
   "completion_promise": "DEFORK_LOOP_COMPLETE",
-  "iteration_cap": 200,
+  "iteration_cap": 400,
+  "policy": "User decision 2026-08-08: REBUILD EVERY enterprise subsystem fair-code (clean-room), do NOT drop. Clean sources only: the fair-code consumers that import the removed symbols, surviving fair-code tests, and public standards/specs (SAML, OIDC, LDAP, git). Log every rebuild in DEFORK_CHANGELOG.md with the clean-room source used.",
   "phases": {
-    "A": "Green build \u2014 clean-room fair-code replacements for purged .ee plumbing",
+    "A": "Green build — clean-room fair-code replacements for purged .ee plumbing",
+    "E": "Enterprise subsystem fair-code rebuilds in packages/cli (clean-room)",
     "B": "Re-add chosen feature modules (fair-code)",
-    "C": "AI-native innovations (INNOVATIONS.md) \u2014 on innovation/<slug> branches, after green build"
+    "C": "AI-native innovations (INNOVATIONS.md) — on innovation/<slug> branches, after green build"
   },
+  "verify_notes": "Most cli-side items share one gate: `pnpm --filter n8n build` (tsc). A per-item proxy: after rebuilding subsystem X, `grep -rnE \"<X-module>\\.ee\" packages/cli/src` (non-test) returns 0, and the cli tsc output no longer references X's files. The definitive gate is A10-cli-green.",
   "items": [
     {
       "id": "A0-guardrails",
@@ -22,7 +25,7 @@
       "title": "@n8n/permissions constants.ts + types.ts (scope catalog + scope types)",
       "passes": true,
       "verify": "pnpm --filter @n8n/permissions vitest run src/__tests__/scope-information.test.ts src/__tests__/types.test.ts",
-      "notes": "snapshot byte-exact; 46 resources/180 scopes"
+      "notes": "snapshot byte-exact; 46 resources/180 scopes. Later added barrel type AssignableProjectRole = Exclude<ProjectRole,'project:personalOwner'>."
     },
     {
       "id": "A2-perm-schemas",
@@ -60,69 +63,179 @@
       "verify": "pnpm --filter @n8n/permissions typecheck && pnpm --filter @n8n/permissions test"
     },
     {
-      "id": "A8b-exec-repo-annotations",
+      "id": "A8-db-green",
       "phase": "A",
-      "title": "Strip execution-annotations from @n8n/db execution.repository.ts (last db blocker)",
+      "title": "@n8n/db fully green: .ee entities/repos unwired, exec-repo annotations stripped, migration Scope fix, orphaned tests removed",
       "passes": true,
       "verify": "pnpm --filter @n8n/db build && pnpm --filter @n8n/db test",
-      "notes": "5 regions: imports, serializeAnnotation, findSingleExecution, softDeletePrunableExecutions subquery, toQueryBuilder(WithAnnotations)/reduceExecutionsWithAnnotations list flow. Keep raw-SQL column mapping correct; verify vs surviving execution.repository tests."
+      "notes": "Subsumes A8b/A8c/A8d. Result: 0 .ee refs in db src; build exit 0; 31 files / 409 tests pass."
     },
     {
-      "id": "A8c-migration-scope-divergence",
+      "id": "A-nodesbase-green",
       "phase": "A",
-      "title": "Fix Scope-type divergence in db migrations (Role.scopes: db Scope entity vs @n8n/permissions Scope)",
+      "title": "nodes-base builds: clean-room CannedMetricPrompts + deregister purged .ee Evaluation node classes",
       "passes": true,
-      "verify": "pnpm --filter @n8n/db build",
-      "notes": "Surfaced during A8b build. src/migrations/common/1742918400000-AddScopesColumnToApiKeys.ts(32): getApiKeyScopesForRole (public-api-permissions.ts) wants role: Pick<RoleObject,'scopes'> where scopes is @n8n/permissions string-union Scope[]; but GLOBAL_ROLES is Record<GlobalRole, db-entity Role> whose scopes are db entities/scope.ts Scope OBJECTS ({slug,displayName,description}). LIKELY FIX (verify): pass getApiKeyScopesForRole({ role: { scopes: dbRole.scopes.map(s => s.slug) } }). Clean-room, minimal. NOT part of A8b."
+      "verify": "pnpm --filter n8n-nodes-base build",
+      "notes": "Evaluation node CLASSES were .ee (deregistered from package.json). Full fair-code node rebuild tracked as B-eval-node."
     },
     {
-      "id": "A8d-orphaned-ee-tests",
-      "phase": "A",
-      "title": "Remove 10 orphaned .ee-importing test files in @n8n/db (agent-eval, evaluation, workflow-review-request)",
-      "passes": true,
-      "verify": "pnpm --filter @n8n/db test",
-      "notes": "These test files import purged .ee entities/repositories (e.g. entities/workflow-review-request.ee, agent-eval-run.repository.ee). No fair-code source survives for any of the 7 features -> tests are orphaned, delete. They fail to load (0 assertion failures; 409/409 real tests pass). Surfaced when running full db test suite during A8c."
+      "id": "E1-perm-check-access",
+      "phase": "E",
+      "title": "Rebuild permissions.ee/check-access + permissions.ee/project-scope.service (RBAC access layer, ~45 consumers)",
+      "passes": false,
+      "verify": "grep -rnE \"permissions\\.ee/(check-access|project-scope)\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0 after rename; then cli tsc has no check-access errors",
+      "notes": "MOST foundational cli item — do FIRST. Clean-room source: the 45 consumers' call sites (what functions/signatures they import & how they use them) + @n8n/permissions utilities (hasScope/hasGlobalScope/getResourcePermissions) + db repositories (SharedWorkflow/SharedCredentials/ProjectRelation). Rebuild the access checks (userHasScopes / project-scope guards) in a fair-code path (drop the .ee suffix). Do NOT read the purged .ee. Log source in DEFORK_CHANGELOG.md."
     },
     {
       "id": "A7-project-service",
-      "phase": "A",
-      "title": "ProjectService fair-code replacement (49 consumers) in packages/cli",
+      "phase": "E",
+      "title": "ProjectService fair-code rebuild (40 consumers) in packages/cli",
       "passes": false,
-      "verify": "pnpm --filter n8n-core-cli typecheck (scoped) or cli build"
+      "verify": "grep -rn \"project.service.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0; cli tsc: no ProjectService errors",
+      "notes": "Clean-room source: consumers of ProjectService + surviving project.service tests + ProjectRepository/ProjectRelationRepository (@n8n/db) + @n8n/permissions role maps. Rebuild as packages/cli/src/services/project.service.ts (no .ee). Covers personal + team projects, membership, role assignment. Depends on E1."
     },
     {
-      "id": "A8-db-entities-repos",
-      "phase": "A",
-      "title": "@n8n/db .ee entities/repositories replacements (or remove features that drop)",
+      "id": "E2-variables",
+      "phase": "E",
+      "title": "Rebuild environments/variables (variables.service + variables.controller), fair-code",
       "passes": false,
-      "verify": "pnpm --filter @n8n/db typecheck && pnpm --filter @n8n/db build"
+      "verify": "grep -rn \"environments.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + Variables entity/repository (@n8n/db) + surviving variables tests. Move out of environments.ee/ to a fair-code path."
     },
     {
-      "id": "A9-core-service-halves",
-      "phase": "A",
-      "title": "workflow/credentials/execution/worker-status/multi-main service .ee halves",
-      "passes": false
+      "id": "E3-source-control",
+      "phase": "E",
+      "title": "Rebuild source-control (git) subsystem fair-code: preferences.service, source-control.service, helpers, types",
+      "passes": false,
+      "verify": "grep -rn \"source-control.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + public git/isomorphic-git usage + surviving source-control tests. This is a large subsystem; consider decomposing into further items if one iteration is too big."
+    },
+    {
+      "id": "E4-sso-core",
+      "phase": "E",
+      "title": "Rebuild sso.ee/sso-helpers (shared SSO helpers) fair-code",
+      "passes": false,
+      "verify": "grep -rn \"sso.ee/sso-helpers\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + AuthIdentity entity + public SSO concepts. Foundation for E5/E6."
+    },
+    {
+      "id": "E5-saml",
+      "phase": "E",
+      "title": "Rebuild modules/sso-saml (saml.service, saml.controller, service-provider) fair-code",
+      "passes": false,
+      "verify": "grep -rn \"sso-saml/.*\\.ee\\|service-provider.ee\\|saml.service.ee\\|saml.controller.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + the SAML 2.0 spec + a fair-code SAML lib (e.g. samlify / @node-saml) + surviving saml tests. Depends on E4."
+    },
+    {
+      "id": "E6-oidc",
+      "phase": "E",
+      "title": "Rebuild modules/sso-oidc (oidc.service, oidc.controller) fair-code",
+      "passes": false,
+      "verify": "grep -rn \"oidc.service.ee\\|oidc.controller.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + OpenID Connect spec + fair-code OIDC lib (openid-client) + surviving oidc tests. Depends on E4."
+    },
+    {
+      "id": "E7-ldap",
+      "phase": "E",
+      "title": "Rebuild modules/ldap.ee (ldap.service, helpers, errors) fair-code",
+      "passes": false,
+      "verify": "grep -rn \"ldap.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + LDAP protocol + fair-code lib (ldapts) + surviving ldap tests."
+    },
+    {
+      "id": "E8-external-secrets",
+      "phase": "E",
+      "title": "Rebuild external-secrets (secret-provider-access-check.service + external-secrets.config) fair-code",
+      "passes": false,
+      "verify": "grep -rn \"external-secrets.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + provider SDK docs (Vault/AWS/GCP/Azure) + surviving external-secrets tests."
+    },
+    {
+      "id": "E9-log-streaming",
+      "phase": "E",
+      "title": "Rebuild log-streaming.ee (event-destination.repository, entities, service, destination factory) fair-code",
+      "passes": false,
+      "verify": "grep -rn \"log-streaming.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + eventbus destination interfaces + surviving log-streaming tests. Note: repository/entities may need @n8n/db-side work first."
+    },
+    {
+      "id": "E10-multi-main",
+      "phase": "E",
+      "title": "Rebuild scaling worker-status.service + multi-main-setup fair-code",
+      "passes": false,
+      "verify": "grep -rnE \"worker-status.service.ee\\|multi-main-setup.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + Redis pub/sub scaling design + surviving scaling tests."
+    },
+    {
+      "id": "E11-provisioning",
+      "phase": "E",
+      "title": "Rebuild modules/provisioning.ee (provisioning.service + constants) fair-code",
+      "passes": false,
+      "verify": "grep -rn \"provisioning.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers (users.controller, project.controller) + surviving provisioning tests."
+    },
+    {
+      "id": "E12-dynamic-credentials",
+      "phase": "E",
+      "title": "Rebuild modules/dynamic-credentials.ee/services/shared-fields fair-code",
+      "passes": false,
+      "verify": "grep -rn \"dynamic-credentials.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + credentials sharing model."
+    },
+    {
+      "id": "E13-evaluation-backend",
+      "phase": "E",
+      "title": "Rebuild evaluation.ee backend (concurrency helper, llm-judge-provider-registry, test-runner services, evaluation-config service) fair-code",
+      "passes": false,
+      "verify": "grep -rn \"evaluation.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + surviving evaluation tests + the fair-code Evaluation node helpers (nodes-base). Coordinate with B-eval-node."
+    },
+    {
+      "id": "E14-workflow-service-ee",
+      "phase": "E",
+      "title": "Rebuild workflows/workflow.service.ee (EnterpriseWorkflowService) fair-code",
+      "passes": false,
+      "verify": "grep -rn \"workflow.service.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + surviving workflow.service tests + SharedWorkflow repo. Merge the .ee 'half' into the fair-code WorkflowService or a fair-code extension."
+    },
+    {
+      "id": "E15-credentials-service-ee",
+      "phase": "E",
+      "title": "Rebuild credentials/credentials.service.ee fair-code",
+      "passes": false,
+      "verify": "grep -rn \"credentials.service.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + surviving credentials.service tests + SharedCredentials repo."
+    },
+    {
+      "id": "E16-execution-service-ee",
+      "phase": "E",
+      "title": "Rebuild executions/execution.service.ee fair-code",
+      "passes": false,
+      "verify": "grep -rn \"execution.service.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
+      "notes": "Clean-room: consumers + surviving execution.service tests + execution.repository (@n8n/db)."
     },
     {
       "id": "A10-cli-green",
       "phase": "A",
-      "title": "packages/cli typechecks & builds (all consumers rewired)",
+      "title": "packages/cli typechecks & builds (all .ee consumers rewired to fair-code)",
       "passes": false,
-      "verify": "pnpm --filter n8n build"
+      "verify": "pnpm --filter n8n build",
+      "notes": "Gate for the whole E phase. Also sweep cli test files that import purged .ee (delete or repoint like A8d)."
     },
     {
       "id": "A11-frontend-green",
       "phase": "A",
-      "title": "editor-ui + frontend packages build (253 .ee.vue consumers rewired)",
+      "title": "editor-ui + frontend packages build (.ee.vue / .ee.ts consumers rewired)",
       "passes": false,
-      "verify": "pnpm --filter n8n-editor-ui build"
+      "verify": "pnpm --filter n8n-editor-ui build",
+      "notes": "Independent frontier from cli. First get the exact vite error (pnpm --filter n8n-editor-ui build 2>&1 | tail -40), then enumerate frontend .ee imports and rebuild/rewire fair-code."
     },
     {
       "id": "A12-app-smoke",
       "phase": "A",
-      "title": "Full build green + app boots (init.sh full smoke)",
+      "title": "Full build green + app boots (expand init.sh to full smoke)",
       "passes": false,
-      "verify": "pnpm build && node smoke"
+      "verify": "pnpm build && (node packages/cli/bin/n8n --version || <boot smoke>)"
     },
     {
       "id": "A13-ungate-faircode-features",
@@ -133,10 +246,9 @@
     {
       "id": "B-eval-node",
       "phase": "B",
-      "title": "Rebuild or drop the Evaluation node (fair-code) — node classes were .ee",
+      "title": "Rebuild the Evaluation node classes (fair-code) — classes were .ee",
       "passes": false,
-      "decision_needed": true,
-      "notes": "The Evaluation node CLASSES were .ee and purged (Evaluation.node.ee.ts, EvaluationTrigger.node.ee.ts). For Phase A green-build we DEREGISTERED them (removed the 2 package.json node entries) so generate-metadata stops loading missing modules. Substantial fair-code SURVIVES and still compiles (dead until rewired): nodes/Evaluation/{Evaluation/Description.node.ts, methods/*, utils/{metricHandlers,evaluationUtils,evaluationTriggerUtils}.ts} + CannedMetricPrompts.ts (clean-room rebuilt in A). 3 orphaned tests import the purged .node.ee (Evaluation.node.test.ts, EvaluationTrigger.node.test.ts) — spec material for a rebuild. DECISION: rebuild the 2 node classes clean-room from the surviving helpers + tests, OR drop the node entirely (delete nodes/Evaluation). Good delegation candidate if rebuilding."
+      "notes": "Node CLASSES were .ee and purged (Evaluation.node.ee.ts, EvaluationTrigger.node.ee.ts); deregistered from package.json in A-nodesbase-green. Rebuild the 2 node classes clean-room from surviving helpers (nodes/Evaluation/{Evaluation/Description.node.ts, methods/*, utils/*, Evaluation/CannedMetricPrompts.ts}) + the 3 orphaned .node.ee tests (spec). Re-register in package.json. Per user policy, rebuild (do not drop)."
     },
     {
       "id": "C1-ai-provider-byo",
