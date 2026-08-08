@@ -90,3 +90,34 @@ and the toQueryBuilder/toQueryBuilderWithAnnotations/reduceExecutionsWithAnnotat
 list flow). Verify with the surviving execution.repository tests + `pnpm --filter
 @n8n/db build`. THEN item **A7** ProjectService (49 consumers) and the rest of cli
 (worklist: scratchpad/dangling_files.txt — 73 source files).
+
+## 2026-08-08 — A8b done (execution.repository annotations stripped)
+
+**WHAT.** Removed every execution-annotation code path from
+`@n8n/db/src/repositories/execution.repository.ts` (clean-room — the feature was
+`.ee` and purged): the 3 annotation entity imports + `AnnotationVote` + lodash
+`pick`; `serializeAnnotation`; `includeAnnotation` from all 4 `findSingleExecution`
+overloads + impl + `findIfShared`; the annotation exclusion subquery in
+`softDeletePrunableExecutions` (both usages); and the raw-SQL WithAnnotations list
+flow (`annotationFields`, `reduceExecutionsWithAnnotations`,
+`toQueryBuilderWithAnnotations`, the `vote`/`annotationTags` join in
+`toQueryBuilder`). `findManyByRangeQuery` now uses the plain `toQueryBuilder(query)
+.getRawMany()` → `toSummary` path (no annotation left-joins → no duplicate rows to
+reduce). Delegated the edit to an n8n:developer subagent; VERIFIED INDEPENDENTLY
+(fresh build + tests, not the delegate's claim): 0 `execution.repository.ts`
+errors, 29/29 unit tests pass.
+
+**WHY / GOTCHAS.**
+- The surviving `execution.repository.test.ts` has ZERO annotation refs, so it
+  neither blocked removal nor covers these methods — evidence bar for A8b was
+  "file typechecks + package builds + existing tests pass", which all hold.
+- `annotationTags`/`vote` still exist on the `ExecutionSummaries.Query` type in
+  `entities/types-db.ts` (unused-but-harmless); left in scope-tight, clean later.
+- `@n8n/db` build is NOT yet fully green: one remaining error surfaced —
+  new item **A8c** (migration Scope-type divergence), see below.
+
+**NEXT.** Item **A8c** — `1742918400000-AddScopesColumnToApiKeys.ts(32)`:
+`getApiKeyScopesForRole` wants `{scopes: permissions string-union Scope[]}` but
+`GLOBAL_ROLES[role]` is a db-entity `Role` whose `scopes` are db `Scope` OBJECTS.
+Likely fix: `getApiKeyScopesForRole({ role: { scopes: dbRole.scopes.map(s => s.slug) } })`.
+That should make `pnpm --filter @n8n/db build` fully green, then item **A7**.
