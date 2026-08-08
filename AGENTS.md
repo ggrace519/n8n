@@ -8,6 +8,28 @@ n8n is a workflow automation platform written in TypeScript, using a monorepo
 structure managed by pnpm workspaces. It consists of a Node.js backend, Vue.js
 frontend, and extensible node-based workflow engine.
 
+## Fork policy: no Enterprise (`.ee`) code — clean-room only
+
+This is a de-enterprised fork. **All Enterprise-licensed code (`.ee.` in a
+filename or `.ee` in a dirname, covered by `LICENSE_EE.md`) has been removed from
+the working tree and from all git history.** Replacements are built fair-code,
+clean-room. To keep it that way:
+
+- **Never reintroduce a `.ee` file, directory, or import.** The
+  `n8n-local-rules/no-import-enterprise-edition` ESLint rule fails CI on any
+  `.ee` import/re-export/dynamic-import.
+- **Never port licensed code back.** Do not `git show`/recover `.ee` blobs from
+  history, other branches, upstream `n8n-io/n8n`, or any copy — reading it to
+  write a replacement makes the replacement a derivative work still bound by
+  `LICENSE_EE.md`.
+- **Build replacements only from clean sources:** the fair-code *consumers* (the
+  files that import the removed symbols), public standards/specs (SAML, OIDC,
+  LDAP, git), and this repo's own fair-code.
+- **Log every change** in `DEFORK_CHANGELOG.md`, noting the clean-room source
+  used, so provenance stays auditable.
+- Do **not** merge or cherry-pick from upstream `n8n-io/n8n` without stripping
+  `.ee` paths first.
+
 ## General Guidelines
 
 - Always use pnpm

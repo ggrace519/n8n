@@ -5,55 +5,79 @@ const ruleTester = new RuleTester();
 
 ruleTester.run('no-import-enterprise-edition', NoImportEnterpriseEditionRule, {
 	valid: [
+		// Regular imports
 		{
-			// Non-enterprise code importing from non-enterprise directories
 			code: 'import { SomeService } from "./services/some-service"',
 			filename: '/Users/test/project/src/services/regular-service.ts',
-		},
-		{
-			code: 'import { Utils } from "../utils/helper"',
-			filename: '/Users/test/project/src/controllers/controller.ts',
 		},
 		{
 			code: 'import { Config } from "@n8n/config"',
 			filename: '/Users/test/project/src/services/service.ts',
 		},
-
-		// enterprise code importing from ee directories
+		// Re-exports of non-ee modules
 		{
-			code: 'import { EnterpriseService } from "../environments.ee/services/enterprise-service"',
-			filename: '/Users/test/project/src/environments.ee/controllers/enterprise-controller.ts',
-		},
-
-		// enterprise code importing from non-enterprise directories
-		{
-			code: 'import { RegularService } from "../services/regular-service"',
-			filename: '/Users/test/project/src/environments.ee/controllers/enterprise-controller.ts',
+			code: 'export { helper } from "./utils/helper"',
+			filename: '/Users/test/project/src/index.ts',
 		},
 		{
-			code: 'import { Config } from "@n8n/config"',
-			filename: '/Users/test/project/src/environments.ee/services/service.ts',
+			code: 'export * from "./utils/helper"',
+			filename: '/Users/test/project/src/index.ts',
 		},
-
-		// integration test files can import from .ee directories
+		// Dynamic import of a non-ee module
 		{
-			code: 'import { EnterpriseService } from "../environments.ee/services/enterprise-service"',
-			filename:
-				'/Users/test/project/packages/cli/test/integration/services/enterprise.integration.test.ts',
+			code: 'const m = import("./services/some-service")',
+			filename: '/Users/test/project/src/index.ts',
+		},
+		// ".ee" substring that is NOT an .ee reference (no `.`, `/`, or end after `.ee`)
+		{
+			code: 'import { list } from "./employee/list"',
+			filename: '/Users/test/project/src/index.ts',
 		},
 	],
 	invalid: [
+		// .ee directory segment
 		{
 			code: 'import { something } from "@n8n/package/environments.ee/file"',
 			filename: '/Users/test/project/src/index.ts',
 			errors: [{ messageId: 'noImportEnterpriseEdition' }],
 		},
 		{
-			code: `
-                import { RegularService } from "./regular-service";
-                import { EnterpriseService } from "environments.ee/enterprise-service";
-            `,
+			code: 'import { EnterpriseService } from "environments.ee/enterprise-service"',
 			filename: '/Users/test/project/src/services/service.ts',
+			errors: [{ messageId: 'noImportEnterpriseEdition' }],
+		},
+		// .ee. filename infix
+		{
+			code: 'import { WorkflowService } from "./workflow.service.ee"',
+			filename: '/Users/test/project/src/workflows/workflows.controller.ts',
+			errors: [{ messageId: 'noImportEnterpriseEdition' }],
+		},
+		{
+			code: 'import x from "./component.ee.vue"',
+			filename: '/Users/test/project/src/App.vue',
+			errors: [{ messageId: 'noImportEnterpriseEdition' }],
+		},
+		// bare .ee suffix (package name)
+		{
+			code: 'import { X } from "@n8n/ai-workflow-builder.ee"',
+			filename: '/Users/test/project/src/index.ts',
+			errors: [{ messageId: 'noImportEnterpriseEdition' }],
+		},
+		// re-export from an .ee module
+		{
+			code: 'export { hasScope } from "./utilities/has-scope.ee"',
+			filename: '/Users/test/project/packages/@n8n/permissions/src/index.ts',
+			errors: [{ messageId: 'noImportEnterpriseEdition' }],
+		},
+		{
+			code: 'export * from "./types.ee"',
+			filename: '/Users/test/project/packages/@n8n/permissions/src/index.ts',
+			errors: [{ messageId: 'noImportEnterpriseEdition' }],
+		},
+		// dynamic import of an .ee module
+		{
+			code: 'const m = import("./source-control.ee/source-control.service.ee")',
+			filename: '/Users/test/project/src/index.ts',
 			errors: [{ messageId: 'noImportEnterpriseEdition' }],
 		},
 	],
