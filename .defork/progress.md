@@ -148,3 +148,43 @@ That should make `pnpm --filter @n8n/db build` fully green, then item **A7**.
 **NEXT.** `@n8n/db` is now fully green. Item **A7** — ProjectService fair-code
 replacement in `packages/cli` (`project.service.ee.ts` purged; 49 consumers).
 Recover the contract from consumers + surviving `project.service` tests, clean-room.
+
+## 2026-08-08 — Build frontier reached cli+editor-ui; cli enterprise surface mapped
+
+**WHAT.** Cleared all upstream build blockers so `pnpm build` now reaches the top
+of the graph (65/67 tasks). Fixes committed:
+- `@n8n/permissions`: added missing barrel type `AssignableProjectRole =
+  Exclude<ProjectRole,'project:personalOwner'>` (compiler-named gap).
+- `@n8n/backend-test-utils`: cast project-relation role slug at the test-util
+  boundary.
+- nodes-base Evaluation: clean-room `CannedMetricPrompts.ts` (correctness +
+  helpfulness LLM-judge default prompts) + deregistered the 2 purged `.ee`
+  Evaluation node classes from package.json (metadata gen was loading missing
+  modules). Node rebuild-or-drop = Phase B item **B-eval-node**.
+
+Remaining build failures: **n8n-editor-ui** (vite error, A11) and **cli**
+(unbuilt — dist empty; turbo aborted after editor-ui failed).
+
+**KEY: cli enterprise surface (the core of the de-fork).** cli non-test src still
+imports **47 distinct purged `.ee` modules**. Top consumers:
+`permissions.ee/check-access` (41), `project.service.ee` (40),
+`variables.service.ee` (12), `source-control.ee` (12), `sso.ee/sso-helpers` (12),
+`external-secrets.ee` (12), `workflow.service.ee` (5), `provisioning.ee` (5),
+`worker-status`+`multi-main-setup` (8), `permissions.ee/project-scope.service`
+(4), `evaluation.ee` (4), plus oidc/saml/ldap/log-streaming/dynamic-credentials/
+credentials.service.ee (1-2 each). Full list: run the grep in this session or
+`grep -rhoE "\.ee[^'\"]*" packages/cli/src | ...`.
+
+**STRATEGY (pending user decision on keep/drop per enterprise subsystem).**
+- Unambiguous keep+rebuild fair-code (community-core, ~81 consumers):
+  `permissions.ee/check-access` + `permissions.ee/project-scope.service`, and
+  `project.service.ee` (A7). Do these regardless of policy.
+- The rest (SSO/SAML/OIDC/LDAP, source-control, external-secrets, log-streaming,
+  multi-main scaling, provisioning, variables/environments, evaluation) are
+  keep-fair-code-vs-drop product decisions — ASKED USER for the Phase-A policy
+  before grinding (avoid rebuilding a subsystem the fork intends to drop).
+- Per-subsystem Phase-A options: (a) clean-room fair-code rebuild, (b) fair-code
+  graceful no-op/stub, (c) remove feature + unwire consumers.
+
+**NEXT.** Await keep/drop policy; meanwhile the two RBAC/permissions helpers and
+ProjectService are safe to rebuild. editor-ui (A11) is an independent frontier.
