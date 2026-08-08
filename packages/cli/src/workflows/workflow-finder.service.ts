@@ -5,7 +5,7 @@ import { hasGlobalScope, type Scope } from '@n8n/permissions';
 import type { EntityManager, FindOptionsWhere } from '@n8n/typeorm';
 import { In, IsNull } from '@n8n/typeorm';
 
-import { userHasScopes } from '@/permissions.ee/check-access';
+import { userHasScopes } from '@/permissions/check-access';
 import { RoleService } from '@/services/role.service';
 
 export type FindWorkflowsForUserOptions = {

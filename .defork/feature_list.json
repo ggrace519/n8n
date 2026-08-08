@@ -82,7 +82,7 @@
       "id": "E1-perm-check-access",
       "phase": "E",
       "title": "Rebuild permissions.ee/check-access + permissions.ee/project-scope.service (RBAC access layer, ~45 consumers)",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rnE \"permissions\\.ee/(check-access|project-scope)\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0 after rename; then cli tsc has no check-access errors",
       "notes": "MOST foundational cli item — do FIRST. Clean-room source: the 45 consumers' call sites (what functions/signatures they import & how they use them) + @n8n/permissions utilities (hasScope/hasGlobalScope/getResourcePermissions) + db repositories (SharedWorkflow/SharedCredentials/ProjectRelation). Rebuild the access checks (userHasScopes / project-scope guards) in a fair-code path (drop the .ee suffix). Do NOT read the purged .ee. Log source in DEFORK_CHANGELOG.md."
     },

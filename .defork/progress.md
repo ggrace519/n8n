@@ -188,3 +188,41 @@ credentials.service.ee (1-2 each). Full list: run the grep in this session or
 
 **NEXT.** Await keep/drop policy; meanwhile the two RBAC/permissions helpers and
 ProjectService are safe to rebuild. editor-ui (A11) is an independent frontier.
+
+## 2026-08-08 — E1 done (check-access + ProjectScopeService rebuilt fair-code)
+
+**WHAT.**
+- Smoke first: fresh `pnpm install` left `@n8n/db` unbuildable — tsgo 7.0.2
+  fails contextual typing of a `find()` callback through an optional chain in
+  `1784000000034-AllowAzureStoredAt.ts`; fixed with an explicit `TableCheck`
+  annotation (commit 7a704a7d70). SMOKE OK after.
+- **E1**: rebuilt the RBAC access layer clean-room as
+  `packages/cli/src/permissions/{check-access.ts,project-scope.service.ts}`:
+  `userHasScopes(user, scopes, globalOnly, ctx, trx?)` (global allOf →
+  project-role resolution via RoleService.rolesWithScope +
+  ProjectRelationRepository.getAccessibleProjectsByRoles → per-resource checks;
+  workflow/credential require sharing-role AND project-role on the SAME
+  relation row, mirroring workflow-finder's buildSingleWorkflowReadWhere;
+  NotFoundError for missing resources → middleware 404) and
+  `ProjectScopeService.getProjectIds → string[] | null` (null = global/no
+  filter, pinned by agent-mcp-access consumers). Rewired all 41 consumer files
+  (sed, incl. test vi.mocks). Added optional `trx` to
+  `getAccessibleProjectsByRoles` (@n8n/db).
+- Multi-provider loop: codex read-only review caught a REAL BLOCKER —
+  `workflow-creation.service.ts:319` passes a 5th `transactionManager` arg my
+  symbol-grep verification missed (TS2554 error text doesn't contain the symbol
+  name — lesson: grep tsc logs by FILE:LINE, not symbol). Fixed by threading
+  `trx?: EntityManager` through. Also per codex: added 22 unit tests
+  (src/permissions/__tests__/). grok failed twice (plan-mode returns preamble
+  only, no review) — dropped per delegation rule 5.
+
+**VERIFIED.** repo-wide `permissions.ee` = 0; cli tsc 0 errors in
+src/permissions + at call sites (1046→1045, delta exactly the fixed arity
+error); tests: 22/22 new, 409/409 @n8n/db, 107/107 rewired consumers.
+
+**NEXT.** Item **A7-project-service** — ProjectService fair-code rebuild
+(40 consumers import `@/services/project.service.ee`). Same recipe: map
+contract from consumers + surviving project.service tests; watch for the
+user.service.test reference to `projectService.getProjectIdsWithScope`.
+Note: `workflow-creation.service.test.ts` also imports project.service.ee +
+workflow.service.ee — it becomes loadable only after A7+E14.

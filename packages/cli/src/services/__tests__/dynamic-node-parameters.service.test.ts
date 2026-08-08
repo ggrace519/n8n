@@ -31,7 +31,7 @@ import { CredentialsFinderService } from '@/credentials/credentials-finder.servi
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NodeTypes } from '@/node-types';
-import * as checkAccess from '@/permissions.ee/check-access';
+import * as checkAccess from '@/permissions/check-access';
 
 describe('DynamicNodeParametersService', () => {
 	const logger = mockInstance(Logger);

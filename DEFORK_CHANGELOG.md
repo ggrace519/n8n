@@ -159,3 +159,37 @@ has the execution-annotations feature woven into its core list flow
 `reduceExecutionsWithAnnotations`, plus a prune-exclusion subquery and
 `findSingleExecution` handling). Strip it carefully and verify against the
 surviving execution.repository tests — the raw-SQL column mapping must stay correct.
+
+### 2026-08-08 — E1: RBAC access layer rebuilt fair-code (`check-access` + `ProjectScopeService`)
+
+**Added (clean-room rebuild of purged `permissions.ee` cli modules)**
+- `packages/cli/src/permissions/check-access.ts` — `userHasScopes(user, scopes,
+  globalOnly, {credentialId?|workflowId?|projectId?|dataTableId?}, trx?)`.
+  Global pass requires the user's global role to hold **all** scopes
+  (`hasGlobalScope(..., {mode:'allOf'})`); otherwise resolves the projects where
+  the user's project role grants all scopes and checks the resource against
+  them. Workflows/credentials additionally require a sufficient sharing role on
+  the same resource↔project relation. Throws `NotFoundError` for nonexistent
+  resources (callers answer 404 vs 403) and `UnexpectedError` when no resource
+  id is in context.
+- `packages/cli/src/permissions/project-scope.service.ts` —
+  `ProjectScopeService.getProjectIds(user, scopes): string[] | null`
+  (`null` = global access, callers treat as unfiltered).
+- Unit tests: `src/permissions/__tests__/` (22 tests: allOf semantics, same-row
+  sharing/project correlation, cross-row denial, 404-vs-403, trx threading,
+  extra-param tolerance).
+- `@n8n/db` `ProjectRelationRepository.getAccessibleProjectsByRoles` gained an
+  optional `trx?: EntityManager` (transactional callers, e.g. workflow creation).
+
+**Clean-room sources:** consumer call sites (41 files: `controller.registry.ts`,
+`public-api` middlewares/registry, `workflow-finder.service.ts`
+`buildSingleWorkflowReadWhere` for the sharing-role AND project-role pattern,
+`agent-mcp-access.service.ts` for the `null` contract), surviving consumer test
+mocks, `@n8n/permissions` utilities, `@n8n/db` repositories. No `.ee` source read.
+
+**Verification:** repo-wide `permissions.ee` refs = 0; cli tsc has 0 errors in
+`src/permissions/` and 0 at rewired call sites (error count 1046→1045, delta is
+exactly the fixed call-site arity); 22/22 new unit tests, 409/409 `@n8n/db`
+tests, 107/107 rewired-consumer unit tests pass. Independent codex (OpenAI)
+review of the diff: blocker (missing trx param) found and fixed; test-coverage
+findings addressed.

@@ -1,6 +1,7 @@
 import { Service } from '@n8n/di';
 import { PROJECT_OWNER_ROLE_SLUG, type ProjectRole } from '@n8n/permissions';
 import { DataSource, In, Repository } from '@n8n/typeorm';
+import type { EntityManager } from '@n8n/typeorm';
 
 import { ProjectRelation } from '../entities';
 
@@ -35,8 +36,9 @@ export class ProjectRelationRepository extends Repository<ProjectRelation> {
 		return projectRelations.map((pr) => pr.projectId);
 	}
 
-	async getAccessibleProjectsByRoles(userId: string, roles: string[]) {
-		const projectRelations = await this.find({
+	async getAccessibleProjectsByRoles(userId: string, roles: string[], trx?: EntityManager) {
+		const em = trx ?? this.manager;
+		const projectRelations = await em.find(ProjectRelation, {
 			where: { userId, role: { slug: In(roles) } },
 		});
 

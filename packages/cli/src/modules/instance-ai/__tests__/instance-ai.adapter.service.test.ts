@@ -1214,7 +1214,7 @@ function connect(from: string, to: string): IConnections {
 // createDataTableAdapter – access control
 // ---------------------------------------------------------------------------
 
-vi.mock('@/permissions.ee/check-access', () => ({
+vi.mock('@/permissions/check-access', () => ({
 	userHasScopes: vi.fn(),
 }));
 
@@ -1245,7 +1245,7 @@ import type { InstanceAiBuilderDelegate } from '@n8n/instance-ai';
 
 import { InstanceAiAdapterService } from '../instance-ai.adapter.service';
 import { InstanceAiBuilderDelegateAdapterService } from '@/modules/agents/instance-ai-builder-delegate.adapter';
-import { userHasScopes } from '@/permissions.ee/check-access';
+import { userHasScopes } from '@/permissions/check-access';
 
 const mockedUserHasScopes = vi.mocked(userHasScopes);
 

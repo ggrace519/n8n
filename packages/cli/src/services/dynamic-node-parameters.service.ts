@@ -33,7 +33,7 @@ import { CredentialsFinderService } from '@/credentials/credentials-finder.servi
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NodeTypes } from '@/node-types';
-import { userHasScopes } from '@/permissions.ee/check-access';
+import { userHasScopes } from '@/permissions/check-access';
 import { withExpressionIsolate } from '@/utils';
 
 import { WorkflowLoaderService } from './workflow-loader.service';
