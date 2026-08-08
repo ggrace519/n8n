@@ -8,7 +8,7 @@ import {
 	PROJECT_CHAT_USER_ROLE_SLUG,
 } from './constants';
 import { ALL_SCOPES } from './scope-information';
-import type { Scope } from './types';
+import type { RoleObject, Scope } from './types';
 
 /** The namespace a role belongs to. */
 export const roleNamespaceSchema = z.enum([
@@ -96,7 +96,11 @@ export const roleSchema = z.union([
 	secretsProviderConnectionSharingRoleSchema,
 ]);
 
-export type Role = z.infer<typeof roleSchema>;
+/** A fully-described role DTO: slug plus display metadata and granted scopes. */
+export type Role = RoleObject;
+
+/** A validated role slug (any built-in or custom role). */
+export type RoleSlug = z.infer<typeof roleSchema>;
 
 /** Validates a fully-qualified scope string against the known catalog. */
 export const scopeSchema = z.enum(ALL_SCOPES as [Scope, ...Scope[]]);

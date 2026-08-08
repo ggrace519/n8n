@@ -27,3 +27,4 @@ export { getRoleScopes, getAuthPrincipalScopes } from './utilities/get-role-scop
 export { getResourcePermissions } from './utilities/get-resource-permissions';
 export type { PermissionsRecord } from './utilities/get-resource-permissions';
 export * from './public-api-permissions';
+export * from './settings';
