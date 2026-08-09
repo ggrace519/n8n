@@ -5,7 +5,7 @@ import { Container } from '@n8n/di';
 
 import { FeatureNotLicensedError } from '@/errors/feature-not-licensed.error';
 import { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
-import { LogStreamingDestinationService } from '@/modules/log-streaming.ee/log-streaming-destination.service';
+import { LogStreamingDestinationService } from '@/modules/log-streaming/log-streaming-destination.service';
 import { Publisher } from '@/scaling/pubsub/publisher.service';
 import { createOwnerWithApiKey } from '@test-integration/db/users';
 import { setupTestServer } from '@test-integration/utils';

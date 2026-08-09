@@ -875,3 +875,158 @@ tmpdirs) and `__tests__/source-control.service.push-selection.test.ts` 4/4
 cli `tsc -p tsconfig.build.json` — 0 errors mentioning source-control;
 `eslint src/modules/source-control src/public-api/v1/handlers/source-control
 --quiet` exit 0, no rule disables.
+
+## 2026-08-09 — E9: log-streaming module (`packages/cli`)
+
+Rebuilt the purged log-streaming module fair-code at
+`packages/cli/src/modules/log-streaming/` (no `.ee` path):
+
+- `log-streaming.module.ts` — `@BackendModule({ name: 'log-streaming',
+  licenseFlag: 'feat:logStreaming' })`; registers the `EventDestinations`
+  entity via `entities()` (collected before license gating), initializes the
+  destination service + controller on `init()`, closes destinations on
+  shutdown.
+- `database/entities/index.ts` — `EventDestinations` (`id` uuid PK,
+  `destination` JSON via `JsonColumn`, `WithTimestamps`), mapping onto the
+  pre-existing `event_destinations` table created by the surviving
+  fair-code migrations in `@n8n/db` (no migration changes).
+- `database/repositories/event-destination.repository.ts` —
+  `EventDestinationsRepository` extending `BaseRepository` with use-case
+  methods (`getAll`, `saveDestination` upsert, `deleteById`); TypeORM stays
+  inside the module `database/` dir.
+- `log-streaming-destination.service.ts` — owns the destination registry.
+  **Open-area decisions:** a single service-owned `"message"` listener fans
+  out to enabled+subscribed destinations; each successful delivery confirms
+  the message under the destination's identity; zero applicable destinations
+  confirm as `{ id: '0', name: 'eventBus' }` (mirrors the bus's no-listener
+  behavior); all-failed leaves the message unconfirmed for the bus retry
+  loop. `removeDestination(id, persist = true)`: always closes/unregisters,
+  skips the DB delete when `persist === false` (the only surviving caller of
+  the boolean is test teardown).
+- `create-message-event-bus-destination.ts` — factory dispatching on the
+  three `__type` discriminators via type predicates; unknown type throws
+  `UserError`.
+- `destinations/` — abstract base (segment-aware event filtering incl. `*`
+  wildcard, contained delivery errors logged verbatim, audit-payload
+  anonymization) plus webhook (via `OutboundHttp.requests()`; keypair/JSON
+  headers+query, generic httpHeaderAuth/httpBasicAuth credential resolution
+  through `CredentialsRepository` + n8n-core `Credentials`), syslog
+  (`@n8n/syslog-client`; udp/tcp/tls, `tlsCa` → `tlsCA`), and sentry
+  (raw envelope POST to the DSN's ingestion endpoint through `OutboundHttp`
+  instead of the global Sentry SDK, keeping instance error reporting
+  untouched). Circuit-breaker options are persisted/serialized but have no
+  runtime behavior (nothing surviving pins one).
+- `log-streaming.controller.ts` — `/eventbus/destination` GET/POST/DELETE +
+  `/eventbus/testmessage`, `@Licensed('feat:logStreaming')` +
+  `@GlobalScope('logStreaming:manage')`; POST validated by
+  `CreateDestinationDto`; env-managed mode returns 403 for mutations
+  (public API keeps its 409).
+
+Rewires (path repointing only, assertions untouched): public-api handler,
+instance-settings loader + its two tests, `test-server.ts` `eventBus` group,
+the four integration specs, and `e2e.controller.ts` (missed by ripgrep-style
+tools — the file trips binary detection; found via `tsc`). Removed the stale
+`log-streaming.ee` eslint ratchet entry (the new service imports no TypeORM).
+
+Also hardened `public-api/index.ts` operation-handler resolution: a handler
+module that fails to import now 500s only its own routes instead of poisoning
+the whole v1 router (the not-yet-rebuilt sso-oidc/sso-saml services were
+blocking every public API route, including this epic's acceptance suite).
+
+**Clean-room sources:** the E9 contract inventory (`.defork/e9-contract.md`),
+the surviving fair-code specs (eventbus, log-streaming controller, syslog-tls,
+loader unit+integration, public-api log-streaming, Playwright delivery spec),
+the fair-code option schemas/defaults in `packages/workflow/src/message-event-bus.ts`,
+`@n8n/syslog-client`, and this repo's own fair-code consumers. No enterprise
+source or history was consulted.
+
+**Verification:** integration 68/68 (eventbus 6, controller 12, syslog-tls 2,
+loader roundtrip 4, public-api log-streaming 44); loader unit 20/20;
+`grep -rn "log-streaming.ee" src test` → 0; cli `tsc -p tsconfig.build.json`
+110 errors before and after, none mentioning log-streaming (12 missing-module
+errors resolved); `eslint src/modules/log-streaming
+src/public-api/v1/handlers/log-streaming --quiet` exit 0, no rule disables;
+sqlite migrations suite 214 passed / 1 skipped; public-api tags.test.ts now
+runs: 23/24 (1 pre-existing RBAC failure unrelated to log-streaming).
+
+## 2026-08-09 — E9 hardening: log-streaming review findings
+
+Follow-up hardening of the rebuilt log-streaming module after an adversarial
+review (`packages/cli/src/modules/log-streaming/`, public-api handler, and the
+public-api operation-handler resolver). All surviving specs unchanged.
+
+**Fixed**
+
+- **Credential binding authorization (internal controller):** a webhook
+  destination's credential reference is now validated at create/update time
+  (`validate-destination-credentials.ts`): the requesting user must be able to
+  read the credential (`CredentialsFinderService.findCredentialForUser` with
+  `credential:read`), the stored credential type must match the configured
+  generic auth type, only `httpHeaderAuth`/`httpBasicAuth` are accepted, and
+  only the validated binding is persisted (stray references are stripped;
+  non-webhook destinations persist no credentials). The public API DTO already
+  excludes credential fields, so no public-handler change was needed.
+- **Delivery authentication is fail-closed:** any authentication configuration
+  the webhook destination cannot fully resolve at send time (unsupported mode
+  or generic type, unbound/deleted credential, stored-type mismatch) now aborts
+  the delivery (logged, message left unconfirmed) instead of sending the event
+  without authentication.
+- **Per-destination acknowledgment:** the destination service now tracks
+  per-(message, destination) delivery state in a bounded in-memory map (TTL
+  sweep + hard cap, documented in the service) and confirms a message to the
+  bus only once every applicable destination has delivered it. A bus retry
+  re-attempts only outstanding destinations — a destination that already
+  delivered is not sent a duplicate, and an in-flight delivery is not doubled.
+  The fair-code log writer was not modified.
+- **Secret redaction on read APIs:** webhook header/query parameter values and
+  raw JSON header/query strings are replaced with a placeholder in everything
+  returned by read endpoints (internal GET, public GET/DELETE responses);
+  persistence and internal reload keep the full serialization
+  (`serialize({ redactSecrets })`). Re-saving a payload containing the
+  placeholder restores the stored values (`restoreRedactedSecrets`), so a
+  read-modify-write round-trip cannot corrupt stored secrets. Create/update
+  responses still echo the caller's own input, which the public API spec pins.
+- **Bounded delivery concurrency + drain:** each destination now delivers
+  through a bounded serial queue (`delivery-queue.ts`, cap 100). On overflow
+  the newest delivery is refused and its message stays unconfirmed for the bus
+  retry loop (documented trade-off: recoverable shedding over cancelling
+  admitted work). `close()`/`removeDestination()`/`shutdown()` stop admission
+  first, await in-flight deliveries with a timeout, then close transports.
+- **Persist-before-swap:** add/update persists the row before swapping runtime
+  state (a DB failure leaves the previous destination active); delete removes
+  the row before closing the runtime destination; mutations are serialized per
+  destination id.
+- **Narrower public-api handler containment:** the operation-handler resolver
+  now contains a load failure only when the unresolvable specifier is a purged
+  `.ee` module pending rebuild or the handler module itself; every other load
+  error (syntax error, top-level throw, missing third-party dependency) fails
+  the router build loudly.
+- **Circuit breaker implemented:** `circuitBreaker.maxFailures` now has runtime
+  behavior (`circuit-breaker.ts`): after the configured consecutive failures
+  the breaker opens (deliveries skipped, messages left unconfirmed for retry),
+  half-opens after `maxDuration` (default 30 s), admits `halfOpenRequests`
+  probes (default 1), and closes on a successful probe. `failureWindow` bounds
+  the failure streak; `maxConcurrentHalfOpenRequests` is accepted but unused
+  (deliveries are serialized per destination).
+
+**Deferred**
+
+- Sentry DSN and syslog `tlsCa` are not redacted (the DSN is required by the
+  public response schema and carries only the public ingest key; the CA is
+  public material).
+- Breaker state is in-memory per process; multi-main instances track failures
+  independently.
+
+**Clean-room sources:** the E9 contract inventory, the surviving fair-code
+specs, and this repo's own fair-code (`CredentialsFinderService`, event bus,
+log writer). No enterprise source or history was consulted.
+
+**Verification:** integration 68/68 (eventbus 6, controller 12, syslog-tls 2,
+loader roundtrip 4, public-api log-streaming 44) with zero assertion changes;
+new module unit tests 42/42 (`src/modules/log-streaming/__tests__/`: credential
+validation 8, webhook fail-closed auth + redaction 10, service ack/persist
+ordering 10, breaker 9, queue 5); loader unit 20/20; eventbus unit 22/22;
+`tsc` (build + full incl. tests) → 0 errors mentioning log-streaming or
+`public-api/index`; `eslint src/modules/log-streaming
+src/public-api/v1/handlers/log-streaming --quiet` exit 0, no rule disables;
+public-api tags.test.ts 23/24 (same pre-existing RBAC failure).

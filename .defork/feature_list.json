@@ -155,9 +155,10 @@
       "id": "E9-log-streaming",
       "phase": "E",
       "title": "Rebuild log-streaming.ee (event-destination.repository, entities, service, destination factory) fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"log-streaming.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + eventbus destination interfaces + surviving log-streaming tests. Note: repository/entities may need @n8n/db-side work first."
+      "notes": "Clean-room: consumers + eventbus destination interfaces + surviving log-streaming tests. Note: repository/entities may need @n8n/db-side work first.",
+      "verified": "2026-08-09: module rebuilt at modules/log-streaming (entities/repo module-local); specs 68/68 + loader 20/20 + 42 new unit tests; grep log-streaming.ee = 0; public-api router UNGATED (log-streaming public spec 44/44, tags 23/24 with 1 pre-existing RBAC gap). Codex review: 8/8 findings fixed. Deferred: Sentry DSN/tlsCa redaction (public material), per-process breaker state."
     },
     {
       "id": "E10-multi-main",

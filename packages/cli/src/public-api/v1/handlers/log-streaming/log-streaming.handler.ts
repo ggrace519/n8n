@@ -9,8 +9,8 @@ import { ConflictError } from '@/errors/response-errors/conflict.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { eventNamesAll } from '@/eventbus/event-message-classes';
 import { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
-import { createMessageEventBusDestination } from '@/modules/log-streaming.ee/create-message-event-bus-destination';
-import { LogStreamingDestinationService } from '@/modules/log-streaming.ee/log-streaming-destination.service';
+import { createMessageEventBusDestination } from '@/modules/log-streaming/create-message-event-bus-destination';
+import { LogStreamingDestinationService } from '@/modules/log-streaming/log-streaming-destination.service';
 
 import { toInternalDestinationOptions, toPublicDestination } from './log-streaming.mapper';
 import type { LogStreamingRequest } from '../../../types';
@@ -109,11 +109,18 @@ const logStreamingHandlers: LogStreamingHandlers = {
 				throw new BadRequestError(parseResult.error.errors[0].message);
 			}
 
-			// the path id is the update target; addDestination upserts on it
+			// the path id is the update target; addDestination upserts on it.
+			// Redaction placeholders read back from GET responses are restored to
+			// the stored secret values so a round-trip cannot corrupt them.
+			const service = Container.get(LogStreamingDestinationService);
+			const options = service.restoreRedactedSecrets({
+				...toInternalDestinationOptions(parseResult.data),
+				id: req.params.id,
+			});
 			const destination = createMessageEventBusDestination(
 				Container.get(MessageEventBus),
 				Container.get(OutboundHttp),
-				{ ...toInternalDestinationOptions(parseResult.data), id: req.params.id },
+				options,
 			);
 			const result = await Container.get(LogStreamingDestinationService).addDestination(
 				destination,

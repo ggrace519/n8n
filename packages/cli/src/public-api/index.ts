@@ -177,6 +177,68 @@ function controllerOwnedNoopHandler() {
 	];
 }
 
+// Messages produced for unresolvable modules by Node's CJS/ESM loaders and by
+// Vite's dev-time resolver (used under Vitest); the capture group is the
+// specifier that could not be resolved.
+const MODULE_NOT_FOUND_PATTERNS = [
+	/Cannot find (?:module|package) '([^']+)'/,
+	/Cannot find (?:module|package) "([^"]+)"/,
+	/Failed to resolve import "([^"]+)"/,
+	/Failed to load url (\S+)/,
+];
+
+/** The specifier a module-not-found error failed to resolve, if it is one. */
+function unresolvableSpecifier(error: unknown): string | undefined {
+	if (!(error instanceof Error)) return undefined;
+	const code = (error as NodeJS.ErrnoException).code;
+	if (code !== undefined && code !== 'MODULE_NOT_FOUND' && code !== 'ERR_MODULE_NOT_FOUND') {
+		return undefined;
+	}
+	for (const pattern of MODULE_NOT_FOUND_PATTERNS) {
+		const match = pattern.exec(error.message);
+		if (match) return match[1];
+	}
+	return undefined;
+}
+
+/**
+ * Whether a handler-module load failure may be contained to that module's own
+ * routes. Containment is deliberately narrow so genuine defects (syntax
+ * errors, top-level throws, missing third-party deps) still fail the router
+ * build loudly. Contained cases:
+ *
+ * - the unresolvable specifier is a purged enterprise module (`.ee` in the
+ *   specifier) whose clean-room replacement has not landed yet — the handler
+ *   is known-pending and its routes return 500 until it is rebuilt;
+ * - the handler module itself is absent (an optional handler).
+ */
+function isContainableHandlerLoadError(error: unknown, modulePath: string): boolean {
+	const specifier = unresolvableSpecifier(error);
+	if (!specifier) return false;
+	if (/\.ee($|[./\\])/.test(specifier)) return true;
+	return specifier === modulePath || specifier.startsWith(`${modulePath}.`);
+}
+
+/**
+ * A containable handler-module load failure must only break the routes owned
+ * by that module, not poison the whole v1 router — eov resolves every
+ * operation's handler while building the router, so an unresolvable module
+ * would otherwise turn every public API route into a 500. See
+ * `isContainableHandlerLoadError` for what qualifies; everything else is
+ * rethrown.
+ */
+function brokenHandlerModuleHandler(modulePath: string, cause: unknown) {
+	Container.get(Logger).error(
+		`Public API handler module '${modulePath}' could not be loaded; its routes are unavailable`,
+		{ error: cause instanceof Error ? cause.message : String(cause) },
+	);
+	return [
+		(_req: unknown, _res: unknown, next: (error?: unknown) => void) => {
+			next(new UnexpectedError(`Handler module '${modulePath}' failed to load`));
+		},
+	];
+}
+
 function resolveOperationHandler(
 	handlersPath: string,
 	routeArg: unknown,
@@ -201,10 +263,16 @@ function resolveOperationHandler(
 	const modulePath = path.join(handlersPath, handlerModule);
 
 	if (loader === 'require') {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports
-		const imported = require(modulePath) as Record<string, unknown> & {
-			default?: Record<string, unknown>;
-		};
+		let imported: Record<string, unknown> & { default?: Record<string, unknown> };
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-require-imports
+			imported = require(modulePath) as Record<string, unknown> & {
+				default?: Record<string, unknown>;
+			};
+		} catch (error) {
+			if (!isContainableHandlerLoadError(error, modulePath)) throw error;
+			return brokenHandlerModuleHandler(modulePath, error);
+		}
 		const handler = imported[operationId] ?? imported.default?.[operationId] ?? imported.default;
 		if (!handler) {
 			throw new UnexpectedError(
@@ -215,9 +283,15 @@ function resolveOperationHandler(
 	}
 
 	return (async () => {
-		const imported = (await import(/* @vite-ignore */ modulePath)) as Record<string, unknown> & {
-			default?: Record<string, unknown>;
-		};
+		let imported: Record<string, unknown> & { default?: Record<string, unknown> };
+		try {
+			imported = (await import(/* @vite-ignore */ modulePath)) as Record<string, unknown> & {
+				default?: Record<string, unknown>;
+			};
+		} catch (error) {
+			if (!isContainableHandlerLoadError(error, modulePath)) throw error;
+			return brokenHandlerModuleHandler(modulePath, error);
+		}
 		const handler = imported[operationId] ?? imported.default?.[operationId] ?? imported.default;
 		if (!handler) {
 			throw new UnexpectedError(

@@ -5,7 +5,7 @@ import { Container } from '@n8n/di';
 
 import { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
 import { ExecutionRecoveryService } from '@/executions/execution-recovery.service';
-import { LogStreamingDestinationService } from '@/modules/log-streaming.ee/log-streaming-destination.service';
+import { LogStreamingDestinationService } from '@/modules/log-streaming/log-streaming-destination.service';
 import { Publisher } from '@/scaling/pubsub/publisher.service';
 
 import { createUser } from './shared/db/users';
