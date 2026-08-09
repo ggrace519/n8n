@@ -801,3 +801,39 @@ feature_list.verify_notes carries the same rule.
 **LESSON.** Narrow verification scope is how a long-horizon loop lies to
 itself. The grep that proves an item done must cover every place the symbol
 can appear, in a form that cannot silently skip files.
+
+## 2026-08-09 — E5/E6 hardened (7 findings fixed) + 2 new defects found
+
+**WHAT.** Both hardening agents landed. SAML: units 39→84, integration 21/21.
+OIDC: units 35→60, integration 28/28 (also un-blocked the oidc loader spec by
+repointing to the surviving modules/provisioning/constants).
+
+**ALL 7 REVIEW FINDINGS FIXED.** SAML assertion binding (audience/recipient/
+destination/InResponseTo/both NotOnOrAfter, one bearer confirmation, ±60s
+skew) + explicit assertion-signature re-verification on a response-signature-
+stripped copy (samlify's redirectFlow verifies NO xml signature — real gap);
+one-time request/response/assertion ids + path-scoped flow cookie; https-only
+IdP endpoints enforced at validation AND URL generation; privileged-account
+auto-linking refused (both protocols); OIDC atomic (email, email_verified)
+from one document + subject/email disagreement rejection; OIDC identities
+keyed (issuer, sub) with in-place legacy upgrade gated on verified email +
+non-privileged.
+
+**2 NEW DEFECTS FOUND BY THE HARDENING PASS.**
+- FIXED: redirect-binding octet string included the Signature parameter, so
+  redirect-binding ACS could NEVER verify (SAML bindings 3.4.4.1).
+- NOT FIXED (KI-1): root package.json overrides node-rsa to 2.0.0 while
+  samlify declares ^1.1.1. I verified empirically: sign() returns Uint8Array
+  (isBuffer false) so samlify's .toString('base64') emits comma-separated
+  decimals, AND the default signingScheme changed to pss while SAML advertises
+  rsa-sha256 (pkcs1). node-rsa's MIGRATION.md claims Buffer-unchanged-on-Node
+  — WRONG for the installed build; only testing caught it.
+
+**GITHUB ISSUES ARE DISABLED on this fork** → created .defork/KNOWN_ISSUES.md
+as the tracker (KI-1 node-rsa, KI-2 tags RBAC, KI-3 provisioning loader key,
+KI-4 SSO denied while provisioning configured, KI-5 saml.api.test.ts blocked).
+Ask Greg whether to enable GitHub issues.
+
+**PROVISIONING DIVERGENCE RECONCILED.** Both agents independently chose
+fail-closed deny when provisioning is configured but unevaluable. E11's scope
+expanded in feature_list to own the engine + removing both deny branches.
