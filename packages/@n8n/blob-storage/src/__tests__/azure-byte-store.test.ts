@@ -3,8 +3,8 @@
 import { Readable } from 'node:stream';
 import { mock } from 'vitest-mock-extended';
 
-import type { AzureBlobService } from '../azure-blob/azure-blob.service.ee';
-import { AzureByteStore } from '../azure-byte-store.ee';
+import type { AzureBlobService } from '../azure-blob/azure-blob.service';
+import { AzureByteStore } from '../azure-byte-store';
 import { azureNotFoundError, azureThrottledError, body } from './mocks';
 
 let azureBlob: ReturnType<typeof mock<AzureBlobService>>;

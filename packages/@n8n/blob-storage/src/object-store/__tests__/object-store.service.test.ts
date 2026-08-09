@@ -14,7 +14,7 @@ import { PassThrough, Readable } from 'stream';
 import { captor, mock } from 'vitest-mock-extended';
 
 import type { ObjectStoreConfig } from '../object-store.config';
-import { ObjectStoreService } from '../object-store.service.ee';
+import { ObjectStoreService } from '../object-store.service';
 
 const mockS3Send = vi.fn();
 const s3Client = mock<S3Client>({ send: mockS3Send });

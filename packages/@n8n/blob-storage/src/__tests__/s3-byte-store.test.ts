@@ -3,8 +3,8 @@
 import { Readable } from 'node:stream';
 import { mock } from 'vitest-mock-extended';
 
-import type { ObjectStoreService } from '../object-store/object-store.service.ee';
-import { S3ByteStore } from '../s3-byte-store.ee';
+import type { ObjectStoreService } from '../object-store/object-store.service';
+import { S3ByteStore } from '../s3-byte-store';
 import {
 	body,
 	s3HeadNotFoundError,
