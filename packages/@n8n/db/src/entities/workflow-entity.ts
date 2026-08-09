@@ -7,6 +7,7 @@ import {
 	ManyToMany,
 	ManyToOne,
 	OneToMany,
+	type Relation,
 } from '@n8n/typeorm';
 import { Length } from 'class-validator';
 import { IConnections, IDataObject, IWorkflowSettings, WorkflowFEMeta } from 'n8n-workflow';
@@ -16,6 +17,7 @@ import { JsonColumn, WithTimestampsAndStringId, dbType } from './abstract-entity
 import { type Folder } from './folder';
 import type { SharedWorkflow } from './shared-workflow';
 import type { TagEntity } from './tag-entity';
+import type { TestRun } from './test-run';
 import type { ISimplifiedPinData, IWorkflowDb } from './types-db';
 import type { WorkflowHistory } from './workflow-history';
 import type { WorkflowTagMapping } from './workflow-tag-mapping';
@@ -91,6 +93,9 @@ export class WorkflowEntity extends WithTimestampsAndStringId implements IWorkfl
 
 	@OneToMany('SharedWorkflow', 'workflow')
 	shared: SharedWorkflow[];
+
+	@OneToMany('TestRun', 'workflow')
+	testRuns: Relation<TestRun[]>;
 
 	@Column({
 		type: dbType === 'sqlite' ? 'text' : 'json',

@@ -31,7 +31,7 @@ import { Expression, UnexpectedError } from 'n8n-workflow';
 import type { AbstractServer } from '@/abstract-server';
 import * as CrashJournal from '@/crash-journal';
 import { getDataDeduplicationService } from '@/deduplication';
-import { TestRunCleanupService } from '@/evaluation.ee/test-runner/test-run-cleanup.service.ee';
+import { TestRunCleanupService } from '@/evaluation/test-runner/test-run-cleanup.service';
 import { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
 import { TelemetryEventRelay } from '@/events/relays/telemetry.event-relay';
 import { WorkflowFailureNotificationEventRelay } from '@/events/relays/workflow-failure-notification.event-relay';

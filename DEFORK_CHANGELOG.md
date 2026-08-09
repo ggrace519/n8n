@@ -457,3 +457,162 @@ them (two surviving tests, reconciled controller-side); an invalid-email
 directory entry for an existing user counts as "seen" so the user is NOT
 disabled; email→LDAP account conversion must adopt the directory's mapped
 first/last name, not just attach the identity.
+
+## 2026-08-09 — E13a: evaluation persistence layer (`@n8n/db`)
+
+**Rebuilt (clean-room):** `entities/test-run.ts`, `entities/test-case-execution.ts`,
+`entities/evaluation-config.ts`, `entities/evaluation-collection.ts`,
+`repositories/test-run.repository.ts`, `repositories/test-case-execution.repository.ts`;
+`WorkflowEntity.testRuns` relation restored; entities/repository index registration.
+
+**Clean-room sources:** the surviving fair-code migrations
+(`CreateTestRunTable` → `CleanEvaluations` → `AddScalingFieldsToTestRun` →
+`AddWorkflowVersionToTestRun` → `AddEvaluationConfigColumnsToTestRun` →
+`CreateEvaluationCollection`, + `CreateEvaluationConfig`,
+`AddInputsOutputsToTestCaseExecution`, `AddRunIndexToTestCaseExecution`) which
+pin the exact schema; surviving `types-db.ts` types (`TestRunErrorCode`,
+`TestCaseExecutionErrorCode`, `TestRunFinalResult`, `AggregatedTestRunMetrics`);
+the fair-code consumers (`public-api/v1/handlers/evaluations/*`,
+`test/integration/shared/db/evaluation.ts` factory, both surviving integration
+specs) which pin repository method contracts;
+`@n8n/api-types/dto/evaluations/public-api-test-run.dto.ts` status unions;
+`WorkflowRepository.getWorkflowsWithEvaluationCount` (pins the `testRuns`
+relation). No `.ee` source read.
+
+**Verification:** `pnpm --filter @n8n/db build` exit 0;
+`pnpm --filter @n8n/db test` 31 files / 409 tests pass.
+
+## 2026-08-09 — E13b: evaluation test-runner core (`packages/cli`)
+
+**Rebuilt (clean-room):** `src/evaluation/test-runner/test-runner.service.ts`
+(TestRunnerService: dataset prefetch via the trigger's `dataset.getRows`
+custom operation, per-row pinned `evaluation`-mode executions in a bounded
+pool owning the shared evaluation concurrency reservation, metric/input/
+output collection off the Evaluation nodes' task data, per-key mean
+aggregation, DB-flag + local-abort + pubsub `cancel-test-run` cancellation),
+`test-run-cleanup.service.ts` (boot-time interrupted-run settlement),
+`test-runs.controller.ts` (internal REST, workflow-finder-scoped 404s),
+`llm-judge-provider-registry.ts` (derives from `LLM_JUDGE_PROVIDERS` in
+api-types). Supporting: `evaluation` log scope in `@n8n/config`; TestRun/
+TestCaseExecution repository state-transition methods in `@n8n/db`. Rewired:
+server.ts, base-command.ts, public-api evaluations handler, test-server,
+both integration specs, instance-ai adapter registry import.
+
+**Clean-room sources:** the 511-line internal spec + 401-line public-api spec
+(codex-extracted contract inventory + own read); the fair-code Evaluation
+node classes (`getRows` custom operation, `_rowsLeft` iteration contract,
+setMetrics/setInputs/setOutputs operations); the surviving
+`agent-eval-runner.service.ts` (pool/cancel/settle/concurrency-slot
+patterns); `ActiveExecutions`' evaluation-mode reservation comments;
+`manual-execution.service.ts` + core `WorkflowExecute.run` (pinData +
+`forceCustomOperation` mechanics); `evaluation-concurrency.helper.ts`;
+api-types DTOs; pubsub event map. No `.ee` source read.
+
+**Verification:** internal `test-runs.api.test.ts` **28/28** (was
+load-blocked); command specs unblocked via base-command — ldap reset +
+license cmd **16/16** (were load-blocked since E7); cli tsc: **0 errors in
+src/evaluation/**; eslint clean; `@n8n/db` build exit 0.
+
+**Still open in E13:** evaluation-config service/controller +
+compileFromConfig compiler (E13c), collections + insights controllers
+(E13d). `startTestRun` rejects `compileFromConfig` with a UserError until
+E13c lands. Public-api evaluations spec remains gated by the shared router
+(source-control/saml/oidc/log-streaming handlers still import purged
+modules).
+
+## 2026-08-09 — E13c: evaluation-config service + workflow compiler (`packages/cli`, `@n8n/db`)
+
+**Rebuilt (clean-room):** `@n8n/db` `evaluation-config.repository.ts`
+(findManyByWorkflowId / findOneInWorkflow / existsByName);
+`src/evaluation/evaluation-config.service.ts` (list/get/create/update/delete
+pinned by the instance-ai adapter; validation raising `EvaluationConfigError`
+with the `EvaluationErrorCode` catalog: start/end node existence,
+end-reachable-from-start via `getChildNodes`, duplicate metric ids/names,
+whitespace-only metric inputs); `evaluation-config.controller.ts`
+(GET list route pinned by `@n8n/instance-ai` n8n-client; CRUD alongside;
+workflow-finder-based 404 authorization); `workflow-compiler.service.ts`
+(compiles a config onto a workflow: injects a reserved-prefix Evaluation
+Trigger wired to the config dataset + per-metric Set Metrics nodes after the
+end node, LLM-judge metrics get their chat-model node connected via
+ai_languageModel); `compileFromConfig`/`evaluationConfigId` threaded through
+TestRunnerService (config snapshot frozen onto the run row). Implementation
+of the config repo/service/controller delegated to an n8n:developer
+subagent against the codex contract inventory; verified independently.
+
+**Clean-room sources:** instance-ai adapter + its 179-test suite (service
+contract), `@n8n/instance-ai/evaluations/clients/n8n-client.ts` (route pin),
+api-types evaluation DTOs/schemas/error codes, the fair-code Evaluation node
+descriptions (metric values, parameter names, canned-prompt fallback),
+`n8n-workflow` graph utilities. No `.ee` source read. Dataset-row endpoints
+(`dataset-row.dto.ts`) deliberately NOT rebuilt — no fair-code consumer
+survives to pin their routes.
+
+**Verification:** cli tsc 0 errors in `src/evaluation/**` (125 pre-existing
+elsewhere); internal test-runs spec 28/28; instance-ai adapter suite
+**179/179** (was import-blocked); `@n8n/db` build exit 0; eslint clean.
+
+## 2026-08-09 — E13d: eval collections + AI insights (`packages/cli`, `@n8n/db`)
+
+**Rebuilt (clean-room):** `@n8n/db`
+`repositories/evaluation-collection.repository.ts` (findManyByWorkflowId with
+grouped run counts, workflow-scoped findOneInWorkflow /
+findOneWithRunsInWorkflow, updateInsightsCache) + index export;
+`src/evaluation/evaluation-collections.service.ts` (list/detail/create/
+update/delete/addRun/cancelCollection; detail maps runs through the
+api-types scoring helpers — `metricScalesFromSnapshot` falling back to
+`metricScalesFromConfig`, `averageNormalizedScore`; create validates the
+config + referenced runs up front, then attaches existing runs or starts new
+ones via `TestRunnerService.startTestRun` with `compileFromConfig` +
+`collectionId` (+ `workflowVersionId` unless "current draft"), detached
+`finished` rejections routed to ErrorReporter; insightsCache invalidated on
+addRun/cancel); `evaluation-collections.controller.ts`
+(`/workflows/:workflowId/eval-collections` GET/POST/GET:id/PATCH/DELETE/
+POST:id/runs/POST:id/cancel, workflow-finder 404 authorization, read=
+workflow:read, mutate=workflow:update, run-affecting=workflow:execute);
+`src/evaluation/insights/eval-insights.service.ts` + `.controller.ts`
+(GET cached envelope — `null` when absent or failing the strict schema —
+POST generates/stores; deterministic `status:'fallback'` generator: winner =
+highest avgScore with run-order labels V1…Vn, regressions = metrics ≥5
+points below the winner, templated suggestedNext, all strings clamped to the
+schema caps and the envelope `.strict()`-parsed before storing). server.ts
+rewired off the two `evaluation.ee` imports. LLM path deliberately NOT
+implemented: the only model seam lives inside the conditionally-loaded
+`instance-ai` backend module, which core evaluation code must not import;
+`fallback` is a first-class schema state.
+
+**Clean-room sources:** codex contract inventory §5/8/9;
+`@n8n/api-types` eval-collections + eval-insights schemas (DTOs, response
+types, scoring helpers — reused, not reimplemented); the compare-view E2E
+(`eval-collections-compare.spec.ts`, route + envelope pins); sibling
+fair-code evaluation controllers/services/repositories (patterns);
+pubsub event map. No `.ee` source read.
+
+**Verification:** `@n8n/db` build exit 0, tests 409/409; cli tsc 0 errors in
+`src/evaluation/**` + `server.ts` (pre-existing errors elsewhere only);
+`eslint src/evaluation` exit 0; `grep evaluation.ee packages/cli/src` → 0
+lines; internal test-runs spec 28/28; new insights unit tests 10/10.
+
+## 2026-08-09 — E13 review fixes (codex adversarial pass)
+
+Multi-provider review (codex read-only) of the E13 rebuild produced 11
+findings; 8 fixed, 3 deferred. Fixed: queue-mode executions now serialize
+full execution data (pinData/trigger/destination) exactly like offloaded
+manual executions — workers can reconstruct evaluation runs; every case and
+the dataset prefetch pass `triggerToStartFrom` so a canvas webhook/schedule
+trigger can never displace the evaluation trigger; the prefetch execution is
+cancel-trackable; setInputs/setOutputs are read from `item.evaluationData`
+(first item — pinned by the node's own comment), not `item.json`; cancelled
+in-flight cases are recorded cancelled, not UNKNOWN_ERROR; run completion is
+a compare-and-set against `cancelRequested` so a late cancel can't be
+overwritten by `completed`; `failRun` rethrows persistence failures so
+`finished` observers see unsettleable runs; internal cancel 409s terminal
+runs and delete 409s running runs; OpenAI judge nodes emit a plain string
+model (typeVersion 1); run/case ordering gained `id` tiebreakers. Deferred
+(logged, non-blocking — no surviving consumer pins them): structured
+`EvaluationApiError` transport on config validation responses; SQL-side
+summary aggregation instead of relation-loading cases; Vertex `projectId` /
+Azure `authentication` parameters on compiled judge nodes (needs a DTO
+extension); the execution-id registration window in cancellation.
+
+**Verification after fixes:** db build exit 0 + 409/409; internal spec
+28/28; insights 10/10; eslint 0; cli tsc 0 errors in src/evaluation.

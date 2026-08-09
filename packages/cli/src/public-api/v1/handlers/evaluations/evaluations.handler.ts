@@ -10,7 +10,7 @@ import { ConflictError } from '@/errors/response-errors/conflict.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { PaymentRequiredError } from '@/errors/response-errors/payment-required.error';
-import { TestRunnerService } from '@/evaluation.ee/test-runner/test-runner.service.ee';
+import { TestRunnerService } from '@/evaluation/test-runner/test-runner.service';
 import { WorkflowFinderService } from '@/workflows/workflow-finder.service';
 
 import { toTestCaseExecutionDto, toTestRunSummaryDto } from './evaluations.mapper';
