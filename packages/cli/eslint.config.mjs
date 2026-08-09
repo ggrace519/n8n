@@ -265,8 +265,7 @@ export default defineConfig(
 			'./src/modules/data-table/data-table-ddl.service.ts',
 			'./src/modules/data-table/data-table.service.ts',
 			'./src/modules/data-table/utils/sql-utils.ts',
-			'./src/modules/dynamic-credentials.ee/services/credential-connection-status.service.ts',
-			'./src/modules/dynamic-credentials.ee/services/credential-resolver.service.ts',
+			'./src/modules/dynamic-credentials/services/credential-connection-status.service.ts',
 			'./src/modules/external-secrets.ee/secrets-providers-connections.service.ee.ts',
 			'./src/modules/favorites/favorites.service.ts',
 			'./src/modules/insights/insights-collection.service.ts',
@@ -310,7 +309,6 @@ export default defineConfig(
 			'./src/modules/chat-hub/chat-hub.models.service.ts',
 			'./src/modules/chat-hub/chat-hub.service.ts',
 			'./src/modules/chat-hub/chat-hub.settings.service.ts',
-			'./src/modules/dynamic-credentials.ee/services/credential-resolver-workflow.service.ts',
 			// fair-code rebuilds of purged .ee files, carrying those files' pre-existing leak entries:
 			'./src/credentials/credentials-sharing.service.ts',
 			'./src/permissions/check-access.ts',

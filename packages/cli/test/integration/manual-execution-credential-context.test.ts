@@ -19,7 +19,7 @@ import { toCredentialContext, toExecutionContext, type IExecutionContext } from 
 import { mock } from 'vitest-mock-extended';
 
 import { AuthService } from '@/auth/auth.service';
-import { N8NIdentifier } from '@/modules/dynamic-credentials.ee/credential-resolvers/identifiers/n8n-identifier';
+import { N8NIdentifier } from '@/modules/dynamic-credentials/credential-resolvers/identifiers/n8n-identifier';
 import { WorkflowExecutionService } from '@/workflows/workflow-execution.service';
 
 import { createOwner, createMember } from './shared/db/users';

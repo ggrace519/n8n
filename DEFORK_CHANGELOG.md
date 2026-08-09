@@ -16,6 +16,124 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-09 — E12: dynamic-credentials module rebuilt fair-code
+
+Rebuilds the purged end-user ("private") credentials module clean-room at
+`packages/cli/src/modules/dynamic-credentials/`. Only an 18-line
+`services/shared-fields.ts` had survived a previous pass; the rest of the
+module — persistence, per-user connection state, identity resolution, the read
+and write paths, module registration and resolver CRUD — is new here. Clean-room
+sources: `.defork/e12-contract.md` (a verified inventory of the surviving
+fair-code contracts), the surviving migrations in `@n8n/db`, the fair-code
+consumers themselves (`credentials-helper.ts`, `credentials.controller.ts`,
+`credentials.service.ts`, `credentials-sharing.service.ts`,
+`dynamic-credentials-proxy.ts`, `credential-connection-status-proxy.ts`,
+`oauth.service.ts`, `webhook-helpers.ts`, `workflow-validation.service.ts`), the
+surviving DTOs/schemas in `@n8n/api-types`, the `@n8n/permissions` scope
+catalog, and the surviving executable specs. No `.ee` body was read.
+
+**Added — persistence for end-user credential data.** Three entities and
+repositories behind the module's `database/` folder, matching the surviving
+migrations exactly: `dynamic_credential_resolver` (encrypted `config`),
+`dynamic_credential_entry` (keyed by credential + arbitrary external subject,
+snake_case columns) and `dynamic_credential_user_entry` (keyed by credential +
+n8n user, camelCase columns). Both entry tables cascade from the credential, the
+resolver and — for per-user rows — the user, so deleting any of the three takes
+its credential data with it, while deleting a resolver only nulls the
+credential's `resolverId` and leaves the credential itself alone. Two storage
+classes wrap them; to those classes the stored payload is opaque text, so no
+credential material is ever inspected or logged there.
+
+**Added — per-user connection state.** `CredentialConnectionStatusService` is
+registered on `CredentialConnectionStatusProxy` at module init and is what makes
+`connectedByMe`, `connectedUserCount` and the per-user `data.oauthTokenData`
+signal real on the existing `/credentials` routes. "Connected" means the system
+resolver only — a user connects their own n8n account — and the list lookup is
+one bulk query for the whole page rather than one per credential. Cleanup, by
+contrast, spans every resolver: losing `credential:connect` drops all of that
+user's data for the credential.
+
+**Added — identity resolution.** `N8NIdentifier` maps the `n8n-auth` cookie
+captured at the controller boundary to the running user by re-validating it
+through `AuthService` at point of use, so a user who logs out mid-run stops
+resolving (the invalid-token blocklist and the MFA gate both still apply) and
+nothing request-bound (browser id, endpoint, method) is needed.
+`CredentialResolverService` registers on `DynamicCredentialsProxy` as both the
+resolution and the storage provider: it picks the resolver as credential →
+workflow → seeded system resolver, turns the execution context's identity into a
+subject (an n8n user for the system resolver, an opaque external subject
+otherwise), and reads or writes that subject's payload encrypted with the same
+`Cipher` API the credential subsystem uses. When no identity or no stored data
+can be found it raises `CredentialResolutionError` rather than silently falling
+back to the shared static credential.
+
+**Added — module registration.** `DynamicCredentialsModule` registers the three
+entities before the datasource is created, seeds the well-known `system-n8n`
+resolver idempotently (a conflict on the id is ignored, so concurrent mains and
+operator edits are both safe), registers the providers above, and exposes
+`credentialCheckProxy` on the workflow context so webhook and MCP triggers can
+gate a run on "is this credential connected for the triggering user?" before
+anything executes. The module deliberately carries **no** `instanceTypes`
+restriction — webhook and worker processes resolve credentials too.
+
+**Added — `GET`/`POST`/`PATCH`/`DELETE /credential-resolvers`** plus
+`/credential-resolvers/types` and `/credential-resolvers/:id/workflows`, gated on
+the `credentialResolver:*` scopes. The resolver `config` is stored encrypted and
+returned encrypted; the decrypted form is only ever included on a single-resolver
+read. The built-in `system-n8n` resolver cannot be edited or deleted, and a
+resolver still selected by a published workflow cannot be deleted until those
+workflows are unpublished. The API schemas allow longer names/types (255) and ids
+(36) than the tables do (128/128/16); the stricter **database limits are
+authoritative** and over-long values are rejected with a 400 rather than
+surfacing a driver error.
+
+**Fixed — transferring an end-user credential.** `EnterpriseCredentialsService.transferOne()`
+previously moved a private credential without checking whether the caller may
+manage end-user credentials in the destination project, and left every existing
+per-user connection in place. Both are now handled: the move needs
+`credential:createEndUser` on the destination, and afterwards the old home
+project's members are re-evaluated so anyone who lost `credential:connect` has
+their connection removed — while users who keep access through the destination
+project, or through a global role, keep theirs.
+
+**Known gaps, stated plainly.** Several areas had no surviving specification and
+are **not** spec-verified: the system resolver's name/type strings (only the id
+`system-n8n` survived with a value); the `CredentialResolutionError` base class;
+the static/dynamic merge rule and the encryption envelope for stored entries;
+`resolvableAllowFallback`, whose column and default survive but which nothing
+pins — no fallback behavior is implemented; custom-resolver validation (e.g. the
+`credential-resolver.oauth2-1.0` type an E2E consumer mentions), where a custom
+resolver currently treats the context identity itself as the subject rather than
+running any type-specific validation; and resolver-CRUD authorization, uniqueness
+and deletion policy. The externally-facing execution endpoints
+(`/workflows/:id/execution-status`, `/credentials/:id/authorize`,
+`/credentials/:id/revoke`) are **deliberately not built** — their
+authentication, static-token and CORS contracts are unpinned, and inventing an
+auth-bearing surface is exactly what the contract warns against. Behavior when
+`feat:dynamicCredentials` is unlicensed is also unpinned; the module is gated on
+that flag, so an unlicensed instance keeps the tables but registers no providers.
+`N8N_DYNAMIC_CREDENTIALS_CORS_ORIGIN` and
+`N8N_DYNAMIC_CREDENTIALS_CORS_ALLOW_CREDENTIALS` are names chosen here, now
+pinned by a clean-room config test.
+
+**Verification:** integration `test/integration/dynamic-credentials/` **43/43**
+across 5 files (was 5 files failing to import, 0 tests);
+`credentials.resolvable.api.test.ts` **37/37** (was 0);
+`manual-execution-credential-context.test.ts` **5/5** (was 0); unit
+`credentials-helper.test.ts` **49/49** (was 47 passed / 2 failed). Regression
+holds: `credentials.api.test.ts` **80/80** unchanged, `src/modules/sso-saml` +
+`sso-oidc` + `provisioning` **199/199** unchanged, `main-only-modules` **6/6**
+unchanged, and the full `packages/cli` unit suite has **zero new failing files**
+against a clean-tree baseline (the pre-existing failures come from other purged
+`.ee` modules). `dynamic-credentials.ee` references in `packages/cli` src+test =
+**0**; `tsc -p tsconfig.build.json` reports **0** errors mentioning
+`dynamic-credential` or `credentials-helper` (93 unrelated pre-existing errors,
+unchanged); `eslint src/modules/dynamic-credentials --quiet` exits **0** with no
+rule disables. The ESLint TypeORM ratchet shrank by one: of the three stale `.ee`
+entries, one was carried over to its fair-code path (the surviving
+`ICredentialConnectionStatusProvider` contract passes an `EntityManager`) and two
+were dropped because the rebuilt services no longer touch TypeORM.
+
 ### 2026-08-09 — E11: provisioning module and role-mapping engine
 
 Rebuilds the purged SSO role-provisioning module clean-room

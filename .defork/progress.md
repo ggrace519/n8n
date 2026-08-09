@@ -904,3 +904,43 @@ handler. SQLite only — the staged-negative-range reorder exists for Postgres'
 per-row UNIQUE(type, order) but is unobserved there.
 
 **NEXT.** E12 (my false green - reopened), then E8, E10, E17, E18, A10.
+
+## 2026-08-09 — E12 DONE (properly this time); false green corrected
+
+**WHAT.** Full dynamic-credentials module rebuilt: 3 entities + barrel, 3
+repositories, 2 storage classes, N8NIdentifier, config, constants, errors,
+services/providers (resolver, connection-status, resolver-workflow, CRUD,
+credential-check) registered on DynamicCredentialsProxy /
+CredentialConnectionStatusProxy, module registration with entities() +
+idempotent system-resolver seeding, and a /credential-resolvers CRUD
+controller.
+
+**THE NUMBERS THAT MATTER.** grep -ran dynamic-credentials.ee: 19 -> 0. All 9
+gates that could not even IMPORT before now run: dynamic-credentials 43/43,
+resolvable REST 37/37, manual-execution-credential-context 5/5,
+credentials-helper 49/49 (was 47 pass / 2 FAIL). Regression: credentials.api
+80/80, sso+provisioning+main-only 205/205.
+
+**REAL DEFECT FIXED.** The 2 credentials-helper failures were surviving-code
+bugs, not the agent's: transferOne() did neither the destination
+credential:createEndUser check nor connection reconciliation.
+
+**REAL DEFECT FOUND, FILED AS #13 (not fixed).** Unshare cleanup is a no-op:
+credentials.controller.ts:546 calls cleanupOrphanedEntriesForProjects(...,trx)
+inside the transaction that just deleted the SharedCredentials rows, but
+userHasScopes -> getAllRelationsForCredentials is called WITHOUT trx, so it
+reads pre-delete rows and concludes access still exists. Fix belongs in
+@n8n/db and needs its own gate (the unshare spec asserts sharings, not
+entries).
+
+**HONEST SCOPING (the whole point of this redo).** Under-pinned and labelled
+as such: SYSTEM_RESOLVER_NAME/TYPE values, CredentialResolutionError
+inheritance, resolution merge rule + encryption envelope, /credential-resolvers
+CRUD controller (NO gate exercises it), 2 CORS env names, licenseFlag.
+NOT built on purpose (contract: "must not be invented silently"): custom-
+resolver type-specific validation, resolvableAllowFallback semantics,
+/workflows/:id/execution-status, credentials authorize/revoke.
+NO end-to-end coverage: resolveIfNeeded/storeIfNeeded, CredentialCheckService.
+
+**NEXT.** E8 (external-secrets: src already 0, the work is what its 10
+surviving specs pin), E10, E17, E18, then A10. A11 is the other agent's.
