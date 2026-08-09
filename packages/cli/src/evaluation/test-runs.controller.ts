@@ -6,6 +6,7 @@ import type { Scope } from '@n8n/permissions';
 import type { Response } from 'express';
 import { ErrorReporter } from 'n8n-core';
 
+import { ConflictError } from '@/errors/response-errors/conflict.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { TestRunnerService } from '@/evaluation/test-runner/test-runner.service';
 import { WorkflowFinderService } from '@/workflows/workflow-finder.service';
@@ -86,7 +87,16 @@ export class TestRunsController {
 		@Param('testRunId') testRunId: string,
 	) {
 		await this.assertWorkflowAccess(req.user, workflowId, ['workflow:update']);
-		await this.assertTestRunInWorkflow(workflowId, testRunId);
+		const testRun = await this.testRunRepository.getTestRunSummaryByWorkflowId(
+			testRunId,
+			workflowId,
+		);
+		if (!testRun) throw new NotFoundError('Test run not found');
+		// Deleting the row under an executing run would strand its detached
+		// writes — cancel it first.
+		if (testRun.status === 'running') {
+			throw new ConflictError('The test run is still running — cancel it before deleting');
+		}
 		await this.testRunRepository.delete({ id: testRunId });
 		return { success: true };
 	}
@@ -99,7 +109,15 @@ export class TestRunsController {
 		@Param('testRunId') testRunId: string,
 	) {
 		await this.assertWorkflowAccess(req.user, workflowId, ['workflow:execute']);
-		await this.assertTestRunInWorkflow(workflowId, testRunId);
+		const testRun = await this.testRunRepository.getTestRunSummaryByWorkflowId(
+			testRunId,
+			workflowId,
+		);
+		if (!testRun) throw new NotFoundError('Test run not found');
+		// `canBeCancelled` is inverted: true = terminal.
+		if (this.testRunnerService.canBeCancelled(testRun)) {
+			throw new ConflictError(`The test run "${testRunId}" cannot be cancelled`);
+		}
 		await this.testRunnerService.cancelTestRun(testRunId);
 		res.status(202).json({ success: true });
 	}

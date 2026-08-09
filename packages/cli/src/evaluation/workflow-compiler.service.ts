@@ -30,9 +30,6 @@ const MODEL_NAME_PARAM_PROVIDERS = new Set([
 	'@n8n/n8n-nodes-langchain.lmChatGoogleVertex',
 ]);
 
-/** Providers whose `model` parameter is a resource locator. */
-const RESOURCE_LOCATOR_MODEL_PROVIDERS = new Set(['@n8n/n8n-nodes-langchain.lmChatOpenAi']);
-
 /**
  * Compiles an evaluation config onto a workflow: injects an Evaluation
  * Trigger reading the config's dataset, routes it into the config's start
@@ -222,11 +219,11 @@ export class WorkflowCompilerService {
 		const { provider, credentialId, model } = metric.config;
 		// The model parameter's name/shape varies by provider node; the common
 		// cases are mapped, the rest take a plain `model` string.
+		// All nodes are emitted at typeVersion 1, where `model` is a plain
+		// string (later versions moved some to resource locators).
 		let modelParameters: Record<string, NodeParameterValueType>;
 		if (MODEL_NAME_PARAM_PROVIDERS.has(provider)) {
 			modelParameters = { modelName: model };
-		} else if (RESOURCE_LOCATOR_MODEL_PROVIDERS.has(provider)) {
-			modelParameters = { model: { __rl: true, mode: 'id', value: model } };
 		} else {
 			modelParameters = { model };
 		}

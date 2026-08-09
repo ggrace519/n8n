@@ -17,7 +17,7 @@ export class TestCaseExecutionRepository extends BaseRepository<TestCaseExecutio
 	): Promise<TestCaseExecution[]> {
 		return await this.find({
 			where: { testRun: { id: testRunId } },
-			order: { createdAt: 'ASC' },
+			order: { createdAt: 'ASC', id: 'ASC' },
 			skip: options.skip,
 			take: options.take,
 		});

@@ -46,8 +46,18 @@ export class TestRunRepository extends BaseRepository<TestRun> {
 		return await this.update(id, { status: 'running', runAt: new Date() });
 	}
 
-	async markAsCompleted(id: string, metrics: TestRun['metrics'] = null) {
-		return await this.update(id, { status: 'completed', completedAt: new Date(), metrics });
+	/**
+	 * Terminal transition guarded against a racing cancel: completion only
+	 * applies while `cancelRequested` is still false. Returns whether the row
+	 * transitioned — a false return means a cancel won and the caller should
+	 * settle the run as cancelled instead.
+	 */
+	async markAsCompleted(id: string, metrics: TestRun['metrics'] = null): Promise<boolean> {
+		const result = await this.update(
+			{ id, cancelRequested: false },
+			{ status: 'completed', completedAt: new Date(), metrics },
+		);
+		return (result.affected ?? 0) > 0;
 	}
 
 	async markAsCancelled(id: string) {
@@ -103,7 +113,7 @@ export class TestRunRepository extends BaseRepository<TestRun> {
 	): Promise<TestRunSummary[]> {
 		const runs = await this.find({
 			where: { workflow: { id: workflowId }, ...(status ? { status } : {}) },
-			order: { createdAt: 'DESC' },
+			order: { createdAt: 'DESC', id: 'DESC' },
 			skip: options.skip,
 			take: options.take,
 			relations: { testCaseExecutions: true },

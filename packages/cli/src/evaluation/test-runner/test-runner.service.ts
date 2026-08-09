@@ -24,8 +24,10 @@ import type {
 import {
 	EVALUATION_NODE_TYPE,
 	EVALUATION_TRIGGER_NODE_TYPE,
+	ExecutionCancelledError,
 	ManualExecutionCancelledError,
 	UserError,
+	createRunExecutionData,
 	deepCopy,
 	jsonParse,
 } from 'n8n-workflow';
@@ -293,7 +295,7 @@ export class TestRunnerService {
 			// never disagree with the trigger about what the dataset is.
 			let rows: INodeExecutionData[];
 			try {
-				rows = await this.fetchDatasetRows(workflowData, trigger, user);
+				rows = await this.fetchDatasetRows(workflowData, trigger, user, runEntry);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				await this.failRun(testRunId, TestRunErrorCode.CANT_FETCH_TEST_CASES, { message });
@@ -403,8 +405,10 @@ export class TestRunnerService {
 					message: `${dispatchFailures.length} failure(s) occurred outside case execution.`,
 					errors: dispatchFailures,
 				});
-			} else {
-				await this.testRunRepository.markAsCompleted(testRunId, aggregated);
+			} else if (!(await this.testRunRepository.markAsCompleted(testRunId, aggregated))) {
+				// A cancel slipped in between the last check and completion —
+				// honor it: the 202 the caller already received must hold.
+				await this.markRunCancelled(testRunId, aggregated);
 			}
 			this.logger.debug('Test run settled', { testRunId, wasCancelled, failedCases });
 		} catch (error) {
@@ -440,7 +444,12 @@ export class TestRunnerService {
 				workflowData,
 				pinData,
 				userId: user.id,
+				// Force the injected/canvas evaluation trigger as the entry point;
+				// without this the engine may pick another trigger on the canvas
+				// and the pinned row would never be emitted.
+				triggerToStartFrom: { name: trigger.name },
 			};
+			this.serializeForQueueMode(runData);
 
 			const executionId = await this.workflowRunner.run(runData);
 			runEntry.executionIds.add(executionId);
@@ -459,6 +468,10 @@ export class TestRunnerService {
 			}
 
 			if (!execution || execution.data.resultData.error) {
+				if (execution?.data.resultData.error instanceof ExecutionCancelledError) {
+					await this.testCaseExecutionRepository.markAsCancelled(caseId);
+					return undefined;
+				}
 				await this.testCaseExecutionRepository.markAsError(caseId, 'FAILED_TO_EXECUTE_WORKFLOW', {
 					message: execution?.data.resultData.error?.message ?? 'The execution produced no result',
 				});
@@ -484,6 +497,11 @@ export class TestRunnerService {
 			});
 			return { metrics: numericMetrics };
 		} catch (error) {
+			// A cancelled execution is a stop, not a case failure.
+			if (error instanceof ExecutionCancelledError || runEntry.abort.signal.aborted) {
+				await this.testCaseExecutionRepository.markAsCancelled(caseId).catch(() => {});
+				return undefined;
+			}
 			const message = error instanceof Error ? error.message : String(error);
 			// Self-contained: one broken case must not fail the whole run.
 			try {
@@ -505,6 +523,7 @@ export class TestRunnerService {
 		workflowData: IWorkflowBase,
 		trigger: INode,
 		user: User,
+		runEntry: { abort: AbortController; executionIds: Set<string> },
 	): Promise<INodeExecutionData[]> {
 		const fetchWorkflow = deepCopy(workflowData);
 		const fetchTrigger = fetchWorkflow.nodes.find((node) => node.name === trigger.name);
@@ -516,10 +535,16 @@ export class TestRunnerService {
 			workflowData: fetchWorkflow,
 			destinationNode: { nodeName: trigger.name, mode: 'inclusive' },
 			userId: user.id,
+			triggerToStartFrom: { name: trigger.name },
 		};
+		this.serializeForQueueMode(runData);
 
 		const executionId = await this.workflowRunner.run(runData);
-		const execution = await this.activeExecutions.getPostExecutePromise(executionId);
+		// Tracked so a cancel can stop a hung dataset fetch too.
+		runEntry.executionIds.add(executionId);
+		const execution = await this.activeExecutions
+			.getPostExecutePromise(executionId)
+			.finally(() => runEntry.executionIds.delete(executionId));
 		if (!execution) throw new UserError('Dataset fetch produced no result');
 		if (execution.data.resultData.error) {
 			throw new UserError(execution.data.resultData.error.message);
@@ -531,8 +556,12 @@ export class TestRunnerService {
 	}
 
 	/**
-	 * Output items of the workflow's Evaluation node(s) for one operation,
-	 * merged in node order. Returns undefined when no such node ran.
+	 * Output of the workflow's Evaluation node(s) for one operation, merged in
+	 * node order. `setMetrics` emits its values as regular item json;
+	 * `setInputs`/`setOutputs` pass the workflow item through untouched and
+	 * attach the collected values as `evaluationData` on the FIRST item only
+	 * (pinned by the node's own comment). Returns undefined when no such node
+	 * ran.
 	 */
 	private collectNodeOutput(
 		workflowData: IWorkflowBase,
@@ -553,8 +582,14 @@ export class TestRunnerService {
 		for (const name of nodeNames) {
 			const taskData = execution.data.resultData.runData[name];
 			const items = taskData?.[taskData.length - 1]?.data?.main?.[0];
-			for (const item of items ?? []) {
-				merged = { ...(merged ?? {}), ...item.json };
+			if (!items?.length) continue;
+			if (operation === 'setMetrics') {
+				for (const item of items) {
+					merged = { ...(merged ?? {}), ...item.json };
+				}
+			} else {
+				const evaluationData = items[0].evaluationData;
+				if (evaluationData) merged = { ...(merged ?? {}), ...evaluationData };
 			}
 		}
 		return merged;
@@ -597,6 +632,30 @@ export class TestRunnerService {
 		return aggregated;
 	}
 
+	/**
+	 * Queue mode persists only `executionData` for workers — the transient
+	 * pinData/trigger/destination fields would be lost. Serialize them the
+	 * same way offloaded manual executions do so a worker can reconstruct the
+	 * evaluation run.
+	 */
+	private serializeForQueueMode(runData: IWorkflowExecutionDataProcess) {
+		if (this.globalConfig.executions.mode !== 'queue') return;
+		runData.executionData = createRunExecutionData({
+			startData: {
+				destinationNode: runData.destinationNode,
+			},
+			resultData: {
+				pinData: runData.pinData,
+				runData: null,
+			},
+			manualData: {
+				userId: runData.userId,
+				triggerToStartFrom: runData.triggerToStartFrom,
+			},
+			executionData: null,
+		});
+	}
+
 	private async failRun(
 		testRunId: string,
 		errorCode: TestRun['errorCode'],
@@ -610,6 +669,9 @@ export class TestRunnerService {
 				testRunId,
 				error: error instanceof Error ? error.message : String(error),
 			});
+			// Rethrow so the detached `finished` promise rejects and the error
+			// reporter sees a run that could not be settled.
+			throw error;
 		}
 	}
 }

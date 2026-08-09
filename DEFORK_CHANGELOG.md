@@ -591,3 +591,28 @@ pubsub event map. No `.ee` source read.
 `src/evaluation/**` + `server.ts` (pre-existing errors elsewhere only);
 `eslint src/evaluation` exit 0; `grep evaluation.ee packages/cli/src` → 0
 lines; internal test-runs spec 28/28; new insights unit tests 10/10.
+
+## 2026-08-09 — E13 review fixes (codex adversarial pass)
+
+Multi-provider review (codex read-only) of the E13 rebuild produced 11
+findings; 8 fixed, 3 deferred. Fixed: queue-mode executions now serialize
+full execution data (pinData/trigger/destination) exactly like offloaded
+manual executions — workers can reconstruct evaluation runs; every case and
+the dataset prefetch pass `triggerToStartFrom` so a canvas webhook/schedule
+trigger can never displace the evaluation trigger; the prefetch execution is
+cancel-trackable; setInputs/setOutputs are read from `item.evaluationData`
+(first item — pinned by the node's own comment), not `item.json`; cancelled
+in-flight cases are recorded cancelled, not UNKNOWN_ERROR; run completion is
+a compare-and-set against `cancelRequested` so a late cancel can't be
+overwritten by `completed`; `failRun` rethrows persistence failures so
+`finished` observers see unsettleable runs; internal cancel 409s terminal
+runs and delete 409s running runs; OpenAI judge nodes emit a plain string
+model (typeVersion 1); run/case ordering gained `id` tiebreakers. Deferred
+(logged, non-blocking — no surviving consumer pins them): structured
+`EvaluationApiError` transport on config validation responses; SQL-side
+summary aggregation instead of relation-loading cases; Vertex `projectId` /
+Azure `authentication` parameters on compiled judge nodes (needs a DTO
+extension); the execution-id registration window in cancellation.
+
+**Verification after fixes:** db build exit 0 + 409/409; internal spec
+28/28; insights 10/10; eslint 0; cli tsc 0 errors in src/evaluation.
