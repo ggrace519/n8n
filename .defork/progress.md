@@ -723,3 +723,47 @@ flipped.
   service-side per-destination tracking designed around it, writer untouched.
 
 **NEXT.** E5/E6 (saml/oidc — last router-gating items) or E8/E10/E11/E17.
+
+## 2026-08-09 — E5/E6 built, NOT flipped: security review found 7 real defects
+
+**WHAT.** SAML + OIDC backends rebuilt in parallel (committed, specs green:
+SAML units 39/39 + public-api 16/16 + loader 2/2; OIDC units 35/35 +
+public-api 24/24). Codex adversarial security review (hostile-IdP threat
+model) returned REQUEST CHANGES: 5 HIGH + 2 MEDIUM. Hardening agents
+dispatched (SAML: #1,#2,#3,#4,#6 / OIDC: #2,#3,#5,#7).
+
+**THE DEFECTS (do not lose these — E5/E6 stay passes:false until fixed).**
+1. SAML: assertion not bound to this SP — no Audience/Recipient/Destination/
+   InResponseTo/SubjectConfirmationData-NotOnOrAfter checks; samlify 2.13.0
+   accepts response OR assertion signature when both requested (must enforce
+   each explicitly).
+2. BOTH: an IdP-asserted email auto-links to an existing privileged (owner/
+   admin) local account.
+3. BOTH: provisioning role-mapping policy (incl. block:access) never
+   evaluated — must fail closed BEFORE account mutation/session issuance.
+   Blocked saml.api.test.ts:978 pins denial-before-mutation.
+4. SAML: metadata endpoint URLs only type-checked as string — `javascript:`
+   scheme passes SamlValidator and reaches window.location.href (reviewer
+   VERIFIED this empirically). Restrict to https (localhost http exception).
+5. OIDC: email taken from UserInfo while email_verified falls back to the ID
+   token — a verified flag can attest a different address. Resolve the pair
+   atomically from one source.
+6. SAML: no replay protection — no request-ID/browser-flow binding, no
+   response/assertion ID cache.
+7. OIDC: identities keyed by bare `sub` without issuer.
+
+**SOUND per review:** OIDC state/nonce/PKCE genuinely validated; ID-token
+iss/aud/exp/alg enforced (no none/HS confusion); SAML XSW + comment-
+truncation not exploitable via samlify; connection-test tokens 128-bit
+single-use 5-min and never issue a session; secrets encrypted+redacted, not
+logged; discovery/metadata fetch via guarded outbound transport; route
+license/scope gates and auth-method mutual exclusion correct.
+
+**COVERAGE HOLES.** saml.api.test.ts (ACS/permissions/signing pins) and
+oidc.instance-settings-loader.test.ts are BLOCKED on the missing provisioning
+module — E11 must land and both must then be run. Hardening agents told to
+repoint to surviving `modules/provisioning/constants` where that works.
+
+**NEXT.** Verify hardening → re-review the auth-critical diff → flip E5/E6 →
+PR. Then E11 (unblocks 2 SSO specs + carries role provisioning), E8, E10,
+E17, A10.
