@@ -645,3 +645,30 @@ files), verify each against its own spec file, codex review at the end.
 **NEXT.** When e3-contract.md lands: decompose + dispatch. Verify gate per
 slice: its spec file green; item gate: all 5 specs + grep source-control.ee
 = 0 (non-test).
+
+## 2026-08-09 — E3a/E3b/E3c done (source-control foundation + export + import)
+
+**WHAT.** Three slices landed and committed, each spec-gated:
+- E3a foundation (subagent + empirical git smoke harness that caught 2 real
+  bugs: unborn-branch HEAD, upstream-less pull). Files at
+  modules/source-control/ (constants, types/*, context factory, scoped
+  service, git service, helper).
+- E3b export service: spec 13/13. Also implemented workflow/folder/
+  data-table exports (contract-pinned shapes, spec covers creds+tags only —
+  behavioral pin arrives with E3d's pushWorkfolder spec).
+- E3c import service: spec 47/47 (2,019-line spec). Cipher via
+  Container.get at point of use (spec swaps container instance).
+  Non-destructive ownership on existing workflows (open question — chose
+  conservative).
+db 409/409 throughout; 0 tsc errors in the module; eslint clean.
+
+**IN FLIGHT.** E3d subagent: status service + SourceControlService +
+controller + module registration + public-api handler rewire + the 3
+remaining specs (service 1608 / api 283 / access-control 184) + grep
+source-control.ee = 0. After it: codex adversarial review of the whole E3
+diff, then flip E3.
+
+**NOTE for later.** E3a recommendation: add sourceControl:['push'] to the
+team-admin role map in @n8n/permissions and drop the scoped service's
+explicit PROJECT_ADMIN union (touches role snapshots — do deliberately,
+with the permissions test suite as gate).
