@@ -616,3 +616,41 @@ extension); the execution-id registration window in cancellation.
 
 **Verification after fixes:** db build exit 0 + 409/409; internal spec
 28/28; insights 10/10; eslint 0; cli tsc 0 errors in src/evaluation.
+
+## 2026-08-09 — E3a: source-control foundation (`packages/cli`)
+
+Clean-room rebuild of the source-control module's foundation slice under the
+fair-code path `packages/cli/src/modules/source-control/` (formerly
+`source-control.ee/`). Files: `constants.ts` (work-folder layout constants
+pinned by the environment specs' path assertions, plus git/ssh folder names
+and the `features.sourceControl.sshKeys` settings key), `types/{resource-owner,
+exportable-credential,exportable-data-table,exportable-folders,
+exportable-workflow}.ts` (serialized shapes pinned by the export/import/status
+spec fixtures), `source-control-scoped.service.ts` (team-project scoping:
+global `sourceControl:push` = instance-wide; else team projects where the
+user holds `project:admin` or a custom role granting project-level
+`sourceControl:push`), `source-control-context.factory.ts`
+(`SourceControlContextFactory.createContext(user)` returning an immutable
+`SourceControlContext`), `source-control-git.service.ts` (simple-git wrapper:
+init/remote/branch management, DB-stored SSH key materialized to
+`${n8nFolder}/ssh/key` mode 0600 with per-instance `known_hosts` and
+`StrictHostKeyChecking=accept-new`, fetch/pull/push/stage/commit/status/
+diff/reset), and `source-control-helper.ts`
+(`isSourceControlLicensed` via `LicenseState`,
+`getTrackingInformationFromPullResult`, `getRepoType`).
+
+**Clean-room sources:** the E3 contract inventory (derived solely from
+surviving fair-code specs/consumers); the five integration specs under
+`test/integration/environments/`; the public-api pull handler; the surviving
+fair-code `source-control-preferences.service.ts` + types; the
+`MoveSshKeysToDatabase` migration (key-pair storage shape); `@n8n/permissions`
+scope/role definitions; `check-access.ts` scoping patterns; simple-git's
+public API. No enterprise source or history was consulted.
+
+**Verification:** cli tsc — 0 errors in `src/modules/source-control/**`
+(remaining source-control errors are the 3 pre-existing `.ee` imports in the
+not-yet-rewired public-api handler); `eslint src/modules/source-control`
+exit 0; standalone smoke harness against a real local bare git remote —
+helper counters, init/branch/stage/commit/push/fetch/diffLocal/hard-reset/
+ff-only-pull, SSH key materialization (mode 600, known_hosts, missing-key
+UserError) all green.
