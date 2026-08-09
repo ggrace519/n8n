@@ -699,3 +699,27 @@ ZERO assertion changes + 57 new unit tests. E3 flipped.
 
 **NEXT.** E9 (log-streaming) → unlocks entire public-api suite → then E5/E6,
 E8, E10, E11, E17, A10 sweep.
+
+## 2026-08-09 — E9 DONE (log-streaming; public-api router UNGATED)
+
+**WHAT.** Full module at modules/log-streaming (webhook/sentry/syslog
+destinations, service, factory, controller, module-local EventDestinations
+entity/repo). Specs 68/68; loader 20/20; codex review 8/8 findings fixed
+(credential-binding authz, fail-closed auth, per-destination ack tracking,
+read-API redaction, bounded queues + drain, persist-before-swap, narrowed
+resolver containment, working circuit breaker) + 42 new unit tests. E9
+flipped.
+
+**KEY FACTS.**
+- public-api/index.ts resolver now contains ONLY unresolvable pending `.ee`
+  specifiers (sso-oidc/sso-saml) — their routes 500, everything else works.
+  Public-api suite runs: log-streaming 44/44; tags 23/24.
+- NEW PRE-EXISTING BUGS surfaced for later items: (1) tags public-api
+  'non-owner should not delete tag' expects 403 gets 200 — RBAC gap, route
+  to A10; (2) sso/provisioning.instance-settings-loader.test 3/7 fail —
+  loader writes 'sso.provisioning.config', test expects
+  'features.provisioning' — belongs to E11 provisioning rebuild.
+- Eventbus writer (fair-code) confirm semantics: first confirm marks sent —
+  service-side per-destination tracking designed around it, writer untouched.
+
+**NEXT.** E5/E6 (saml/oidc — last router-gating items) or E8/E10/E11/E17.
