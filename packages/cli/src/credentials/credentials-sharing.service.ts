@@ -7,6 +7,7 @@ import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { ProjectService } from '@/services/project.service';
 
+import { CredentialConnectionStatusProxy } from './credential-connection-status-proxy';
 import { CredentialsFinderService } from './credentials-finder.service';
 import { CredentialsService } from './credentials.service';
 
@@ -22,6 +23,7 @@ export class EnterpriseCredentialsService {
 		private readonly credentialsFinderService: CredentialsFinderService,
 		private readonly credentialsService: CredentialsService,
 		private readonly projectService: ProjectService,
+		private readonly connectionStatusProxy: CredentialConnectionStatusProxy,
 	) {}
 
 	/**
@@ -128,6 +130,22 @@ export class EnterpriseCredentialsService {
 			throw new NotFoundError(`Could not find project to transfer to. ID: ${destinationProjectId}`);
 		}
 
+		// Moving an end-user credential hands its per-user connections to a new
+		// audience, so it takes the same authority as creating one there.
+		if (credential.isResolvable) {
+			await this.credentialsService.ensureCanManageEndUserCredential(user, destinationProjectId);
+		}
+
+		const sourceProjectId = ownerSharing?.projectId;
+
 		await this.sharedCredentialsRepository.transferOwnership(credentialId, destinationProjectId);
+
+		// Members of the old home project may no longer hold `credential:connect`
+		// on the credential; drop the connections they can no longer use.
+		if (credential.isResolvable && sourceProjectId !== undefined) {
+			await this.connectionStatusProxy.cleanupOrphanedEntriesForProjects(credentialId, [
+				sourceProjectId,
+			]);
+		}
 	}
 }

@@ -2,7 +2,7 @@ import { testDb, testModules } from '@n8n/backend-test-utils';
 import { UserRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
 
-import { DynamicCredentialUserEntryStorage } from '@/modules/dynamic-credentials.ee/credential-resolvers/storage/dynamic-credential-user-entry-storage';
+import { DynamicCredentialUserEntryStorage } from '@/modules/dynamic-credentials/credential-resolvers/storage/dynamic-credential-user-entry-storage';
 
 import { createDynamicCredentialResolver } from './shared/db-helpers';
 import { createCredentials } from '../shared/db/credentials';

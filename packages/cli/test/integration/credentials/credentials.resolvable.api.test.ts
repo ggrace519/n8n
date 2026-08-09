@@ -13,11 +13,11 @@ import {
 	SYSTEM_RESOLVER_ID,
 	SYSTEM_RESOLVER_NAME,
 	SYSTEM_RESOLVER_TYPE,
-} from '@/modules/dynamic-credentials.ee/constants';
-import { DynamicCredentialUserEntryStorage } from '@/modules/dynamic-credentials.ee/credential-resolvers/storage/dynamic-credential-user-entry-storage';
-import { DynamicCredentialResolverRepository } from '@/modules/dynamic-credentials.ee/database/repositories/credential-resolver.repository';
-import { DynamicCredentialUserEntryRepository } from '@/modules/dynamic-credentials.ee/database/repositories/dynamic-credential-user-entry.repository';
-import { DynamicCredentialsConfig } from '@/modules/dynamic-credentials.ee/dynamic-credentials.config';
+} from '@/modules/dynamic-credentials/constants';
+import { DynamicCredentialUserEntryStorage } from '@/modules/dynamic-credentials/credential-resolvers/storage/dynamic-credential-user-entry-storage';
+import { DynamicCredentialResolverRepository } from '@/modules/dynamic-credentials/database/repositories/credential-resolver.repository';
+import { DynamicCredentialUserEntryRepository } from '@/modules/dynamic-credentials/database/repositories/dynamic-credential-user-entry.repository';
+import { DynamicCredentialsConfig } from '@/modules/dynamic-credentials/dynamic-credentials.config';
 import { Telemetry } from '@/telemetry';
 
 import {

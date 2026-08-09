@@ -2,9 +2,9 @@ import { testDb, testModules } from '@n8n/backend-test-utils';
 import { CredentialsRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
 
-import { DynamicCredentialEntry } from '@/modules/dynamic-credentials.ee/database/entities/dynamic-credential-entry';
-import { DynamicCredentialResolverRepository } from '@/modules/dynamic-credentials.ee/database/repositories/credential-resolver.repository';
-import { DynamicCredentialEntryRepository } from '@/modules/dynamic-credentials.ee/database/repositories/dynamic-credential-entry.repository';
+import { DynamicCredentialEntry } from '@/modules/dynamic-credentials/database/entities/dynamic-credential-entry';
+import { DynamicCredentialResolverRepository } from '@/modules/dynamic-credentials/database/repositories/credential-resolver.repository';
+import { DynamicCredentialEntryRepository } from '@/modules/dynamic-credentials/database/repositories/dynamic-credential-entry.repository';
 
 import { createDynamicCredentialResolver } from './shared/db-helpers';
 import { createCredentials } from '../shared/db/credentials';
