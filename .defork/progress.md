@@ -226,3 +226,48 @@ contract from consumers + surviving project.service tests; watch for the
 user.service.test reference to `projectService.getProjectIdsWithScope`.
 Note: `workflow-creation.service.test.ts` also imports project.service.ee +
 workflow.service.ee — it becomes loadable only after A7+E14.
+
+## 2026-08-08 — A7 done (ProjectService rebuilt fair-code)
+
+**WHAT.** Rebuilt `packages/cli/src/services/project.service.ts` (24 methods +
+2 error classes) + 10 use-case repo methods in @n8n/db + @n8n/permissions
+schema/type fixes. Multi-provider: codex extracted the 42-file consumer
+contract inventory (read-only), Claude implemented, codex reviewed the diff.
+
+**KEY DISCOVERIES (don't re-learn these).**
+- `test/integration/project.api.test.ts` (1544 lines) + `public-api/projects.test.ts`
+  SURVIVED and pin byte-exact error messages, quota semantics (incl. a
+  parallel-creation race test), 409-vs-200 membership semantics, personal-project
+  404s, and transfer authorization. They can't RUN yet (file imports purged .ee
+  modules) — they become the A10 gate. Codex's review surfaced them; my own
+  contract pass missed them. Lesson: search test/integration/** for specs BEFORE
+  implementing, not just src/**/__tests__.
+- License semantics: role licensing applies only to roles a change NEWLY grants
+  (re-adding an existing admin is license-free; granting viewer to a new member
+  requires feat:projectRole:viewer). Resolves the apparent contradiction between
+  the service integration tests and the public-api 400 pin.
+- Custom role slugs are `${roleType}:${name}-${rand}` (see
+  RoleService.createCustomRole) — NOT only 'custom:*'. Any schema that gates
+  assignable project roles must accept both namespaces (teamRoleSchema does now).
+- `AssignableGlobalRole` = string (custom global roles are free-form);
+  assignableGlobalRoleSchema rejects only 'global:owner' (message pinned).
+- Dynamic imports in cli need the `.js` suffix ('@/workflows/workflow.service.js')
+  — used to break the ProjectService↔WorkflowService/CredentialsService/
+  OwnershipTransferService DI cycles (same pattern as execution-recovery.service).
+- eslint ratchet allowlist (packages/cli/eslint.config.mjs): renamed/rebuilt files
+  carry over their old entries (permissions.ee/check-access.ts →
+  permissions/check-access.ts; project.service.ts added as the rebuild of the
+  purged .ee leak). Do the same for future E-item renames.
+
+**VERIFIED.** grep=0; cli tsc 968→946, zero regressions; integration 25/25;
+permissions 105/105; api-types 1773/1773 (3 pre-existing failures FIXED —
+they were gaps in the A2 rebuild only visible from api-types' suite); db 409/409.
+Codex review: 10 findings, 8 fixed (incl. 2 blockers: transfer-authz 404 and…
+quota race), 1 documented deviation (permission-aware deletes mirror
+users.controller), 1 was the changelog entry itself. grok dropped (2 empty
+responses in plan mode — rule 5 fallback; investigate grok flags before next use).
+
+**NEXT.** Item **E2-variables** (environments.ee, 12 consumers) per feature_list
+order. Same recipe: check test/integration/environments/** for surviving specs
+FIRST (there are 92 tsc errors under test/integration/environments — the specs
+exist), then consumers, then codex contract pass if large.

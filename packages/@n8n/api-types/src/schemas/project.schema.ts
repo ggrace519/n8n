@@ -1,4 +1,4 @@
-import { assignableProjectRoleSchema } from '@n8n/permissions';
+import { teamRoleSchema } from '@n8n/permissions';
 import { z } from 'zod';
 
 export const projectNameSchema = z.string().min(1).max(255);
@@ -15,8 +15,9 @@ export type ProjectIcon = z.infer<typeof projectIconSchema>;
 
 export const projectDescriptionSchema = z.string().max(512);
 
+// Team-project members may hold a built-in assignable role or a custom role.
 export const projectRelationSchema = z.object({
 	userId: z.string().min(1),
-	role: assignableProjectRoleSchema,
+	role: teamRoleSchema,
 });
 export type ProjectRelation = z.infer<typeof projectRelationSchema>;

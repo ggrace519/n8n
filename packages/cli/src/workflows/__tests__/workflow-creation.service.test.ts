@@ -12,7 +12,7 @@ import type { ExternalHooks, WorkflowLifecycleHookActor } from '@/external-hooks
 import type { InstanceRedactionEnforcementService } from '@/modules/redaction/instance-redaction-enforcement.service';
 import type { NodeTypes } from '@/node-types';
 import { userHasScopes } from '@/permissions/check-access';
-import type { ProjectService } from '@/services/project.service.ee';
+import type { ProjectService } from '@/services/project.service';
 import * as WorkflowHelpers from '@/workflow-helpers';
 import type { WorkflowHookContextService } from '@/workflow-hook-context.service';
 import { WorkflowCreationService } from '@/workflows/workflow-creation.service';

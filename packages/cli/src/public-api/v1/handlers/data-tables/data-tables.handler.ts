@@ -15,7 +15,7 @@ import { DataTableService } from '@/modules/data-table/data-table.service';
 import { DataTableNameConflictError } from '@/modules/data-table/errors/data-table-name-conflict.error';
 import { DataTableNotFoundError } from '@/modules/data-table/errors/data-table-not-found.error';
 import { DataTableValidationError } from '@/modules/data-table/errors/data-table-validation.error';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 
 import { getDataTableListFilter, resolveProjectIdForCreate } from './data-tables.service';
 import type { DataTableRequest } from '../../../types';

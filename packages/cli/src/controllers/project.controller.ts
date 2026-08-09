@@ -35,7 +35,7 @@ import {
 	ProjectService,
 	TeamProjectOverQuotaError,
 	UnlicensedProjectRoleError,
-} from '@/services/project.service.ee';
+} from '@/services/project.service';
 import { UserManagementMailer } from '@/user-management/email';
 
 @RestController('/projects')

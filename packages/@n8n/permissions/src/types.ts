@@ -67,6 +67,14 @@ export interface ScopeOptions {
 
 export type GlobalRole = 'global:owner' | 'global:admin' | 'global:member' | 'global:chatUser';
 
+/**
+ * A global role slug assignable to a user — any built-in global role except
+ * the fixed instance owner, or a custom role. Custom role slugs are free-form,
+ * so this is `string` at the type level; existence and licensing are enforced
+ * at runtime (`assignableGlobalRoleSchema`, `RoleService.checkRolesExist`).
+ */
+export type AssignableGlobalRole = string;
+
 export type ProjectRole =
 	| 'project:personalOwner'
 	| 'project:admin'

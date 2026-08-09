@@ -4,7 +4,7 @@ import { Container } from '@n8n/di';
 
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 
 export async function getDataTableListFilter(
 	userId: string,

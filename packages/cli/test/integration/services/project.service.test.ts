@@ -5,7 +5,7 @@ import { Container } from '@n8n/di';
 import { PROJECT_OWNER_ROLE_SLUG, type ProjectRole, type Scope } from '@n8n/permissions';
 
 import { License } from '@/license';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 import { createRole } from '@test-integration/db/roles';
 import { LicenseMocker } from '@test-integration/license';
 

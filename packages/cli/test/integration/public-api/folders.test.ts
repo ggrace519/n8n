@@ -5,7 +5,7 @@ import { Container } from '@n8n/di';
 import type { ApiKeyScope } from '@n8n/permissions';
 
 import { FolderService } from '@/services/folder.service';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 
 import { createFolder } from '../shared/db/folders';
 import { createOwnerWithApiKey, createMemberWithApiKey } from '../shared/db/users';

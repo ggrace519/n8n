@@ -57,7 +57,7 @@ import { hasSharing } from '@/requests';
 import { PollTriggerJobRegistrar } from '@/scheduling/poll-trigger-node/poll-trigger-job-registrar';
 import { ScheduleTriggerJobRegistrar } from '@/scheduling/schedule-trigger-node/schedule-trigger-job-registrar';
 import { OwnershipService } from '@/services/ownership.service';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 import { RoleService } from '@/services/role.service';
 import { TagService } from '@/services/tag.service';
 import { WEBHOOK_CONFLICT_MESSAGE } from '@/webhooks/constants';

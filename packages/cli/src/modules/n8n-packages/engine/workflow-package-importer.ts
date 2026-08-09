@@ -8,7 +8,7 @@ import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { EventService } from '@/events/event.service';
 import { FolderService } from '@/services/folder.service';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 
 import type { CredentialBindingRequest } from '../entities/credential/credential.types';
 import type { DataTableImportRequest } from '../entities/data-table/data-table.types';

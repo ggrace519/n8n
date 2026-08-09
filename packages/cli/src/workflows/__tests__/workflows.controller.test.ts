@@ -13,7 +13,7 @@ import { WorkflowsController } from '../workflows.controller';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import type { ExecutionService } from '@/executions/execution.service';
-import type { ProjectService } from '@/services/project.service.ee';
+import type { ProjectService } from '@/services/project.service';
 
 describe('WorkflowsController', () => {
 	const controller = Object.create(WorkflowsController.prototype);

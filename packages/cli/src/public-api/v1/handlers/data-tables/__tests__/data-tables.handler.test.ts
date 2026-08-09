@@ -11,7 +11,7 @@ import { DataTableService } from '@/modules/data-table/data-table.service';
 import { DataTableNotFoundError } from '@/modules/data-table/errors/data-table-not-found.error';
 import type { DataTableRequest } from '@/public-api/types';
 import * as middlewares from '@/public-api/v1/shared/middlewares/global.middleware';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 import { GLOBAL_MEMBER_SCOPES, type Scope } from '@n8n/permissions';
 
 // Mock middleware before requiring handler

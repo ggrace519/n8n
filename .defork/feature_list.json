@@ -90,7 +90,7 @@
       "id": "A7-project-service",
       "phase": "E",
       "title": "ProjectService fair-code rebuild (40 consumers) in packages/cli",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"project.service.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0; cli tsc: no ProjectService errors",
       "notes": "Clean-room source: consumers of ProjectService + surviving project.service tests + ProjectRepository/ProjectRelationRepository (@n8n/db) + @n8n/permissions role maps. Rebuild as packages/cli/src/services/project.service.ts (no .ee). Covers personal + team projects, membership, role assignment. Depends on E1."
     },

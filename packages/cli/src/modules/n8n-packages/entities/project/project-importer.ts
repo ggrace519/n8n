@@ -5,7 +5,7 @@ import { hasGlobalScope } from '@n8n/permissions';
 import { UnexpectedError } from 'n8n-workflow';
 
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 
 import { decideMatchedProject } from './project-conflict-policy';
 import type {

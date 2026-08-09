@@ -4,7 +4,7 @@ import type { Scope } from '@n8n/permissions';
 
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 
 export async function assertProjectScope(
 	user: User,

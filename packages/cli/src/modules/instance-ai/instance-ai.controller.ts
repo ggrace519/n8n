@@ -77,7 +77,7 @@ import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { Push } from '@/push';
 import { Publisher } from '@/scaling/pubsub/publisher.service';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 import { UrlService } from '@/services/url.service';
 
 type FlushableResponse = Response & { flush?: () => void };

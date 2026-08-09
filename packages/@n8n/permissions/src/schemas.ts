@@ -30,12 +30,12 @@ export const globalRoleSchema = z.enum([
 	'global:chatUser',
 ]);
 
-/** Global roles that can be assigned to a user (the instance owner is fixed). */
-export const assignableGlobalRoleSchema = z.enum([
-	'global:admin',
-	'global:member',
-	'global:chatUser',
-]);
+/** Any role slug assignable to a user. Only the fixed instance-owner role is
+ * rejected here; whether the role exists (built-in or custom) is a runtime
+ * concern of the role service. */
+export const assignableGlobalRoleSchema = z.string().refine((value) => value !== 'global:owner', {
+	message: 'This global role value is not assignable',
+});
 
 // ----------------------------------
 //          project roles
@@ -64,11 +64,19 @@ export const customProjectRoleSchema = z
 	.string()
 	.regex(/^custom:.+/, { message: 'Custom role slugs must be namespaced under "custom:"' });
 
-/** Any project role — built-in or custom. */
-export const projectRoleSchema = z.union([systemProjectRoleSchema, customProjectRoleSchema]);
+/** Any project role — built-in or custom. Custom role slugs are generated
+ * free-form under the `project:` or `custom:` namespace
+ * (e.g. `project:<name>-<suffix>`), so this validates the namespace only;
+ * existence is a runtime concern of the role service. */
+export const projectRoleSchema = z.string().regex(/^(project|custom):.+/);
 
-/** Roles assignable within a team project (built-in assignable + custom). */
-export const teamRoleSchema = z.union([assignableProjectRoleSchema, customProjectRoleSchema]);
+/** Roles assignable within a team project: any project role except the fixed
+ * personal-project owner. */
+export const teamRoleSchema = z
+	.string()
+	.refine((value) => /^(project|custom):.+/.test(value) && value !== PROJECT_OWNER_ROLE_SLUG, {
+		message: 'This project role is not assignable in a team project',
+	});
 
 // ----------------------------------
 //        resource sharing roles

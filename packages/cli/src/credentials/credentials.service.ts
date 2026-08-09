@@ -67,7 +67,7 @@ import { getChangedSharedFields } from '@/modules/dynamic-credentials.ee/service
 import type { CredentialRequest, ListQuery } from '@/requests';
 import { CredentialsTester } from '@/services/credentials-tester.service';
 import { OwnershipService } from '@/services/ownership.service';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 import { RoleService } from '@/services/role.service';
 
 import { CredentialConnectionStatusProxy } from './credential-connection-status-proxy';

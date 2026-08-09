@@ -193,3 +193,57 @@ exactly the fixed call-site arity); 22/22 new unit tests, 409/409 `@n8n/db`
 tests, 107/107 rewired-consumer unit tests pass. Independent codex (OpenAI)
 review of the diff: blocker (missing trx param) found and fixed; test-coverage
 findings addressed.
+
+### 2026-08-08 — A7: ProjectService rebuilt fair-code
+
+**Added (clean-room rebuild of purged `services/project.service.ee.ts`)**
+- `packages/cli/src/services/project.service.ts` — 24 methods +
+  `TeamProjectOverQuotaError` / `UnlicensedProjectRoleError` (messages pinned
+  byte-exact by surviving `project.api.test.ts` / `public-api/projects.test.ts`).
+  Semantics derived from consumers and surviving specs: quota-guarded
+  transactional team-project creation (`quota:maxTeamProjects`, -1 unlimited);
+  `getProjectWithScope` (global allOf, else project-role membership, optional
+  EntityManager); add/sync membership with role-existence checks and
+  license checks on newly-granted roles only (re-asserting a held role stays
+  license-free — pinned by the re-add-admin integration test);
+  conflict-semantics adds (409 only on role mismatch, same-role re-add = 200
+  no-op); personal projects 404 on update; delete with resource cleanup
+  (mirrors the fair-code `users.controller` user-deletion recipe) or transfer
+  gated on `workflow:create`+`credential:create` in the target (404 otherwise);
+  DI cycles broken via lazy `await import(...)` like the rest of the codebase.
+- `@n8n/db` use-case repo methods: ProjectRepository.{createTeamProjectUnderLimit,
+  findById, findByIdForUserWithRoles, getExistingProjectIds, findByIds},
+  ProjectRelationRepository.{findRelation, getRelationsForProject,
+  getRelationsForUser, upsertRelation, replaceAllRelationsForProject,
+  removeRelation}.
+- `@n8n/permissions` fixes surfaced by consumer typechecking + surviving tests:
+  added missing `AssignableGlobalRole` (= string; custom roles are free-form);
+  `assignableGlobalRoleSchema` now rejects only `global:owner` (error message
+  pinned by api-types tests, custom global roles pass);
+  `projectRoleSchema`/`teamRoleSchema` accept generated custom project slugs
+  (`project:<name>-<suffix>` per `RoleService.createCustomRole`), personalOwner
+  still not team-assignable. api-types `projectRelationSchema` role →
+  `teamRoleSchema`. cli `GetMyProjectsResponse.role`/mailer `newSharees.role` →
+  string.
+
+**Known deviation:** non-transfer project deletion removes owned resources via
+the permission-aware `WorkflowService.delete`/`CredentialsService.delete`
+(the same recipe the fair-code `users.controller` uses); a custom role holding
+`project:delete` without resource-delete scopes could leave orphans. Tracked
+for the A10 sweep.
+
+**Clean-room sources:** 42 consumer files (project.controller, public-api
+projects handler + middlewares, credentials/workflow services, n8n-packages
+importers/exporters, instance-ai adapter), surviving integration specs
+(project.service.test.ts, project.service.integration.test.ts,
+project.api.test.ts, public-api/projects.test.ts), @n8n/db repositories,
+@n8n/permissions. No `.ee` source read. Contract inventory cross-checked by an
+independent codex (OpenAI) read-only pass; its review found 10 issues (2
+blockers) — 8 fixed, 1 retained as documented deviation, 1 was this entry.
+
+**Verification:** `project.service.ee` refs repo-wide = 0; cli tsc 968→946
+errors with zero regressions (remaining errors belong to other un-rebuilt .ee
+subsystems); integration 25/25; @n8n/permissions 105/105; @n8n/api-types
+1773/1773 (fixed 3 pre-existing failures); @n8n/db 409/409; eslint clean on
+changed files (ratchet allowlist entries carried over for the renamed/rebuilt
+files, not new leaks).

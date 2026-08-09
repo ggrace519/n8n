@@ -14,7 +14,7 @@ import { mock } from 'vitest-mock-extended';
 import type { CredentialsFinderService } from '@/credentials/credentials-finder.service';
 import type { NodeTypes } from '@/node-types';
 import type { OwnershipService } from '@/services/ownership.service';
-import type { ProjectService } from '@/services/project.service.ee';
+import type { ProjectService } from '@/services/project.service';
 
 import { CredentialsPermissionChecker } from '../credentials-permission-checker';
 

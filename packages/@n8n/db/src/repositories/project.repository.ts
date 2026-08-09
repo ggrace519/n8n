@@ -1,6 +1,6 @@
 import { Service } from '@n8n/di';
 import type { EntityManager, SelectQueryBuilder } from '@n8n/typeorm';
-import { Brackets, DataSource, Repository } from '@n8n/typeorm';
+import { Brackets, DataSource, In, Repository } from '@n8n/typeorm';
 
 import { Project } from '../entities';
 
@@ -40,6 +40,71 @@ export class ProjectRepository extends Repository<Project> {
 					userId,
 				},
 			},
+		});
+	}
+
+	/**
+	 * Create a team project only while the total team-project count is below
+	 * `limit` (-1 = unlimited); returns null when the quota is exhausted.
+	 * Count and insert share one transaction so parallel creations cannot
+	 * overshoot the quota (fully serialized on SQLite; best-effort under
+	 * concurrent Postgres transactions).
+	 */
+	async createTeamProjectUnderLimit(
+		data: Pick<Project, 'name' | 'type'> & Partial<Project>,
+		limit: number,
+	): Promise<Project | null> {
+		return await this.manager.transaction(async (em) => {
+			if (limit !== -1) {
+				const count = await em.count(Project, { where: { type: 'team' } });
+				if (count >= limit) return null;
+			}
+			return await em.save(em.create(Project, data));
+		});
+	}
+
+	/** Find a project by ID; supports running inside a caller's transaction. */
+	async findById(projectId: string, entityManager?: EntityManager) {
+		const em = entityManager ?? this.manager;
+		return await em.findOneBy(Project, { id: projectId });
+	}
+
+	/**
+	 * Find a project by ID, but only when the given user is a member of it
+	 * through one of the given roles. Supports a caller's transaction.
+	 */
+	async findByIdForUserWithRoles(
+		projectId: string,
+		userId: string,
+		roleSlugs: string[],
+		entityManager?: EntityManager,
+	) {
+		if (roleSlugs.length === 0) return null;
+		const em = entityManager ?? this.manager;
+		return await em.findOne(Project, {
+			where: {
+				id: projectId,
+				projectRelations: { userId, role: { slug: In(roleSlugs) } },
+			},
+		});
+	}
+
+	/** The subset of the given IDs that exist as projects. */
+	async getExistingProjectIds(projectIds: string[]): Promise<string[]> {
+		if (projectIds.length === 0) return [];
+		const projects = await this.find({
+			select: { id: true },
+			where: { id: In(projectIds) },
+		});
+		return projects.map((project) => project.id);
+	}
+
+	/** Projects with the given IDs, ordered deterministically (createdAt, then id). */
+	async findByIds(projectIds: string[]): Promise<Project[]> {
+		if (projectIds.length === 0) return [];
+		return await this.find({
+			where: { id: In(projectIds) },
+			order: { createdAt: 'ASC', id: 'ASC' },
 		});
 	}
 

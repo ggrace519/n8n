@@ -27,7 +27,7 @@ import { ActiveWorkflowManager } from '@/active-workflow-manager';
 import { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
 import { NodeTypes } from '@/node-types';
 import { OwnershipService } from '@/services/ownership.service';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 import { RoleService } from '@/services/role.service';
 import { Telemetry } from '@/telemetry';
 import { WebhookService } from '@/webhooks/webhook.service';

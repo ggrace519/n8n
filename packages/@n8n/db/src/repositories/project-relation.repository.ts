@@ -45,6 +45,57 @@ export class ProjectRelationRepository extends Repository<ProjectRelation> {
 		return projectRelations.map((pr) => pr.projectId);
 	}
 
+	/** The user's relation in a project, with its role (and the role's scopes) loaded. */
+	async findRelation(projectId: string, userId: string) {
+		return await this.findOne({
+			where: { projectId, userId },
+			relations: { role: true },
+		});
+	}
+
+	/** All member relations of a project, with users and roles loaded. */
+	async getRelationsForProject(projectId: string) {
+		return await this.find({
+			where: { projectId },
+			relations: { user: true, role: true },
+		});
+	}
+
+	/** All project relations of a user, with projects and roles loaded. */
+	async getRelationsForUser(userId: string) {
+		return await this.find({
+			where: { userId },
+			relations: { project: true, role: true },
+		});
+	}
+
+	/** Create the relation, or update its role if the user is already a member. */
+	async upsertRelation(projectId: string, userId: string, roleSlug: string) {
+		await this.manager.upsert(ProjectRelation, { projectId, userId, role: { slug: roleSlug } }, [
+			'projectId',
+			'userId',
+		]);
+	}
+
+	/** Atomically replace ALL member relations of a project with the given set. */
+	async replaceAllRelationsForProject(
+		projectId: string,
+		relations: Array<{ userId: string; role: string }>,
+	) {
+		await this.manager.transaction(async (em) => {
+			await em.delete(ProjectRelation, { projectId });
+			await em.insert(
+				ProjectRelation,
+				relations.map(({ userId, role }) => ({ projectId, userId, role: { slug: role } })),
+			);
+		});
+	}
+
+	/** Remove a user's relation from a project. */
+	async removeRelation(projectId: string, userId: string) {
+		await this.delete({ projectId, userId });
+	}
+
 	/**
 	 * Find the role of a user in a project.
 	 */

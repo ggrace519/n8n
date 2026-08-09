@@ -36,7 +36,7 @@ import { UserManagementMailer } from '@/user-management/email';
 
 import { JwtService } from './jwt.service';
 import { OwnershipService } from './ownership.service';
-import { ProjectService } from './project.service.ee';
+import { ProjectService } from './project.service';
 import { PublicApiKeyService } from './public-api-key.service';
 import { RoleService } from './role.service';
 

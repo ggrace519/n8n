@@ -3,7 +3,6 @@ import { GlobalConfig } from '@n8n/config';
 import type { ApiKey, User } from '@n8n/db';
 import { UserRepository } from '@n8n/db';
 import { Container, Service } from '@n8n/di';
-import { AssignableProjectRole } from '@n8n/permissions';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import Handlebars from 'handlebars';
@@ -323,7 +322,7 @@ export class UserManagementMailer {
 		project,
 	}: {
 		sharer: User;
-		newSharees: Array<{ userId: string; role: AssignableProjectRole }>;
+		newSharees: Array<{ userId: string; role: string }>;
 		project: { id: string; name: string };
 	}): Promise<SendEmailResult> {
 		const recipients = await this.userRepository.getEmailsByIds(newSharees.map((s) => s.userId));

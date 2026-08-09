@@ -8,7 +8,7 @@ import { displayParameter, isExpression, UserError } from 'n8n-workflow';
 import { CredentialsFinderService } from '@/credentials/credentials-finder.service';
 import { NodeTypes } from '@/node-types';
 import { OwnershipService } from '@/services/ownership.service';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 
 class InvalidCredentialError extends UserError {
 	override description = 'Please recreate the credential.';

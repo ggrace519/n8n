@@ -28,7 +28,7 @@ import { policyForFloor, policyMeetsFloor } from '@/modules/redaction/redaction-
 import { NodeTypes } from '@/node-types';
 import { userHasScopes } from '@/permissions/check-access';
 import { FolderService } from '@/services/folder.service';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 import { TagService } from '@/services/tag.service';
 import * as WorkflowHelpers from '@/workflow-helpers';
 import { WorkflowHookContextService } from '@/workflow-hook-context.service';

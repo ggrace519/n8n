@@ -39,7 +39,7 @@ import { NodeTypes } from '@/node-types';
 import { PostHogClient } from '@/posthog';
 import { AiGatewayService } from '@/services/ai-gateway.service';
 import { NodeResourceExplorerService } from '@/services/node-resource-explorer.service';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 import { RoleService } from '@/services/role.service';
 import { TagService } from '@/services/tag.service';
 import { UrlService } from '@/services/url.service';

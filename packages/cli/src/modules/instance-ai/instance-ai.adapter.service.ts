@@ -152,7 +152,7 @@ import type { AiGatewayConfigDto } from '@n8n/api-types';
 import { AiGatewayService } from '@/services/ai-gateway.service';
 import { FolderService } from '@/services/folder.service';
 import { NodeResourceExplorerService } from '@/services/node-resource-explorer.service';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 import { RoleService } from '@/services/role.service';
 import { InstanceSettings } from 'n8n-core';
 import { TagService } from '@/services/tag.service';

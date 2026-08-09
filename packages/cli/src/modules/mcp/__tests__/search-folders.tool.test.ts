@@ -1,7 +1,7 @@
 import { mockInstance } from '@n8n/backend-test-utils';
 import { FolderRepository, User } from '@n8n/db';
 
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 import { Telemetry } from '@/telemetry';
 
 import { createSearchFoldersTool } from '../tools/search-folders.tool';

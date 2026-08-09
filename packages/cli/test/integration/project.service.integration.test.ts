@@ -10,7 +10,7 @@ import { SharedWorkflowRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
 
 import { License } from '@/license';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 import { LicenseMocker } from '@test-integration/license';
 
 import { createUser } from './shared/db/users';

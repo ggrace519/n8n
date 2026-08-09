@@ -16,7 +16,7 @@ import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { ProvisioningService } from '@/modules/provisioning.ee/provisioning.service.ee';
 import type { PaginatedRequest } from '@/public-api/types';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 
 import type { PublicAPIEndpoint } from '../../shared/handler.types';
 import {

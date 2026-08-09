@@ -11,7 +11,6 @@ import type {
 import type {
 	AssignableGlobalRole,
 	AssignableProjectRole,
-	GlobalRole,
 	ProjectRole,
 	Scope,
 } from '@n8n/permissions';
@@ -294,9 +293,8 @@ export declare namespace ActiveWorkflowRequest {
 // ----------------------------------
 
 export declare namespace ProjectRequest {
-	type GetMyProjectsResponse = Array<
-		Project & { role: ProjectRole | AssignableProjectRole | GlobalRole; scopes?: Scope[] }
-	>;
+	// `role` is a slug: a built-in project/global role or a custom role.
+	type GetMyProjectsResponse = Array<Project & { role: string; scopes?: Scope[] }>;
 
 	type ProjectRelationResponse = {
 		id: string;

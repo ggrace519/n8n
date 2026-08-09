@@ -12,7 +12,7 @@ import { FolderNotFoundError } from '@/errors/folder-not-found.error';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { FolderService } from '@/services/folder.service';
-import { ProjectService } from '@/services/project.service.ee';
+import { ProjectService } from '@/services/project.service';
 
 import type { PublicAPIEndpoint } from '../../shared/handler.types';
 import {

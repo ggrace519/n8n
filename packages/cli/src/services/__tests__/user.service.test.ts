@@ -24,7 +24,7 @@ import { UserService } from '@/services/user.service';
 import type { UserManagementMailer } from '@/user-management/email';
 
 import type { OwnershipService } from '../ownership.service';
-import type { ProjectService } from '../project.service.ee';
+import type { ProjectService } from '../project.service';
 import type { PublicApiKeyService } from '../public-api-key.service';
 import type { RoleService } from '../role.service';
 import { JwtService } from '../jwt.service';
