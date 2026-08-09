@@ -16,6 +16,98 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-09 — E17: agent-eval database substrate
+
+Rebuilds the four purged agent-eval entities and their repositories in
+`@n8n/db`, clean-room. The whole `packages/cli/src/modules/agent-evals/`
+module survived as fair-code but could not typecheck — and its ~2,900 lines of
+specs could not run — because the persistence layer it imports was removed with
+the Enterprise purge. Nothing in the surviving module was changed; the
+repositories were built to satisfy its existing call sites.
+
+**Added (entities, `packages/@n8n/db/src/entities/`):**
+`agent-eval-dataset.ts` (`AgentEvalDataset` → `agent_eval_dataset`),
+`agent-eval-run.ts` (`AgentEvalRun` → `agent_eval_run`),
+`agent-eval-result.ts` (`AgentEvalResult` → `agent_eval_result`),
+`agent-eval-rating.ts` (`AgentEvalRating` → `agent_eval_rating`) — all
+registered in `entities/index.ts` (export block **and** the `entities` map,
+whose keys are what `testDb.truncate`'s `EntityName` union is derived from).
+
+**Added (repositories, `packages/@n8n/db/src/repositories/`):**
+`agent-eval-dataset.repository.ts`, `agent-eval-run.repository.ts`,
+`agent-eval-result.repository.ts`, `agent-eval-rating.repository.ts`, exported
+from `repositories/index.ts`. All extend `BaseRepository`, are `@Service()`, and
+keep TypeORM inside the persistence layer behind use-case-named methods taking
+plain parameters.
+
+**Relations — deliberate deviation from the migration's FK set.** The migration
+declares FKs to `agents` and `user`. `AgentEvalRun.dataset`,
+`AgentEvalResult.run` and `AgentEvalRating.result` are wired as ORM
+`@ManyToOne` relations (both endpoints live in `@n8n/db`), and `createdBy` /
+`ratedBy` point at `User` the way `EvaluationCollection` does. **`agentId` is a
+plain column with no ORM relation**: `Agent` is registered by the `agents`
+module, so a relation from an always-loaded `@n8n/db` entity would break
+TypeORM metadata whenever that module is off — the exact failure the surviving
+`assertRequiredModulesActive` guard exists to pre-empt. Referential integrity
+there stays the migration's DB-level FK.
+
+**Clean-room sources:** the surviving migration
+`packages/@n8n/db/src/migrations/common/1784815940112-CreateAgentEvalTables.ts`
+(authoritative for columns, types, nullability, FKs, indices and enum checks)
+and its spec `packages/cli/test/migration/1784815940112-create-agent-eval-tables.test.ts`;
+the surviving consumers in `packages/cli/src/modules/agent-evals/` (runner,
+service, rating service, case-generation service, controller, record mappers),
+which pin every method name, parameter and return shape; the module's own specs,
+notably the three `*.integration.test.ts` files, which pin repository behaviour
+against a real driver; the shared contract in
+`packages/@n8n/api-types/src/schemas/agent-evals.schema.ts` (status/vote unions
+and `DatasetRef`, imported rather than redefined); and sibling fair-code
+conventions in `@n8n/db` (`test-run`, `test-case-execution`, `evaluation-config`,
+`evaluation-collection`). No Enterprise source or history was consulted.
+
+**Under-pinned choices** (no spec asserts them; simplest option consistent with
+the migration and the consumers, flagged here rather than claimed as covered):
+
+- `findByAgentId` orders datasets newest-first (`createdAt DESC, id DESC`);
+  `findByResultId` orders a case's rating history newest-first. Only single-row
+  results are asserted.
+- `findLatestByRunId` joins rating → result in SQL, then picks the newest per
+  case in memory. A `MAX(createdAt)` correlated sub-query would return both rows
+  on a same-millisecond re-vote, and window functions are not uniform across the
+  supported drivers. Bounded by a run's 500-case cap.
+- `markAllIncompleteAsError` writes `errorCode: 'interrupted'` with a generic
+  `errorDetails.message`; the spec only reads `affected`.
+- `updateDataset` treats an empty payload (which the DTO permits) as a legal
+  no-op and returns the row, instead of letting TypeORM throw on an empty
+  `UPDATE`. Only keys actually present are written, so `description: null`
+  (clear) stays distinct from an omitted `description` (leave).
+- `markAsCancelled` / `markAsCompleted` / `markAsError` set `completedAt`; the
+  run-level `metrics` argument is written only when supplied, so an early
+  failure can't null out a tally.
+- `findAndCountByDatasetIdAndAgentId` uses an explicit join with `offset`/
+  `limit` rather than `find`'s `skip`/`take`, which routes a relation-filtered
+  query onto TypeORM's DISTINCT sub-query path; a many-to-one join cannot
+  multiply rows. `take: 0` keeps n8n's "no limit" meaning.
+- `findAndCountByRunId` orders by `runIndex` first: seeding inserts every case
+  in one statement, so `createdAt` ties and the fallback would be the
+  non-monotonic generated id.
+- Unlike `TestRunRepository.markAsCompleted`, the run's completion is **not**
+  guarded on `cancelRequested: false` — nothing pins that behaviour here and the
+  runner already branches on the cancel flag before calling.
+
+**Verification:** `@n8n/db` `pnpm build` exit 0, `pnpm typecheck` exit 0,
+`pnpm test` **409/409** (31 files — unchanged from baseline). `packages/cli`:
+agent-eval unit specs **228/228** across 7 files (previously unable to run);
+agent-eval integration specs **17/17** on SQLite *and* **17/17** on Postgres via
+testcontainers; migration spec **4/4** on SQLite and **4/4** on Postgres.
+`tsc -p tsconfig.build.json --noEmit` → **0** errors mentioning `agent-eval`
+(74 unrelated pre-existing errors remain in 27 files, all from other pending
+de-fork epics). `eslint src/modules/agent-evals --quiet` exit 0 and eslint on
+the eight new `@n8n/db` files exit 0, no rule disables. Regressions unmoved:
+`credentials.api.test.ts` 80/80, `src/modules/external-secrets
+src/modules/dynamic-credentials` 2/2. `grep -ran "agent-eval" packages/cli/src
+packages/cli/test | grep -c "\.ee"` → **0**.
+
 ### 2026-08-09 — E8: external-secrets module rebuilt fair-code
 
 Rebuilds the purged external-secrets module clean-room at
