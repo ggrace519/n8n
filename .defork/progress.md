@@ -613,3 +613,89 @@ instance-ai module boundary).
 specs in test/integration/environments/), or E9 (log-streaming) / E5/E6
 (saml/oidc) / E8 / E10 / E11 / E17-agent-eval-db. After those: A10 sweep
 (public-api suite ungated once source-control/saml/oidc/log-streaming land).
+
+## 2026-08-09 — E13 merged (PR #3); E3 iteration started
+
+**WHAT.** Pushed feat/defork-e13-evaluation-backend, PR #3 opened + merged
+(merge commit, preserving the 9 slice commits), master synced. Started E3
+(source-control): codex contract extraction dispatched over the 5 surviving
+specs (4,745 lines) + consumers → will land at the session scratchpad as
+e3-contract.md (re-dispatch with .defork/e3-brief snapshot if lost).
+
+**E3 FILE MAP (from spec imports — the files to rebuild).**
+modules/source-control.ee/: constants.ts, source-control-context.factory.ts,
+source-control-export.service.ee.ts, source-control-git.service.ee.ts,
+source-control-import.service.ee.ts, source-control-scoped.service.ts,
+source-control-status.service.ee.ts, plus source-control.service.ee +
+source-control-helper.ee (public-api handler imports) + controller + types.
+Preferences service ALREADY fair-code at modules/source-control/.
+SourceControlledFile type survives in @n8n/api-types. Specs also pin export
+constants (SOURCE_CONTROL_{CREDENTIAL,DATATABLES,WORKFLOW}_EXPORT_FOLDER,
+SOURCE_CONTROL_{FOLDERS,TAGS}_EXPORT_FILE) and use Cipher (n8n-core) +
+fast-glob. Consumers beyond specs: public-api handler, data-table
+branch-write-access middleware + controller + proxy, instance-ai service +
+adapter, telemetry/pubsub event maps.
+
+**PLAN.** Decompose E3 into: E3a git service + helpers + constants; E3b
+export service; E3c import service (2,019-line spec — crown jewel); E3d
+status/scoped/context; E3e service + controller + public-api handler rewire.
+Delegate mechanical slices to n8n:developer subagents (non-overlapping
+files), verify each against its own spec file, codex review at the end.
+
+**NEXT.** When e3-contract.md lands: decompose + dispatch. Verify gate per
+slice: its spec file green; item gate: all 5 specs + grep source-control.ee
+= 0 (non-test).
+
+## 2026-08-09 — E3a/E3b/E3c done (source-control foundation + export + import)
+
+**WHAT.** Three slices landed and committed, each spec-gated:
+- E3a foundation (subagent + empirical git smoke harness that caught 2 real
+  bugs: unborn-branch HEAD, upstream-less pull). Files at
+  modules/source-control/ (constants, types/*, context factory, scoped
+  service, git service, helper).
+- E3b export service: spec 13/13. Also implemented workflow/folder/
+  data-table exports (contract-pinned shapes, spec covers creds+tags only —
+  behavioral pin arrives with E3d's pushWorkfolder spec).
+- E3c import service: spec 47/47 (2,019-line spec). Cipher via
+  Container.get at point of use (spec swaps container instance).
+  Non-destructive ownership on existing workflows (open question — chose
+  conservative).
+db 409/409 throughout; 0 tsc errors in the module; eslint clean.
+
+**IN FLIGHT.** E3d subagent: status service + SourceControlService +
+controller + module registration + public-api handler rewire + the 3
+remaining specs (service 1608 / api 283 / access-control 184) + grep
+source-control.ee = 0. After it: codex adversarial review of the whole E3
+diff, then flip E3.
+
+**NOTE for later.** E3a recommendation: add sourceControl:['push'] to the
+team-admin role map in @n8n/permissions and drop the scoped service's
+explicit PROJECT_ADMIN union (touches role snapshots — do deliberately,
+with the permissions test suite as gate).
+
+## 2026-08-09 — E3 DONE (source-control fully rebuilt + hardened)
+
+**WHAT.** E3d (status/service/controller/module + rewires; 3 specs 26/20/16)
+landed; codex adversarial review produced 14 findings — 12 fixed by a
+dedicated hardening subagent (server-side push-selection derivation, symlink
+containment, credential-data merge on pull, pull completeness dispatch incl.
+scoped deletions + folders/data-tables, archived/active consistency via
+ActiveWorkflowManager, in-process operation mutex, fail-closed sync,
+owner-type checks, remote-owner authz, SSH quoting/perms, branch-name
+validation, license-gated key generation), 2 deferred (spec-pinned non-string
+leaves; existing-workflow ownership transfer). All 122/122 spec tests with
+ZERO assertion changes + 57 new unit tests. E3 flipped.
+
+**KEY FACTS.**
+- Import spec forces decrypt-merge-reencrypt for existing credentials (it
+  asserts data IS rewritten) — "preserve untouched" would fail the spec.
+- pullWorkfolder has NO integration coverage (specs say "pull: TBD") — pull
+  dispatch verified by unit/type/lint only. Re-verify at A10 via public-api
+  pull spec (blocked on E9 log-streaming handler).
+- E3d added a minimal provisioning module registration (main-only-modules
+  gate) — full provisioning surface still E11.
+- Public-api router now blocked ONLY by E9 (log-streaming) + E5/E6
+  (saml/oidc handlers/mappers) — E9 is highest leverage next.
+
+**NEXT.** E9 (log-streaming) → unlocks entire public-api suite → then E5/E6,
+E8, E10, E11, E17, A10 sweep.

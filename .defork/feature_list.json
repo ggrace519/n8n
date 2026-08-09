@@ -106,9 +106,10 @@
       "id": "E3-source-control",
       "phase": "E",
       "title": "Rebuild source-control (git) subsystem fair-code: preferences.service, source-control.service, helpers, types",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"source-control.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + public git/isomorphic-git usage + surviving source-control tests. This is a large subsystem; consider decomposing into further items if one iteration is too big."
+      "notes": "Clean-room: consumers + public git/isomorphic-git usage + surviving source-control tests. This is a large subsystem; consider decomposing into further items if one iteration is too big.",
+      "verified": "2026-08-09: E3a-d + hardening. All 5 environment specs 122/122; main-only-modules 6/6; 57 new unit tests; grep source-control.ee = 0 (src+test); db 409/409; eslint clean; cli tsc 0 errors in module. Codex adversarial review: 12/14 findings fixed, 2 deferred spec-pinned/open-contract (DEFORK_CHANGELOG). Pull dispatch has no integration coverage (specs don't exercise pullWorkfolder) - flagged for A10."
     },
     {
       "id": "E4-sso-core",

@@ -5,7 +5,7 @@ import { Container } from '@n8n/di';
 
 import { EventService } from '@/events/event.service';
 import { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
-import { SourceControlService } from '@/modules/source-control.ee/source-control.service.ee';
+import { SourceControlService } from '@/modules/source-control/source-control.service';
 import { Telemetry } from '@/telemetry';
 import { createMemberWithApiKey, createOwnerWithApiKey } from '@test-integration/db/users';
 import { setupTestServer } from '@test-integration/utils';

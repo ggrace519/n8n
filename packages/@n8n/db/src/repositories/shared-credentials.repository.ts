@@ -23,6 +23,22 @@ export class SharedCredentialsRepository extends Repository<SharedCredentials> {
 		});
 	}
 
+	/**
+	 * Owner sharings with their credential, owning project, and the project's
+	 * members loaded, e.g. for source-control credential listings. Pass
+	 * `projectIds` to restrict to those owning projects; omit it for all.
+	 */
+	async findOwnedCredentialsInProjects(projectIds?: string[]): Promise<SharedCredentials[]> {
+		if (projectIds && projectIds.length === 0) return [];
+		return await this.find({
+			where: {
+				role: 'credential:owner',
+				...(projectIds ? { projectId: In(projectIds) } : {}),
+			},
+			relations: { credentials: true, project: { projectRelations: { user: true } } },
+		});
+	}
+
 	async makeOwnerOfAllCredentials(project: Project) {
 		return await this.update(
 			{

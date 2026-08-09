@@ -616,3 +616,262 @@ extension); the execution-id registration window in cancellation.
 
 **Verification after fixes:** db build exit 0 + 409/409; internal spec
 28/28; insights 10/10; eslint 0; cli tsc 0 errors in src/evaluation.
+
+## 2026-08-09 — E3a: source-control foundation (`packages/cli`)
+
+Clean-room rebuild of the source-control module's foundation slice under the
+fair-code path `packages/cli/src/modules/source-control/` (formerly
+`source-control.ee/`). Files: `constants.ts` (work-folder layout constants
+pinned by the environment specs' path assertions, plus git/ssh folder names
+and the `features.sourceControl.sshKeys` settings key), `types/{resource-owner,
+exportable-credential,exportable-data-table,exportable-folders,
+exportable-workflow}.ts` (serialized shapes pinned by the export/import/status
+spec fixtures), `source-control-scoped.service.ts` (team-project scoping:
+global `sourceControl:push` = instance-wide; else team projects where the
+user holds `project:admin` or a custom role granting project-level
+`sourceControl:push`), `source-control-context.factory.ts`
+(`SourceControlContextFactory.createContext(user)` returning an immutable
+`SourceControlContext`), `source-control-git.service.ts` (simple-git wrapper:
+init/remote/branch management, DB-stored SSH key materialized to
+`${n8nFolder}/ssh/key` mode 0600 with per-instance `known_hosts` and
+`StrictHostKeyChecking=accept-new`, fetch/pull/push/stage/commit/status/
+diff/reset), and `source-control-helper.ts`
+(`isSourceControlLicensed` via `LicenseState`,
+`getTrackingInformationFromPullResult`, `getRepoType`).
+
+**Clean-room sources:** the E3 contract inventory (derived solely from
+surviving fair-code specs/consumers); the five integration specs under
+`test/integration/environments/`; the public-api pull handler; the surviving
+fair-code `source-control-preferences.service.ts` + types; the
+`MoveSshKeysToDatabase` migration (key-pair storage shape); `@n8n/permissions`
+scope/role definitions; `check-access.ts` scoping patterns; simple-git's
+public API. No enterprise source or history was consulted.
+
+**Verification:** cli tsc — 0 errors in `src/modules/source-control/**`
+(remaining source-control errors are the 3 pre-existing `.ee` imports in the
+not-yet-rewired public-api handler); `eslint src/modules/source-control`
+exit 0; standalone smoke harness against a real local bare git remote —
+helper counters, init/branch/stage/commit/push/fetch/diffLocal/hard-reset/
+ff-only-pull, SSH key materialization (mode 600, known_hosts, missing-key
+UserError) all green.
+
+## 2026-08-09 — E3b: source-control export service (`packages/cli`)
+
+Clean-room rebuild of `SourceControlExportService` at
+`packages/cli/src/modules/source-control/source-control-export.service.ts`
+(formerly `source-control.ee/source-control-export.service.ee.ts`), plus
+use-case-named repository methods in `@n8n/db`
+(`TagRepository.findAllTags`, `WorkflowTagMappingRepository.findAllMappings`
+/ `findMappingsForWorkflows`,
+`SharedWorkflowRepository.findWorkflowIdsOwnedByProjects`,
+`FolderRepository.findManyWithHomeProject`,
+`WorkflowRepository.findByIdsWithParentFolder`). The service serializes
+resources into `${n8nFolder}/git/`: per-resource JSON files for workflows,
+credential stubs (secrets stripped — strings blanked, non-string primitives
+kept, nesting preserved, `oauthTokenData` omitted; owner serialized as
+structured personal/team `ownedBy`), and data tables (schema only, columns
+sorted by index), plus aggregate `tags.json` and `folders.json` whose
+scoped exports merge with the existing file so out-of-scope entries are
+never erased. The spec's `.ee` import paths were repointed to the fair-code
+module.
+
+**Clean-room sources:** the E3 contract inventory §3 (export contract);
+`test/integration/environments/source-control-export.service.test.ts`
+(651-line spec, acceptance gate); the E3a fair-code foundation
+(constants, context factory, scoped service, `types/*`); existing fair-code
+repositories/entities in `@n8n/db` and the `data-table` module; `Cipher`
+(n8n-core, `decryptV2` read path as in `Credentials.getData`). No
+enterprise source or history was consulted.
+
+**Verification:** export spec 13/13 green (sqlite); cli
+`tsc -p tsconfig.build.json` — 0 errors mentioning `source-control-export`
+or `modules/source-control/` (remaining errors are pre-existing `.ee`
+imports in not-yet-rebuilt slices); `eslint src/modules/source-control`
+exit 0, no rule disables; `@n8n/db` build exit 0 and tests 409/409.
+
+## 2026-08-09 — E3c: source-control import service (`packages/cli`)
+
+Clean-room rebuild of `SourceControlImportService` at
+`packages/cli/src/modules/source-control/source-control-import.service.ts`
+(formerly `source-control.ee/source-control-import.service.ee.ts`), plus one
+use-case-named repository method in `@n8n/db`
+(`SharedCredentialsRepository.findOwnedCredentialsInProjects`). The service
+covers scope-filtered discovery of remote (work-folder JSON) and local (DB)
+workflows, credentials, folders, and tags/mappings — instance-wide contexts
+see everything, project-scoped admins only resources owned by their
+administered team projects (a serialized personal owner never matches, even
+the caller's own email), everyone else nothing — and the import paths:
+credentials (re-encrypted via `Cipher.encryptV2`, ownership replaced to match
+the serialized owner, team projects recreated with exact source id/name,
+personal/legacy-email owners falling back to the importing user's personal
+project), tags (definitions upserted and never deleted; mappings reconciled
+only for workflows represented in the import, with a workflow-file scan
+determining representation when the tag file has no mappings), and workflows
+(files missing versionId/nodes/connections skipped without error; history
+recorded per `(workflowId, versionId)` with author
+`import by <firstName> <lastName>`, rewritten only when content changed;
+archived local workflows get `active`/`activeVersionId` cleared even when the
+incoming file is unarchived). The spec's `.ee` import paths were repointed to
+the fair-code module.
+
+**Clean-room sources:** the E3 contract inventory §4 (import contract, scope
+matrix); `test/integration/environments/source-control-import.service.test.ts`
+(2,019-line spec, acceptance gate); the E3a/E3b fair-code foundation
+(constants, context factory, scoped service, export service types,
+`types/*`); existing fair-code repositories/entities in `@n8n/db` and
+`WorkflowHistoryService`. No enterprise source or history was consulted.
+
+**Verification:** import spec 47/47 green (sqlite); cli
+`tsc -p tsconfig.build.json` — 0 errors mentioning `source-control-import`
+(remaining source-control errors are the pre-existing `.ee` imports in the
+not-yet-rewired public-api handler); `eslint src/modules/source-control`
+exit 0, no rule disables; `@n8n/db` build exit 0 and tests 409/409.
+
+## 2026-08-09 — E3d: source-control status/service/controller/module (`packages/cli`)
+
+Clean-room rebuild of the final source-control slice:
+`source-control-status.service.ts` (`SourceControlStatusService` — local↔work-folder
+diff for workflows, credentials, folders, data tables, tags, plus synthesized
+`project` entries for team projects owning changed resources; scoped callers
+never see out-of-scope resources, and a remote resource whose local ownership
+moved out of scope is reported neither as deleted nor modified),
+`source-control.service.ts` (`SourceControlService` — sanity check, direction-aware
+status authorization (pull requires global `sourceControl:pull`, push accepts
+global or project-level `sourceControl:push` with per-candidate team-ownership
+validation), pushWorkfolder (read-only branch rejects with BadRequest before
+authorization; `fileNames: []` pushes all changes; per-resource exports plus
+aggregate folders/tags merges and `projects/<id>.json` files; stage/commit/push
+via the git wrapper), pullWorkfolder (409 + full status on unforced conflicts,
+imports workflows/credentials/tags on success), connect/disconnect/branch
+operations, SSH key-pair management (RSA via node:crypto + sshpk public-key
+derivation, Ed25519 via sshpk; private key encrypted with the instance key in
+`features.sourceControl.sshKeys`), work-folder-restricted `remote-content`
+reads, and a `reload-source-control-config` pubsub handler),
+`source-control.controller.ts` (REST routes under `/source-control` with the
+pinned redaction tiers on GET /preferences and route scopes per the contract),
+and `source-control.module.ts` (`@BackendModule({ name: 'source-control',
+instanceTypes: ['main'], licenseFlag: 'feat:sourceControl' })`). Rewired the
+public-api handler, `test-server.ts`, `main-only-modules.test.ts`, and the four
+surviving spec files off `source-control.ee` paths (import repointing only);
+removed the stale `source-control.ee` entries from the cli eslint ratchet
+allowlist. Added the use-case method `SettingsRepository.deleteByKey` to
+`@n8n/db`. Also added a minimal `modules/provisioning/provisioning.module.ts`
+registration (`name: 'provisioning'`, `instanceTypes: ['main']`) so the module
+loader and the `main-only-modules` metadata pin resolve; the full provisioning
+surface remains E11.
+
+**Clean-room sources:** the E3 contract inventory (§2 service contract, §5
+routes, §6 helpers, §8 events/pubsub); the three acceptance specs
+`source-control.service.test.ts` (1,608 lines),
+`source-control.api.test.ts`, `source-control-access-control.test.ts`; the
+E3a–E3c fair-code foundation (constants, types, context factory, scoped/git/
+helper/preferences/export/import services); surviving fair-code consumers
+(public-api handler, relay.event-map, pubsub types) and sibling module/controller
+patterns (`modules/ldap`). No enterprise source or history was consulted.
+
+**Verification:** service spec 26/26, api spec 20/20, access-control spec
+16/16 (sqlite); regression export 13/13 + import 47/47 (60/60 combined);
+`main-only-modules.test.ts` 6/6; `grep -rn "source-control.ee" packages/cli/src
+packages/cli/test --include='*.ts'` → 0 matches; cli `tsc -p
+tsconfig.build.json` — 0 errors mentioning source-control; `eslint
+src/modules/source-control src/public-api/v1/handlers/source-control` exit 0,
+no rule disables; `@n8n/db` build exit 0 and tests 409/409. The rewired
+public-api spec `test/integration/public-api/source-control.test.ts` now loads
+but 6/9 tests fail on a pre-existing repo-wide public-api breakage: the
+log-streaming handler still imports the not-yet-rebuilt `log-streaming.ee`
+module (E9), which breaks handler resolution for all public-api routes
+(untouched `tags.test.ts` fails identically).
+
+## 2026-08-09 — E3 hardening (adversarial review) (`packages/cli`)
+
+Hardened the rebuilt source-control subsystem against the 14-finding
+adversarial review, without changing any behavior the five environment specs
+pin.
+
+**Fixed (finding → change):**
+
+- **#1 Push trusted client payloads** — `pushWorkfolder` now treats the
+  request's `fileNames` as `{type,id}` *selections* only: it regenerates a
+  fresh scoped status server-side, maps each selection onto it, and rejects
+  (403) any selection absent from that status. All statuses, owners, and
+  filesystem paths come from the server-side entries; project files are
+  written at the canonical `projects/<id>.json` path with an id-charset guard.
+- **#2 Symlink traversal** — added `assertNotSymlink` (lstat) and
+  `assertParentWithinFolder` (realpath containment) guards on every managed
+  read/write: import candidate reads, discovery reads, export writes,
+  aggregate-file reads, and `remote-content` reads. Guards are tolerant of
+  missing files/dirs so they are inert under the specs' fs mocks.
+- **#3 Credential pull blanked secrets** — importing an *existing* credential
+  now decrypts the local data and merges the incoming stub over it
+  (`mergeCredentialData`): blank-string placeholders and never-exported keys
+  (`oauthTokenData`) keep their local values; non-blank strings, numbers, and
+  booleans are applied. Only newly created credentials store the stub as-is.
+- **#4 Pull completeness** — `pullWorkfolder` now dispatches on the full
+  status: imports folders (new `importFoldersFromWorkFolder`, id-preserving,
+  parents-first) and data tables (new `importDataTablesFromWorkFolder`,
+  id-preserving creation via `DataTableService`, name-keyed column
+  reconciliation), then applies remote deletions for workflows, credentials,
+  folders, and data tables through the respective services (new
+  `delete*RemovedFromRemote` methods, best-effort per resource). A `created`
+  tags entry (remote `tags.json` missing) is skipped instead of read.
+  409/force semantics unchanged.
+- **#5 Archived/active** — workflow import bases active-state clearing on the
+  *resulting* archive state (incoming `isArchived: true` now clears
+  `active`/`activeVersionId`) and routes deactivation of a previously active
+  workflow through the injected `ActiveWorkflowManager.remove()` so runtime
+  triggers stay in sync (failure is logged, not fatal).
+- **#6 Operation lock** — added an in-process promise-chain mutex in
+  `SourceControlService` serializing status-with-reset, push, pull, connect,
+  disconnect, and reset-workfolder. Cluster-wide (multi-main) locking remains
+  a documented follow-up.
+- **#7 Fail-closed sync** — pull now performs its own fetch + hard reset +
+  managed-path `git clean` and propagates failures (`OperationalError`)
+  instead of importing stale content; connect verifies the remote (fetch must
+  succeed, a configured branch must exist on a non-empty remote) before
+  persisting `connected: true`; reset-workfolder and the status-side reset
+  also clean untracked managed files (new `cleanManagedPaths`, scoped to
+  `SOURCE_CONTROL_MANAGED_PATHS`). Status computation itself stays tolerant of
+  offline remotes, as pinned.
+- **#9 Owner type check** — a serialized team owner resolving to an existing
+  *non-team* project by id collision now falls back to the importing user's
+  personal project instead of attaching to the colliding project.
+- **#11 Remote-content authz** — `getRemoteFileEntity` authorizes scoped
+  callers against the remote file's parsed-and-validated serialized owner
+  (team in caller's scope), with local ownership as an additional constraint
+  when the workflow exists locally; caller-controlled ids are restricted to a
+  safe path-segment charset.
+- **#12 GIT_SSH_COMMAND** — key and known_hosts paths are single-quoted with
+  embedded-quote escaping, `-o IdentitiesOnly=yes` added, and the key file is
+  explicitly `chmod 0600` even when it already existed.
+- **#13 Branch validation** — new `isValidGitBranchName` (rejects leading
+  `-`/`.`/`/`, `..`, `.lock` suffixes, trailing `/`/`.`, empty segments,
+  spaces/control chars; still allows nested `a/b`) used by the controller's
+  preference parsing and, as defense in depth, by `SourceControlGitService.setBranch`.
+- **#14 Preferences GET** — the manager read path only triggers lazy key-pair
+  generation when the feature is licensed; unlicensed reads return the stored
+  public key (if any) via the new side-effect-free `getStoredPublicKey`.
+
+**Deferred (documented, not implemented):**
+
+- **#8** numeric/boolean credential leaves are still exported verbatim — the
+  export spec explicitly pins preserving non-string leaves, so this stands as
+  a known limitation until the spec contract changes.
+- **#10** ownership transfer for *existing* workflows on import remains
+  non-destructive (owner is only assigned on creation) — contract open
+  question.
+- Cluster-wide/multi-main operation lock (in-process lock only this pass).
+
+**Clean-room sources:** the E3 review findings list, the E3 contract
+inventory, the five environment specs, and this repo's own fair-code
+(`WorkflowService.delete`, `CredentialsService.delete`, `FolderService`,
+`DataTableService` surfaces). No enterprise source or history was consulted.
+
+**Verification:** environment specs 122/122 (5 files, sqlite, zero assertion
+changes); `main-only-modules.test.ts` 6/6; new unit tests
+`__tests__/source-control-helper.test.ts` 53/53 (branch-name validation,
+path-segment ids, credential-data merge, symlink/containment guards on real
+tmpdirs) and `__tests__/source-control.service.push-selection.test.ts` 4/4
+(forged selection rejected, client paths/statuses replaced by server entries);
+cli `tsc -p tsconfig.build.json` — 0 errors mentioning source-control;
+`eslint src/modules/source-control src/public-api/v1/handlers/source-control
+--quiet` exit 0, no rule disables.

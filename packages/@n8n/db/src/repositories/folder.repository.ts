@@ -12,6 +12,19 @@ export class FolderRepository extends Repository<Folder> {
 		super(Folder, dataSource.manager);
 	}
 
+	/**
+	 * Folders with their home project loaded, e.g. for the source-control
+	 * folders export. Pass `projectIds` to restrict to those home projects;
+	 * omit it for all folders.
+	 */
+	async findManyWithHomeProject(projectIds?: string[]): Promise<Folder[]> {
+		if (projectIds && projectIds.length === 0) return [];
+		return await this.find({
+			where: projectIds ? { homeProject: { id: In(projectIds) } } : {},
+			relations: { homeProject: true },
+		});
+	}
+
 	async getManyAndCount(options: ListQuery.Options = {}) {
 		const query = this.getManyQuery(options);
 		return (await query.getManyAndCount()) as unknown as [
