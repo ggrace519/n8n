@@ -837,3 +837,18 @@ Ask Greg whether to enable GitHub issues.
 **PROVISIONING DIVERGENCE RECONCILED.** Both agents independently chose
 fail-closed deny when provisioning is configured but unevaluable. E11's scope
 expanded in feature_list to own the engine + removing both deny branches.
+
+## 2026-08-09 — Issues enabled; repo now PRIVATE
+
+Greg enabled GitHub issues and made the fork private. The five KI-* defects
+were filed as issues **#7 node-rsa override**, **#8 tags non-owner delete**,
+**#9 provisioning loader settings key**, **#10 SSO denied while provisioning
+configured**, **#11 saml.api.test.ts blocked**. `.defork/KNOWN_ISSUES.md` is
+now just an index of what's already filed (so a fresh session doesn't re-file
+them); use GitHub issues from here on, and close with `Closes #N` from the
+fixing PR. feature_list carries `closes_issues` on E11 (#9,#10,#11) and A10
+(#8).
+
+AGENTS.md's two "**This is a public repository**" claims were false for this
+fork and are corrected — the hygiene practices are kept (upstream is public
+and this fork may be opened later), but the factual claim now matches reality.

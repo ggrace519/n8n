@@ -176,7 +176,12 @@
       "title": "Rebuild modules/provisioning.ee (provisioning.service + constants) fair-code",
       "passes": false,
       "verify": "grep -rn \"provisioning.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers (users.controller, project.controller) + surviving provisioning tests. EXPANDED 2026-08-09 (E5/E6): E11 must also deliver the role-mapping EVALUATION ENGINE (ordered rule fetch, expression evaluation against {$claims, $oidc:{idToken,userInfo} | $saml, $provider}, block:access, defaultInstanceRole, project-role reconciliation, provisioning events) and hook it into handleSamlLogin / resolveSignInUser BEFORE account mutation, then remove the fail-closed deny branches both SSO backends now carry (see .defork/KNOWN_ISSUES.md KI-4). Acceptance gates: test/integration/saml/saml.api.test.ts must RUN and pass (KI-5), and the provisioning instance-settings-loader key mismatch must be settled (KI-3)."
+      "notes": "Clean-room: consumers (users.controller, project.controller) + surviving provisioning tests. EXPANDED 2026-08-09 (E5/E6): E11 must also deliver the role-mapping EVALUATION ENGINE (ordered rule fetch, expression evaluation against {$claims, $oidc:{idToken,userInfo} | $saml, $provider}, block:access, defaultInstanceRole, project-role reconciliation, provisioning events) and hook it into handleSamlLogin / resolveSignInUser BEFORE account mutation, then remove the fail-closed deny branches both SSO backends now carry (see issue #10). Acceptance gates: test/integration/saml/saml.api.test.ts must RUN and pass (issue #11), and the provisioning instance-settings-loader key mismatch must be settled (issue #9).",
+      "closes_issues": [
+        "#9",
+        "#10",
+        "#11"
+      ]
     },
     {
       "id": "E12-dynamic-credentials",
@@ -241,7 +246,10 @@
       "title": "packages/cli typechecks & builds (all .ee consumers rewired to fair-code)",
       "passes": false,
       "verify": "pnpm --filter n8n build",
-      "notes": "Gate for the whole E phase. Also sweep cli test files that import purged .ee (delete or repoint like A8d)."
+      "notes": "Gate for the whole E phase. Also sweep cli test files that import purged .ee (delete or repoint like A8d).",
+      "closes_issues": [
+        "#8"
+      ]
     },
     {
       "id": "A11-frontend-green",

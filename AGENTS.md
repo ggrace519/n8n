@@ -311,10 +311,11 @@ handling), apply these checks:
 
 ### Security Fix Hygiene
 
-**This is a public repository.** When working on security fixes, never expose
-the attack vector or vulnerability type in any public-facing artifact. Attackers
-monitor open-source repos for signals like branch names, commit messages, PR
-titles, test descriptions, and Linear URLs.
+**This fork is currently private** (upstream n8n is public, and this fork may be
+opened later — so keep the habit). When working on security fixes, never expose
+the attack vector or vulnerability type in any artifact that could become
+public. Attackers monitor open-source repos for signals like branch names,
+commit messages, PR titles, test descriptions, and Linear URLs.
 
 **Rules for security fixes:**
 
@@ -334,9 +335,10 @@ titles, test descriptions, and Linear URLs.
 
 ### Customer Confidentiality
 
-**This is a public repository.** Never mention customer names in any
-public-facing artifact — not all customers have agreed to be named publicly,
-and naming them can reveal security-relevant details about their setup.
+**This fork is currently private, but treat names as if it were not.** Never
+mention customer names in any artifact that could become public — not all
+customers have agreed to be named publicly, and naming them can reveal
+security-relevant details about their setup.
 
 This applies to PR titles and descriptions, branch names, commit messages,
 code, code comments, test names and test data, and fixtures. When implementing
