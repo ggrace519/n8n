@@ -514,3 +514,65 @@ shared public-api router import it. E13 unblocks both.
 E7's ldap public-api spec), and agent-evals. Then E9 (log-streaming), E5/E6
 (saml/oidc, need service-provider rebuild), E8 (external-secrets full), E10,
 E11 (full provisioning module), E3 (source-control, largest).
+
+## 2026-08-09 — E13a+E13b done (evaluation db substrate + test-runner core); B-eval-node flipped
+
+**WHAT.**
+- Pulled fresh master (PRs #1 Evaluation nodes, #2 S3/Azure blob storage —
+  external agents). VERIFIED B-eval-node: nodes registered, 92/92 tests →
+  flipped passes:true.
+- **E13a**: @n8n/db evaluation persistence: TestRun/TestCaseExecution/
+  EvaluationConfig/EvaluationCollection entities (schema pinned EXACTLY by the
+  surviving migrations — note CleanEvaluations RECREATES test_run/
+  test_case_execution, so pre-1745322634000 columns are obsolete),
+  TestRun+TestCaseExecution repositories, WorkflowEntity.testRuns relation.
+  db build + 409/409.
+- **E13b**: cli test-runner core: TestRunnerService (engine), cleanup service,
+  internal controller, LlmJudgeProviderRegistry; 'evaluation' log scope in
+  @n8n/config. Internal spec 28/28; ldap-reset + license command specs
+  unblocked (base-command) 16/16; 0 tsc errors in src/evaluation.
+
+**KEY ENGINE FACTS (don't re-derive).**
+- EvaluationTrigger is SELF-ITERATING (outputs one row + _rowsLeft), but the
+  runner does NOT chain executions: it prefetches ALL rows via the trigger's
+  `dataset.getRows` customOperation (set `forceCustomOperation:
+  {resource:'dataset', operation:'getRows'}` on the node + destinationNode =
+  trigger, mode 'evaluation'), then runs one pinned execution per row
+  (pinData = {[triggerName]: [row]}; evaluation mode honors pinData —
+  workflow-runner.ts:355). runIndex = original dataset index (rowIndices pin).
+- ActiveExecutions SKIPS capacity reservation for mode 'evaluation'
+  (deadlock guard, TRUST-144) — the runner owns throttle/release via
+  ConcurrencyControlService. Template: agent-eval-runner.service.ts
+  (pool/cancel/settle patterns; pLimit + AbortController + DB cancel flag).
+- canBeCancelled is INVERTED (true = terminal) — public handler pins it.
+- Internal controller: @ProjectScope alone is WRONG for these specs — global
+  owner short-circuits scope checks and unshared workflows would 200. Use
+  WorkflowFinderService.findWorkflowForUser (sharing-row-based) → 404; viewer
+  gets 404 not 403. Read=workflow:read, delete=workflow:update,
+  cancel/new=workflow:execute.
+- Codex contract inventory (HIGH VALUE, reuse it):
+  scratchpad/e13-contract.md in this session's scratchpad; key unpinned areas
+  listed in its §9. Config controller GET /rest/workflows/:id/
+  evaluation-configs pinned by @n8n/instance-ai/evaluations/clients/
+  n8n-client.ts:422. Collections routes pinned by playwright
+  eval-collections-compare.spec.ts. Feature gates: 088_config_evaluations /
+  N8N_CONFIG_EVALS_ENABLED; 084_eval_collections / N8N_EVAL_COLLECTIONS_ENABLED.
+
+**OPEN (E13 stays passes:false).**
+- E13c: EvaluationConfigRepository + EvaluationConfigService +
+  evaluation-config.controller (+ dataset-row endpoints per
+  api-types/dto/evaluations/dataset-row.dto.ts) + WorkflowCompilerService +
+  thread compileFromConfig into TestRunnerService (currently throws UserError).
+  instance-ai adapter + its test still import
+  '@/evaluation.ee/evaluation-config.service' — rewire when it exists.
+- E13d: evaluation-collections.controller + insights (eval-insights schema,
+  LLM + deterministic fallback, insightsCache on collection).
+- NEW GAP discovered: agent-evals cli module (fair-code, survived) imports
+  AgentEvalDataset/Run/Result repos from @n8n/db that DON'T exist (purged;
+  migration CreateAgentEvalTables survives) — add feature item E17-agent-eval-db.
+- Public-api evaluations spec still gated by source-control/saml/oidc/
+  log-streaming handler imports (A10 pre-gate).
+
+**NEXT.** E13c (delegate config service+controller+repo to n8n:developer with
+the codex contract; compiler + runner threading by hand), then E13d, then flip
+E13. Then E9 (log-streaming) or E4-done→E5/E6.

@@ -188,7 +188,15 @@
       "title": "Rebuild evaluation.ee backend (concurrency helper, llm-judge-provider-registry, test-runner services, evaluation-config service) fair-code",
       "passes": false,
       "verify": "grep -rn \"evaluation.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + surviving evaluation tests + the fair-code Evaluation node helpers (nodes-base). Coordinate with B-eval-node."
+      "notes": "Clean-room: consumers + surviving evaluation tests + fair-code Evaluation node helpers. PROGRESS 2026-08-09: E13a (db entities/repos) + E13b (test-runner core, internal controller, cleanup, judge registry) DONE and committed; remaining: E13c evaluation-config service/controller/repo + WorkflowCompilerService (compileFromConfig), E13d collections + insights controllers. See progress.md."
+    },
+    {
+      "id": "E17-agent-eval-db",
+      "phase": "E",
+      "title": "Rebuild agent-eval db entities/repos (AgentEvalDataset/Run/Result/Rating) consumed by surviving fair-code agent-evals cli module",
+      "passes": false,
+      "verify": "cli tsc: 0 errors in src/modules/agent-evals; @n8n/db build+test green",
+      "notes": "Discovered 2026-08-09: modules/agent-evals (fair-code, survived) imports these from @n8n/db; schema pinned by migration 1784815940112-CreateAgentEvalTables. A8d deleted only their orphaned db TESTS."
     },
     {
       "id": "E14-workflow-service-ee",
