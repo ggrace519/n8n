@@ -322,3 +322,34 @@ decompose per PROMPT if needed). Alternative next: E14/E15 (workflow/credentials
 service .ee halves) to unlock the public-api + n8n-packages gates sooner —
 consider E15 FIRST since it unblocks the entire public-api suite for all
 subsequent items.
+
+## 2026-08-08 — E15 started, PAUSED on ccds-guard (session end)
+
+**WHAT.** Selected E15 (credentials.service.ee → EnterpriseCredentialsService)
+as next: only 2 consumers, and it unblocks the ENTIRE public-api integration
+suite (the eov router imports the credentials handler on any request).
+Contract mapped so far, from consumers:
+- `getOneForUser(user, credentialId, includeData?)` → credential WITH `shared`
+  relations (controller destructures `{ shared, ...credential }`); used when
+  `licenseState.isSharingLicensed()`, else falls back to fair-code
+  `credentialsService.getOne`. Spec: credentials.api.test.ts:1703 (GET /:id).
+- `shareWithProjects(user, credentialId, projectIds, trx)` — called inside the
+  controller's own transaction after it deletes unshared rows; inserts
+  SharedCredentials 'credential:user' rows (mirror upsert semantics).
+- `transferOne(user, credentialId, destinationProjectId)` — mirror the
+  fair-code transfer patterns (workflowService.transferAll /
+  credentialsService.transferAll survive) + A7's target authorization
+  (getProjectWithScope(user, dest, ['credential:create'])).
+
+**BLOCKER.** ccds-guard now blocks grep/Read on packages/cli/src/credentials/*
+("may contain secrets" — false positive on source code; adjudication is
+nondeterministic, earlier greps of the same tree passed). E15 needs those files
+read. DON'T route around the guard — Greg should add an allow rule for
+`packages/cli/src/credentials/**` (and `packages/cli/test/integration/
+credentials/**`) in the ccds-guard plugin's guard-rules.txt first.
+
+**NEXT.** After the guard tune: finish E15 (rebuild at
+`src/credentials/credentials.service.enterprise.ts`? no — fair-code name, e.g.
+`credentials-sharing.service.ts`), verify with credentials.api.test.ts + the
+public-api credentials spec, then confirm the public-api variables spec (E2's
+deferred gate) turns green too. Then E3 or E14.
