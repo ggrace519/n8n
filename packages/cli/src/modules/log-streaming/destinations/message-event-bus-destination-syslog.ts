@@ -9,7 +9,7 @@ import {
 import type { EventMessageTypes } from '@/eventbus/event-message-classes';
 import type { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
 
-import { MessageEventBusDestination } from './message-event-bus-destination';
+import { MessageEventBusDestination, type SerializeOptions } from './message-event-bus-destination';
 
 const TRANSPORT_BY_PROTOCOL: Record<'udp' | 'tcp' | 'tls', Transport> = {
 	udp: Transport.Udp,
@@ -81,14 +81,14 @@ export class MessageEventBusDestinationSyslog extends MessageEventBusDestination
 		return true;
 	}
 
-	async close(): Promise<void> {
+	protected async closeTransport(): Promise<void> {
 		this.client?.close();
 		this.client = undefined;
 	}
 
-	serialize(): MessageEventBusDestinationSyslogOptions {
+	serialize(options?: SerializeOptions): MessageEventBusDestinationSyslogOptions {
 		return {
-			...super.serialize(),
+			...super.serialize(options),
 			host: this.host,
 			port: this.port,
 			protocol: this.protocol,

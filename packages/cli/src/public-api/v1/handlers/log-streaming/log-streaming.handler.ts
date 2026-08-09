@@ -109,11 +109,18 @@ const logStreamingHandlers: LogStreamingHandlers = {
 				throw new BadRequestError(parseResult.error.errors[0].message);
 			}
 
-			// the path id is the update target; addDestination upserts on it
+			// the path id is the update target; addDestination upserts on it.
+			// Redaction placeholders read back from GET responses are restored to
+			// the stored secret values so a round-trip cannot corrupt them.
+			const service = Container.get(LogStreamingDestinationService);
+			const options = service.restoreRedactedSecrets({
+				...toInternalDestinationOptions(parseResult.data),
+				id: req.params.id,
+			});
 			const destination = createMessageEventBusDestination(
 				Container.get(MessageEventBus),
 				Container.get(OutboundHttp),
-				{ ...toInternalDestinationOptions(parseResult.data), id: req.params.id },
+				options,
 			);
 			const result = await Container.get(LogStreamingDestinationService).addDestination(
 				destination,

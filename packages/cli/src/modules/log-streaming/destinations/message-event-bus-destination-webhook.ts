@@ -14,6 +14,7 @@ import {
 	defaultMessageEventBusDestinationWebhookOptions,
 	jsonParse,
 	MessageEventBusDestinationTypeNames,
+	UserError,
 } from 'n8n-workflow';
 
 import { z } from 'zod';
@@ -21,7 +22,8 @@ import { z } from 'zod';
 import type { EventMessageTypes } from '@/eventbus/event-message-classes';
 import type { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
 
-import { MessageEventBusDestination } from './message-event-bus-destination';
+import { MessageEventBusDestination, type SerializeOptions } from './message-event-bus-destination';
+import { isSupportedGenericAuthType, REDACTED_SECRET_VALUE } from '../constants';
 
 const HTTP_METHODS: IHttpRequestMethods[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
 
@@ -124,21 +126,50 @@ export class MessageEventBusDestinationWebhook extends MessageEventBusDestinatio
 	}
 
 	/**
-	 * Resolve a generic-credential auth reference into request authentication.
-	 * Supports header auth and basic auth; other generic types (and
-	 * `predefinedCredentialType`) are not resolved here.
+	 * Resolve the configured authentication into request authentication.
+	 *
+	 * Fail-closed: any configuration this destination cannot fully resolve into
+	 * an authenticated request (unsupported mode or generic type, missing or
+	 * deleted credential, credential whose stored type no longer matches the
+	 * configured one) throws, which aborts the delivery — the destination must
+	 * never fall back to sending the event unauthenticated.
 	 */
 	private async applyAuthentication(
 		requestOptions: IHttpRequestOptions,
 		headers: IDataObject,
 	): Promise<void> {
-		if (this.authentication !== 'genericCredentialType' || !this.genericAuthType) return;
+		if (this.authentication === 'none') return;
+
+		if (this.authentication !== 'genericCredentialType') {
+			throw new UserError(
+				`Authentication mode "${this.authentication}" is not supported for log streaming destination "${this.label}"`,
+			);
+		}
+
+		if (!isSupportedGenericAuthType(this.genericAuthType)) {
+			throw new UserError(
+				`Authentication type "${this.genericAuthType}" is not supported for log streaming destination "${this.label}"`,
+			);
+		}
 
 		const reference = this.credentials[this.genericAuthType];
-		if (!reference?.id) return;
+		if (!reference?.id) {
+			throw new UserError(
+				`No credential is bound for authentication on log streaming destination "${this.label}"`,
+			);
+		}
 
 		const stored = await Container.get(CredentialsRepository).findOneBy({ id: reference.id });
-		if (!stored) return;
+		if (!stored) {
+			throw new UserError(
+				`The credential bound to log streaming destination "${this.label}" no longer exists`,
+			);
+		}
+		if (stored.type !== this.genericAuthType) {
+			throw new UserError(
+				`The credential bound to log streaming destination "${this.label}" does not match the configured authentication type`,
+			);
+		}
 
 		const decrypted = await new Credentials(
 			{ id: stored.id, name: stored.name },
@@ -148,10 +179,13 @@ export class MessageEventBusDestinationWebhook extends MessageEventBusDestinatio
 
 		if (this.genericAuthType === 'httpHeaderAuth') {
 			const { name, value } = decrypted;
-			if (typeof name === 'string' && name.length > 0) {
-				headers[name] = typeof value === 'string' ? value : String(value ?? '');
+			if (typeof name !== 'string' || name.length === 0) {
+				throw new UserError(
+					`The header auth credential bound to log streaming destination "${this.label}" has no header name`,
+				);
 			}
-		} else if (this.genericAuthType === 'httpBasicAuth') {
+			headers[name] = typeof value === 'string' ? value : String(value ?? '');
+		} else {
 			const { user, password } = decrypted;
 			requestOptions.auth = {
 				username: typeof user === 'string' ? user : String(user ?? ''),
@@ -196,9 +230,22 @@ export class MessageEventBusDestinationWebhook extends MessageEventBusDestinatio
 		return response.statusCode >= 200 && response.statusCode < 300;
 	}
 
-	serialize(): MessageEventBusDestinationWebhookOptions {
+	/** Replace every parameter value with the redaction placeholder; names stay readable. */
+	private static redactParameterValues(
+		item: MessageEventBusDestinationWebhookParameterItem,
+	): MessageEventBusDestinationWebhookParameterItem {
 		return {
-			...super.serialize(),
+			parameters: item.parameters.map(({ name, value }) => ({
+				name,
+				value: value === null || value === '' ? value : REDACTED_SECRET_VALUE,
+			})),
+		};
+	}
+
+	serialize(options?: SerializeOptions): MessageEventBusDestinationWebhookOptions {
+		const redact = options?.redactSecrets === true;
+		return {
+			...super.serialize(options),
 			url: this.url,
 			method: this.method,
 			expectedStatusCode: this.expectedStatusCode,
@@ -210,10 +257,16 @@ export class MessageEventBusDestinationWebhook extends MessageEventBusDestinatio
 			nodeCredentialType: this.nodeCredentialType,
 			specifyHeaders: this.specifyHeaders,
 			specifyQuery: this.specifyQuery,
-			jsonQuery: this.jsonQuery,
-			jsonHeaders: this.jsonHeaders,
-			headerParameters: this.headerParameters,
-			queryParameters: this.queryParameters,
+			// header/query values (and their raw-JSON forms) may carry secrets such
+			// as tokens; read APIs receive placeholders instead of the stored values
+			jsonQuery: redact && this.jsonQuery ? REDACTED_SECRET_VALUE : this.jsonQuery,
+			jsonHeaders: redact && this.jsonHeaders ? REDACTED_SECRET_VALUE : this.jsonHeaders,
+			headerParameters: redact
+				? MessageEventBusDestinationWebhook.redactParameterValues(this.headerParameters)
+				: this.headerParameters,
+			queryParameters: redact
+				? MessageEventBusDestinationWebhook.redactParameterValues(this.queryParameters)
+				: this.queryParameters,
 			sendPayload: this.sendPayload,
 			options: this.options,
 		};

@@ -1,7 +1,11 @@
 import { Logger } from '@n8n/backend-common';
 import { OutboundHttp } from '@n8n/backend-network';
 import { Service } from '@n8n/di';
-import type { MessageEventBusDestinationOptions } from 'n8n-workflow';
+import type {
+	MessageEventBusDestinationOptions,
+	MessageEventBusDestinationWebhookOptions,
+} from 'n8n-workflow';
+import { MessageEventBusDestinationTypeNames } from 'n8n-workflow';
 
 import type { EventMessageTypes } from '@/eventbus/event-message-classes';
 import type { EventMessageConfirmSource } from '@/eventbus/event-message-classes/event-message-confirm';
@@ -11,27 +15,50 @@ import {
 } from '@/eventbus/event-message-classes/event-message-generic';
 import { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
 
+import { REDACTED_SECRET_VALUE } from './constants';
 import { createMessageEventBusDestination } from './create-message-event-bus-destination';
 import { EventDestinationsRepository } from './database/repositories/event-destination.repository';
 import type { MessageEventBusDestination } from './destinations/message-event-bus-destination';
 
 type ConfirmCallback = (message: EventMessageTypes, source: EventMessageConfirmSource) => void;
 
+type DeliveryStatus = 'pending' | 'delivered';
+
+interface MessageDeliveryState {
+	statuses: Map<string, DeliveryStatus>;
+	updatedAt: number;
+}
+
+/** Delivery state is pruned once it can no longer drive a retry decision. */
+const DELIVERY_STATE_TTL_MS = 30 * 60 * 1000;
+/** Sweep expired entries once the map grows past this size. */
+const DELIVERY_STATE_SWEEP_THRESHOLD = 1000;
+/** Hard cap; beyond it the stalest entries are dropped (their deliveries may repeat). */
+const DELIVERY_STATE_MAX_ENTRIES = 5000;
+
 /**
  * Owns the registry of active log-streaming destinations.
  *
  * Delivery design: this service installs a single `"message"` listener on the
  * `MessageEventBus` and fans each event out to every enabled, subscribed
- * destination. Confirmation policy: each successfully delivered destination
- * confirms the message under its own identity; when no destination applies at
- * all, the message is confirmed as handled by the bus itself (mirroring the
- * bus's own no-listener behavior) so the event log does not accumulate
- * unconfirmed messages. When every applicable destination fails, the message
- * stays unconfirmed so the bus's unsent-retry loop can retry it.
+ * destination.
+ *
+ * Confirmation policy: the bus's event log treats the first confirmation as
+ * "message sent", so the message is confirmed only once EVERY applicable
+ * destination has delivered it. Per-(message, destination) delivery state is
+ * kept in memory so that a bus retry re-attempts only the destinations that
+ * have not delivered yet — no lost retries for the failed destination, no
+ * duplicate sends to the succeeded one. The state map is bounded (TTL sweep +
+ * hard cap, see constants above); an entry evicted by the hard cap can at
+ * worst cause a duplicate delivery on a later retry, never a lost one.
  */
 @Service()
 export class LogStreamingDestinationService {
 	private readonly destinations = new Map<string, MessageEventBusDestination>();
+
+	private readonly deliveryState = new Map<string, MessageDeliveryState>();
+
+	private readonly mutationLocks = new Map<string, Promise<unknown>>();
 
 	private isInitialized = false;
 
@@ -82,55 +109,181 @@ export class LogStreamingDestinationService {
 
 		if (applicable.length === 0) {
 			confirmCallback(msg, { id: '0', name: 'eventBus' });
+			this.deliveryState.delete(msg.id);
 			return;
 		}
 
+		this.pruneDeliveryState();
+
+		const tracked = this.deliveryState.get(msg.id);
+		const state: MessageDeliveryState = tracked ?? { statuses: new Map(), updatedAt: Date.now() };
+		if (!tracked) this.deliveryState.set(msg.id, state);
+		state.updatedAt = Date.now();
+
+		// a bus retry only re-attempts destinations that have neither delivered
+		// nor still have a delivery in flight from an earlier attempt
+		const outstanding = applicable.filter(
+			(destination) => state.statuses.get(destination.id) === undefined,
+		);
+		for (const destination of outstanding) state.statuses.set(destination.id, 'pending');
+
 		await Promise.all(
-			applicable.map(async (destination) => {
+			outstanding.map(async (destination) => {
 				const delivered = await destination.receiveFromEventBus(msg);
-				if (delivered) confirmCallback(msg, { id: destination.id, name: destination.label });
+				if (delivered) state.statuses.set(destination.id, 'delivered');
+				else state.statuses.delete(destination.id);
+				state.updatedAt = Date.now();
 			}),
 		);
+
+		const allDelivered = applicable.every(
+			(destination) => state.statuses.get(destination.id) === 'delivered',
+		);
+		if (allDelivered) {
+			for (const destination of applicable) {
+				confirmCallback(msg, { id: destination.id, name: destination.label });
+			}
+			this.deliveryState.delete(msg.id);
+		}
+	}
+
+	private pruneDeliveryState(now = Date.now()): void {
+		if (this.deliveryState.size < DELIVERY_STATE_SWEEP_THRESHOLD) return;
+		for (const [id, state] of this.deliveryState) {
+			if (now - state.updatedAt > DELIVERY_STATE_TTL_MS) this.deliveryState.delete(id);
+		}
+		if (this.deliveryState.size <= DELIVERY_STATE_MAX_ENTRIES) return;
+		const byAge = [...this.deliveryState.entries()].sort((a, b) => a[1].updatedAt - b[1].updatedAt);
+		for (const [id] of byAge.slice(0, this.deliveryState.size - DELIVERY_STATE_MAX_ENTRIES)) {
+			this.deliveryState.delete(id);
+		}
+	}
+
+	/** Serialize per-id mutations so concurrent add/remove cannot interleave. */
+	private async withMutationLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
+		const previous = this.mutationLocks.get(id) ?? Promise.resolve();
+		const run = previous.then(fn, fn);
+		const tail = run.then(
+			() => {},
+			() => {},
+		);
+		this.mutationLocks.set(id, tail);
+		void tail.then(() => {
+			if (this.mutationLocks.get(id) === tail) this.mutationLocks.delete(id);
+		});
+		return await run;
 	}
 
 	/**
 	 * All active destinations as serialized options; with an id,
-	 * zero or one matches in an array.
+	 * zero or one matches in an array. Secret-bearing option values are
+	 * redacted by default — read APIs must never echo stored secrets. Internal
+	 * callers that need the full options must opt out explicitly.
 	 */
-	async findDestination(id?: string): Promise<MessageEventBusDestinationOptions[]> {
+	async findDestination(
+		id?: string,
+		{ redactSecrets = true }: { redactSecrets?: boolean } = {},
+	): Promise<MessageEventBusDestinationOptions[]> {
+		const serializeOptions = { redactSecrets };
 		if (id !== undefined) {
 			const destination = this.destinations.get(id);
-			return destination ? [destination.serialize()] : [];
+			return destination ? [destination.serialize(serializeOptions)] : [];
 		}
-		return [...this.destinations.values()].map((destination) => destination.serialize());
+		return [...this.destinations.values()].map((destination) =>
+			destination.serialize(serializeOptions),
+		);
 	}
 
 	/**
-	 * Persist and activate a destination. An existing destination with the
-	 * same id is fully replaced (its transport resources are closed first).
+	 * Re-saving options that were read from a redacted API response must not
+	 * overwrite stored secrets with the redaction placeholder: placeholder
+	 * values are restored from the currently active destination with the same
+	 * id before the options are used to build the replacement.
+	 */
+	restoreRedactedSecrets(
+		options: MessageEventBusDestinationOptions,
+	): MessageEventBusDestinationOptions {
+		if (
+			options.__type !== MessageEventBusDestinationTypeNames.webhook ||
+			!options.id ||
+			!this.destinations.has(options.id)
+		) {
+			return options;
+		}
+		const stored = this.destinations.get(options.id)?.serialize();
+		if (stored?.__type !== MessageEventBusDestinationTypeNames.webhook) return options;
+
+		const incoming = options as MessageEventBusDestinationWebhookOptions;
+		const existing = stored as MessageEventBusDestinationWebhookOptions;
+
+		const restoreParameters = (
+			incomingItem: MessageEventBusDestinationWebhookOptions['headerParameters'],
+			existingItem: MessageEventBusDestinationWebhookOptions['headerParameters'],
+		) => {
+			if (!incomingItem?.parameters) return incomingItem;
+			const existingByName = new Map(
+				(existingItem?.parameters ?? []).map(({ name, value }) => [name, value]),
+			);
+			return {
+				parameters: incomingItem.parameters.map(({ name, value }) => ({
+					name,
+					value:
+						value === REDACTED_SECRET_VALUE && existingByName.has(name)
+							? (existingByName.get(name) ?? null)
+							: value,
+				})),
+			};
+		};
+
+		const restored: MessageEventBusDestinationWebhookOptions = {
+			...incoming,
+			jsonHeaders:
+				incoming.jsonHeaders === REDACTED_SECRET_VALUE
+					? existing.jsonHeaders
+					: incoming.jsonHeaders,
+			jsonQuery:
+				incoming.jsonQuery === REDACTED_SECRET_VALUE ? existing.jsonQuery : incoming.jsonQuery,
+			headerParameters: restoreParameters(incoming.headerParameters, existing.headerParameters),
+			queryParameters: restoreParameters(incoming.queryParameters, existing.queryParameters),
+		};
+		return restored;
+	}
+
+	/**
+	 * Persist and activate a destination. The row is persisted first; runtime
+	 * state is swapped only after persistence succeeds, so a DB failure leaves
+	 * the previously active destination untouched. An existing destination with
+	 * the same id is fully replaced (its transport resources are closed).
 	 */
 	async addDestination(
 		destination: MessageEventBusDestination,
 	): Promise<MessageEventBusDestination> {
-		const existing = this.destinations.get(destination.id);
-		if (existing) await existing.close();
+		return await this.withMutationLock(destination.id, async () => {
+			await this.repository.saveDestination(destination.id, destination.serialize());
 
-		this.destinations.set(destination.id, destination);
-		await this.repository.saveDestination(destination.id, destination.serialize());
-		return destination;
+			const existing = this.destinations.get(destination.id);
+			this.destinations.set(destination.id, destination);
+			if (existing && existing !== destination) await existing.close();
+			return destination;
+		});
 	}
 
 	/**
-	 * Deactivate a destination and close its transport resources.
-	 * Unless `persist` is `false`, the stored row is deleted as well.
+	 * Deactivate a destination and close its transport resources. Unless
+	 * `persist` is `false`, the stored row is deleted as well — the row is
+	 * removed first so a DB failure cannot leave a deleted-but-still-streaming
+	 * destination behind.
 	 */
 	async removeDestination(id: string, persist: boolean = true): Promise<void> {
-		const destination = this.destinations.get(id);
-		if (destination) {
-			await destination.close();
-			this.destinations.delete(id);
-		}
-		if (persist) await this.repository.deleteById(id);
+		await this.withMutationLock(id, async () => {
+			if (persist) await this.repository.deleteById(id);
+
+			const destination = this.destinations.get(id);
+			if (destination) {
+				this.destinations.delete(id);
+				await destination.close();
+			}
+		});
 	}
 
 	/**
@@ -149,11 +302,16 @@ export class LogStreamingDestinationService {
 		return await destination.receiveFromEventBus(testMessage);
 	}
 
-	/** Stop listening and release every destination's transport resources. */
+	/**
+	 * Stop listening (no new deliveries are admitted), then close every
+	 * destination — each close drains its in-flight deliveries (bounded)
+	 * before releasing the transport.
+	 */
 	async shutdown(): Promise<void> {
 		this.eventBus.removeListener('message', this.messageListener);
 		await Promise.all([...this.destinations.values()].map(async (d) => await d.close()));
 		this.destinations.clear();
+		this.deliveryState.clear();
 		this.isInitialized = false;
 	}
 }

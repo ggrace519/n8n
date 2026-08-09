@@ -10,7 +10,7 @@ import { N8N_VERSION } from '@/constants';
 import type { EventMessageTypes } from '@/eventbus/event-message-classes';
 import type { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
 
-import { MessageEventBusDestination } from './message-event-bus-destination';
+import { MessageEventBusDestination, type SerializeOptions } from './message-event-bus-destination';
 
 /**
  * Ships events to a Sentry project by POSTing envelopes to the DSN's envelope
@@ -87,9 +87,9 @@ export class MessageEventBusDestinationSentry extends MessageEventBusDestination
 		return response.statusCode >= 200 && response.statusCode < 300;
 	}
 
-	serialize(): MessageEventBusDestinationSentryOptions {
+	serialize(options?: SerializeOptions): MessageEventBusDestinationSentryOptions {
 		return {
-			...super.serialize(),
+			...super.serialize(options),
 			dsn: this.dsn,
 			sendPayload: this.sendPayload,
 			...(this.tracesSampleRate !== undefined ? { tracesSampleRate: this.tracesSampleRate } : {}),

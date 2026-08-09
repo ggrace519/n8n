@@ -6,18 +6,21 @@ import {
 } from '@n8n/api-types';
 import { OutboundHttp } from '@n8n/backend-network';
 import { InstanceSettingsLoaderConfig } from '@n8n/config';
+import type { AuthenticatedRequest } from '@n8n/db';
 import { Delete, Get, GlobalScope, Licensed, Post, Query, RestController } from '@n8n/decorators';
 import type { Request, Response } from 'express';
 import type { INodeCredentials, MessageEventBusDestinationOptions } from 'n8n-workflow';
 import { MessageEventBusDestinationTypeNames } from 'n8n-workflow';
 import { z } from 'zod';
 
+import { CredentialsFinderService } from '@/credentials/credentials-finder.service';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
 
 import { createMessageEventBusDestination } from './create-message-event-bus-destination';
 import { LogStreamingDestinationService } from './log-streaming-destination.service';
+import { validateDestinationCredentials } from './validate-destination-credentials';
 
 // The DTO leaves `credentials` loosely typed; re-validate it into the
 // credential-reference shape the destinations expect.
@@ -69,6 +72,7 @@ export class LogStreamingController {
 		private readonly eventBus: MessageEventBus,
 		private readonly outboundHttp: OutboundHttp,
 		private readonly instanceSettingsLoaderConfig: InstanceSettingsLoaderConfig,
+		private readonly credentialsFinderService: CredentialsFinderService,
 	) {}
 
 	private assertNotManagedByEnv() {
@@ -93,7 +97,7 @@ export class LogStreamingController {
 	@Post('/destination')
 	@Licensed('feat:logStreaming')
 	@GlobalScope('logStreaming:manage')
-	async createDestination(req: Request): Promise<MessageEventBusDestinationOptions> {
+	async createDestination(req: AuthenticatedRequest): Promise<MessageEventBusDestinationOptions> {
 		this.assertNotManagedByEnv();
 
 		const parseResult = CreateDestinationDto.safeParse(req.body);
@@ -101,10 +105,24 @@ export class LogStreamingController {
 			throw new BadRequestError(parseResult.error.errors[0].message);
 		}
 
+		// a repeated save must not overwrite stored secrets with the redaction
+		// placeholder that read responses contain
+		const options = this.destinationService.restoreRedactedSecrets(
+			toDestinationOptions(parseResult.data),
+		);
+
+		// a credential reference is persisted only after the requesting user's
+		// access to it (and its type) has been verified
+		const validated = await validateDestinationCredentials(
+			options,
+			req.user,
+			this.credentialsFinderService,
+		);
+
 		const destination = createMessageEventBusDestination(
 			this.eventBus,
 			this.outboundHttp,
-			toDestinationOptions(parseResult.data),
+			validated,
 		);
 		const result = await this.destinationService.addDestination(destination);
 		return result.serialize();
