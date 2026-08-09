@@ -16,6 +16,138 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-09 — E11: provisioning module and role-mapping engine
+
+Rebuilds the purged SSO role-provisioning module clean-room
+(`packages/cli/src/modules/provisioning/`), replacing the temporary
+fail-closed deny gates that both SSO backends carried since E5/E6. Clean-room
+sources: `.defork/e11-contract.md` (a verified inventory of the surviving
+fair-code contracts), the fair-code consumers themselves (`saml.service.ts`,
+`oidc.service.ts`, `users.controller.ts`, `project.controller.ts`, the public
+projects handler, `role.service.ts`), the surviving DTOs/entities/migration in
+`@n8n/api-types` and `@n8n/db`, the surviving executable specs, and this repo's
+own `@n8n/expression-runtime`. No `.ee` body was read.
+
+**Added — a role-mapping evaluation engine.** `ProvisioningService` now decides
+what a login is entitled to before any account is looked up or written. Rules
+are read per type in ascending order and the first match wins; a matching
+instance rule beats the configured default condition; with nothing matched the
+default condition applies (`block:access` denies the login, a role slug assigns
+that role, unset falls back to `global:member` under expression mapping and to
+"leave the role alone" under direct-claim provisioning). Project rules resolve
+per target project, so one login can draw different projects from different
+rules. Reconciliation is confined to the projects the policy governs: personal
+projects, project ownership, and memberships granted outside provisioning are
+never touched, and revocations are written before grants so an interrupted
+apply can only reduce access. Results emit `sso-user-instance-role-updated`,
+`sso-user-project-access-updated`, and `expression-mapping-roles-resolved`.
+
+**Added — rule expressions run in a V8 isolate.** A dedicated
+`ProvisioningExpressionEvaluator` uses `@n8n/expression-runtime`
+(`ExpressionEvaluator` + `IsolatedVmBridge`) with the production AST hooks
+(`ThisSanitizer`, `PrototypeSanitizer`, `DollarSignValidator`). Operators write
+the expressions, but the claims they read come from the identity provider and
+are treated as untrusted: the isolate sees a structured clone of the claims plus
+the provider discriminator and nothing else — no host functions, no `process`,
+no filesystem or network reach — behind a 500 ms / 16 MB budget (far below the
+5 s / 128 MB workflow defaults) and a single pooled isolate that is released in
+a `finally` and disposed on shutdown. Claims are size- and depth-checked on the
+host before they are copied in. The result must be a boolean; timeout, memory,
+syntax, prototype-escape, oversized-claim and non-boolean outcomes are all
+evaluation failures that **fail the login closed**, recorded as a rule id and a
+failure class only — never a claim or claim value.
+
+**Added — `GET`/`PATCH /sso/provisioning/config`** (`provisioning:manage`).
+`PATCH` is partial and persists the merged full document, because the reader
+rejects partial rows. `defaultInstanceRole` accepts `block:access` or an
+assignable global role, rejects `global:owner`/unknown/non-global roles with
+400, and `null` removes it. `deleteProjectRules` clears the project rule space
+and reports `role-mapping-rules-bulk-deleted`. A successful write updates the
+local policy and publishes `reload-sso-provisioning-configuration`, which the
+service now actually handles (`@OnPubSubEvent`) — previously the event existed
+in the map with neither a publisher nor a handler.
+
+**Added — `/role-mapping-rule` CRUD** (`roleMappingRule:*`, licensed when
+either `feat:saml` or `feat:oidc` is available, otherwise 403 "Provisioning is
+not licensed"). Create inserts at a clamped position and shifts, omitted order
+appends, move reorders and compacts, delete compacts, and a `PATCH` that lands
+on an occupied same-type order is a 409. Ordering is type-local, so instance
+and project rules may share order values.
+
+**Added — role deletion is blocked while provisioning still points at a role.**
+`ProvisioningRoleDeletionChecker` implements the existing `RoleDeletionChecker`
+contract and reports mapping-rule references and use as the default instance
+role; the module registers it on init.
+
+**Changed — both SSO backends now evaluate the policy instead of denying it.**
+`SamlService.handleSamlLogin()` stops discarding the raw assertion attributes
+and evaluates the policy against them (plus the mapped `n8nInstanceRole` /
+`n8nProjectRoles` claims) before `userRepository.findOne()`; `OidcService`
+evaluates it at the top of the sign-in path, before any identity lookup. A
+denial still stops the flow before any write and carries no claim content.
+`SamlService` no longer needs its own `RoleMappingRuleRepository`, removing the
+divergence where SAML noticed stray rules and OIDC did not.
+
+**Fixed — three stale unit-test literals expected the wrong settings key.**
+`src/instance-settings-loader/__tests__/sso/provisioning.instance-settings-loader.test.ts`
+asserted `features.provisioning` while production writes and reads
+`sso.provisioning.config` everywhere: the constant in
+`src/modules/provisioning/constants.ts`, the loader that writes through it,
+`ProvisioningService` that reads through it, and the OIDC integration cleanup
+that deletes through it. The focused suite failed 3 of 7 with exactly that diff.
+The three test literals were corrected to match production; no legacy fallback
+or migration is introduced, since nothing surviving reads the old key.
+
+**Fixed — OIDC scope generation followed a different configuration source than
+policy evaluation.** `buildScopes()` read `GlobalConfig.sso.provisioning` while
+runtime policy reads the persisted document, so enabling a role claim through
+the configuration endpoint never added the scope that carries it and the claim
+never arrived. Both now read the persisted policy.
+
+**Added — `@n8n/db` repository operations.** `RoleMappingRuleRepository` gains
+use-case-named, transaction-aware methods for ordered reads, listing, and every
+reorder (all order rewrites stage rows in a disjoint negative range first,
+because `UNIQUE(type, order)` is checked per row and a naive shift collides
+mid-statement). `ProjectRelationRepository.applyProvisionedRelationsForUser()`
+applies one user's provisioning outcome in a single transaction without
+touching other members, and `UserRepository.updateGlobalRole()` sets a global
+role for provisioning, and `ProjectRepository.getExistingTeamProjectIds()`
+backs the rule-creation guard below. No schema change, no migration.
+
+**Changed — mapping rules may only target shared projects.** `projectIds` that
+name a personal or non-existent project are rejected with 400. A personal
+project has exactly one owner and is not a membership surface provisioning may
+write to; reconciliation additionally skips personal projects and project
+ownership when revoking.
+
+**Under-pinned areas, decided and documented in code:** a non-boolean or
+unevaluable rule denies rather than counting as "no match"; project matching is
+per target project (the pinned event shape carries a `matchedRuleId` per
+project, which only makes sense per project); removal is bounded to
+rule-linked projects and never touches personal projects or ownership; the
+instance owner is never re-assigned; OIDC `$claims` is the ID token overlaid by
+UserInfo (with both documents also exposed unmerged as `$oidc`); direct project
+claims are read as `<projectId>:<roleSlug>`, split at the first separator
+because role slugs contain a colon and project ids do not, with unusable
+entries skipped rather than denying the login; the reload command is always published (a no-op outside
+queue mode).
+
+**Known, pre-existing and out of scope:** with these specs finally executable,
+`saml.api.test.ts` shows 5 failures in its metadata-URL/connection-test round
+trips, and `project.api.test.ts` / `users.api.test.ts` /
+`public-api/projects.test.ts` show 10 failures in project listing, user-list
+field restrictions and public-API 404s. All were verified to reproduce with
+this change's `src/` edits stashed, so none is caused by E11. The SAML ones
+root-cause to `OutboundHttp.requests()` defaulting SSRF protection **on** for
+the IdP metadata fetch (`SsrfBlockedIpError`), which blocks the loopback
+address the spec serves metadata from; every other admin-configured endpoint in
+the tree passes an explicit `ssrf` option instead. `OidcService`'s discovery
+fetch has the same shape. Recommended follow-up, on its own branch: adopt the
+`ssrf: config.enabled ? ssrfProtectionService : 'disabled'` pattern already used
+in `workflows.controller.ts`, so an internal identity provider is reachable by
+default while an operator who turns protection on is still honoured.
+
+
 ### 2026-08-09 — E5 hardening: SAML assertion binding, flow state and provisioning policy
 
 Review follow-up on the rebuilt SAML backend

@@ -1,15 +1,9 @@
-import { BLOCK_ACCESS_ASSIGNMENT, type SamlPreferences } from '@n8n/api-types';
+import type { SamlPreferences } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
-import { OutboundHttp } from '@n8n/backend-network';
-import { GlobalConfig } from '@n8n/config';
+import { OutboundHttp, SsrfProtectionService } from '@n8n/backend-network';
+import { GlobalConfig, SsrfProtectionConfig } from '@n8n/config';
 import type { User } from '@n8n/db';
-import {
-	GLOBAL_ADMIN_ROLE,
-	GLOBAL_OWNER_ROLE,
-	RoleMappingRuleRepository,
-	SettingsRepository,
-	UserRepository,
-} from '@n8n/db';
+import { GLOBAL_ADMIN_ROLE, GLOBAL_OWNER_ROLE, SettingsRepository, UserRepository } from '@n8n/db';
 import { Service } from '@n8n/di';
 import type express from 'express';
 import type { CookieOptions } from 'express';
@@ -25,6 +19,7 @@ import { AuthError } from '@/errors/response-errors/auth.error';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { ProvisioningService } from '@/modules/provisioning/provisioning.service';
+import type { ProvisioningDecision } from '@/modules/provisioning/types';
 import { isSamlLoginEnabled } from '@/sso/sso-helpers';
 
 import { SAML_FLOW_COOKIE_NAME, SAML_PREFERENCES_DB_KEY } from './constants';
@@ -165,7 +160,8 @@ export class SamlService {
 		private readonly outboundHttp: OutboundHttp,
 		private readonly provisioningService: ProvisioningService,
 		private readonly flowState: SamlFlowState,
-		private readonly roleMappingRuleRepository: RoleMappingRuleRepository,
+		private readonly ssrfConfig: SsrfProtectionConfig,
+		private readonly ssrfProtectionService: SsrfProtectionService,
 	) {}
 
 	get samlPreferences(): SamlPreferences {
@@ -392,7 +388,7 @@ export class SamlService {
 		req: express.Request,
 		binding: SamlLoginBinding,
 	): Promise<{ attributes: SamlUserAttributes; authenticatedUser?: User }> {
-		const { mapped } = await this.getAttributesFromLoginResponse(req, binding);
+		const { mapped, raw } = await this.getAttributesFromLoginResponse(req, binding);
 
 		// validation is case-insensitive but the IdP's casing is preserved in the result
 		const lowerCasedEmail = mapped.email?.toLowerCase();
@@ -400,8 +396,22 @@ export class SamlService {
 			throw new BadRequestError('Invalid email format');
 		}
 
-		// the role policy decides before anything about the account is written
-		await this.assertProvisioningPolicyCanBeApplied();
+		// the role policy decides before anything about the account is looked up or written
+		const decision = await this.provisioningService.resolveLoginProvisioning({
+			provider: 'saml',
+			claims: raw,
+			providerContext: { provider: 'saml', rawAttributes: raw },
+			directClaims: {
+				instanceRole: mapped.n8nInstanceRole,
+				projectRoles: mapped.n8nProjectRoles,
+			},
+		});
+		if (decision.outcome === 'deny') {
+			this.logger.warn('SAML login denied by the role provisioning policy', {
+				reason: decision.reason,
+			});
+			throw new ForbiddenError('SAML login failed');
+		}
 
 		const user = await this.userRepository.findOne({
 			where: { email: lowerCasedEmail },
@@ -410,8 +420,9 @@ export class SamlService {
 
 		if (user) {
 			this.assertUserMayBeLinkedBySamlEmail(user, lowerCasedEmail);
+			const updated = await updateUserFromSamlAttributes(user, mapped);
 			return {
-				authenticatedUser: await updateUserFromSamlAttributes(user, mapped),
+				authenticatedUser: await this.applyProvisioning(updated, decision),
 				attributes: mapped,
 			};
 		}
@@ -422,10 +433,23 @@ export class SamlService {
 			);
 		}
 
+		const created = await createUserFromSamlAttributes(mapped);
 		return {
-			authenticatedUser: await createUserFromSamlAttributes(mapped),
+			authenticatedUser: await this.applyProvisioning(created, decision),
 			attributes: mapped,
 		};
+	}
+
+	/** Reconcile the account against the decision and return it with a fresh role. */
+	private async applyProvisioning(user: User, decision: ProvisioningDecision): Promise<User> {
+		const result = await this.provisioningService.applyLoginProvisioning(user, decision);
+		if (!result.instanceRoleChanged) return user;
+
+		const reloaded = await this.userRepository.findOne({
+			where: { id: user.id },
+			relations: ['role'],
+		});
+		return reloaded ?? user;
 	}
 
 	/**
@@ -447,31 +471,6 @@ export class SamlService {
 			`SAML login refused: no SAML identity is linked to the privileged account ${emailDigest} (${roleSlug})`,
 		);
 		throw new AuthError('SAML login failed');
-	}
-
-	/**
-	 * SSO role provisioning is configured through the provisioning module, whose
-	 * rule evaluation is not available in this build. Any configured policy —
-	 * mapping rules, claim-based provisioning, or a default condition that
-	 * denies access — therefore denies the login instead of admitting the user
-	 * with unevaluated roles.
-	 */
-	private async assertProvisioningPolicyCanBeApplied(): Promise<void> {
-		const config = await this.provisioningService.getProvisioningConfig();
-		const ruleCount = await this.roleMappingRuleRepository.count();
-
-		const policyConfigured =
-			config.scopesUseExpressionMapping ||
-			config.scopesProvisionInstanceRole ||
-			config.scopesProvisionProjectRoles ||
-			config.defaultInstanceRole === BLOCK_ACCESS_ASSIGNMENT ||
-			ruleCount > 0;
-		if (!policyConfigured) return;
-
-		this.logger.warn(
-			'SAML login denied: SSO role provisioning is configured but its rule evaluation is unavailable in this build',
-		);
-		throw new ForbiddenError('SAML login failed: the role provisioning policy cannot be applied');
 	}
 
 	private async saveSamlPreferencesToDb(): Promise<void> {
@@ -715,7 +714,14 @@ export class SamlService {
 
 		let fetched: unknown;
 		try {
-			fetched = await this.outboundHttp.requests().request<string>({
+			// The metadata URL is administrator-supplied, so it follows the
+			// instance-wide SSRF setting like other admin-configured endpoints
+			// rather than forcing protection on: identity providers are commonly
+			// reachable only on an internal address.
+			const client = this.outboundHttp.requests({
+				ssrf: this.ssrfConfig.enabled ? this.ssrfProtectionService : 'disabled',
+			});
+			fetched = await client.request<string>({
 				url,
 				method: 'GET',
 				skipSslCertificateValidation: ignoreSSL,

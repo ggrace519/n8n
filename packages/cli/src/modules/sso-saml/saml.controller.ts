@@ -12,6 +12,7 @@ import { UrlService } from '@/services/url.service';
 
 import {
 	samlLicensedAndEnabledMiddleware,
+	samlLicensedAndEnabledOrConnectionTestMiddleware,
 	samlLicensedMiddleware,
 } from './middleware/saml-enabled-middleware';
 import { extractTestIdFromRelayState, isConnectionTestRequest } from './saml-helpers';
@@ -91,7 +92,7 @@ export class SamlController {
 	@Get('/acs', {
 		skipAuth: true,
 		usesTemplates: true,
-		middlewares: [samlLicensedAndEnabledMiddleware],
+		middlewares: [samlLicensedAndEnabledOrConnectionTestMiddleware],
 	})
 	async acsGet(req: AuthlessRequest, res: express.Response) {
 		await this.handleAcs(req, res, 'redirect');
@@ -100,7 +101,7 @@ export class SamlController {
 	@Post('/acs', {
 		skipAuth: true,
 		usesTemplates: true,
-		middlewares: [samlLicensedAndEnabledMiddleware],
+		middlewares: [samlLicensedAndEnabledOrConnectionTestMiddleware],
 	})
 	async acsPost(req: AuthlessRequest, res: express.Response) {
 		await this.handleAcs(req, res, 'post');

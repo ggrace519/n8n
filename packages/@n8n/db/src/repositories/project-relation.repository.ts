@@ -97,6 +97,32 @@ export class ProjectRelationRepository extends Repository<ProjectRelation> {
 	}
 
 	/**
+	 * Apply an SSO provisioning outcome to one user's memberships in a single
+	 * transaction. Only the listed projects are touched, so other members and
+	 * the user's memberships outside the provisioned surface — personal projects
+	 * included — are left exactly as they were.
+	 */
+	async applyProvisionedRelationsForUser(
+		userId: string,
+		assignments: Array<{ projectId: string; roleSlug: string }>,
+		removedProjectIds: string[],
+	): Promise<void> {
+		if (assignments.length === 0 && removedProjectIds.length === 0) return;
+
+		await this.manager.transaction(async (em) => {
+			if (removedProjectIds.length > 0) {
+				await em.delete(ProjectRelation, { userId, projectId: In(removedProjectIds) });
+			}
+			for (const { projectId, roleSlug } of assignments) {
+				await em.upsert(ProjectRelation, { projectId, userId, role: { slug: roleSlug } }, [
+					'projectId',
+					'userId',
+				]);
+			}
+		});
+	}
+
+	/**
 	 * Find the role of a user in a project.
 	 */
 	async findProjectRole({ userId, projectId }: { userId: string; projectId: string }) {

@@ -28,7 +28,7 @@ import { CREDENTIAL_BLANKING_VALUE } from 'n8n-workflow';
 import { TEMPLATES_DIR } from '@/constants';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
-import { ProvisioningService } from '@/modules/provisioning.ee/provisioning.service.ee';
+import { ProvisioningService } from '@/modules/provisioning/provisioning.service';
 import {
 	EC_TEST_CERTIFICATE,
 	EC_TEST_PRIVATE_KEY,

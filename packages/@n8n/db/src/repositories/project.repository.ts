@@ -99,6 +99,20 @@ export class ProjectRepository extends Repository<Project> {
 		return projects.map((project) => project.id);
 	}
 
+	/**
+	 * Of the given IDs, the ones that name a team project. Used where a feature
+	 * may only target shared projects — a personal project has exactly one owner
+	 * and is not a membership surface.
+	 */
+	async getExistingTeamProjectIds(projectIds: string[]): Promise<string[]> {
+		if (projectIds.length === 0) return [];
+		const projects = await this.find({
+			select: { id: true },
+			where: { id: In(projectIds), type: 'team' },
+		});
+		return projects.map((project) => project.id);
+	}
+
 	/** Projects with the given IDs, ordered deterministically (createdAt, then id). */
 	async findByIds(projectIds: string[]): Promise<Project[]> {
 		if (projectIds.length === 0) return [];

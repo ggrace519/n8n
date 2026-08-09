@@ -2,7 +2,6 @@ import type { HttpRequestClient, OutboundHttp } from '@n8n/backend-network';
 import { mockInstance } from '@n8n/backend-test-utils';
 import { GlobalConfig } from '@n8n/config';
 import { AuthIdentityRepository, UserRepository } from '@n8n/db';
-import type { RoleMappingRuleRepository } from '@n8n/db';
 import type { SettingsRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
 import type express from 'express';
@@ -53,7 +52,6 @@ const settingsRepository = mock<SettingsRepository>();
 const cipher = mock<Cipher>();
 const outboundHttp = mock<OutboundHttp>();
 const provisioningService = mock<ProvisioningService>();
-const roleMappingRuleRepository = mock<RoleMappingRuleRepository>();
 const globalConfig = Container.get(GlobalConfig);
 
 type ResponseOverrides = {
@@ -200,7 +198,6 @@ describe('SAML login response binding', () => {
 	beforeEach(async () => {
 		vi.clearAllMocks();
 		flowState = new SamlFlowState();
-		roleMappingRuleRepository.count.mockResolvedValue(0);
 		settingsRepository.findByKey.mockResolvedValue(null);
 		outboundHttp.requests.mockReturnValue(mock<HttpRequestClient>());
 		provisioningService.getProvisioningConfig.mockResolvedValue({
@@ -222,7 +219,6 @@ describe('SAML login response binding', () => {
 			outboundHttp,
 			provisioningService,
 			flowState,
-			roleMappingRuleRepository,
 		);
 
 		await service.setSamlPreferences({

@@ -1,8 +1,8 @@
 import type { HttpRequestClient, OutboundHttp } from '@n8n/backend-network';
 import { mockInstance } from '@n8n/backend-test-utils';
 import { GlobalConfig } from '@n8n/config';
+import type { SsrfProtectionConfig } from '@n8n/config';
 import { AuthIdentityRepository, User, UserRepository } from '@n8n/db';
-import type { RoleMappingRuleRepository } from '@n8n/db';
 import type { SettingsRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
 import type express from 'express';
@@ -11,6 +11,7 @@ import { mock } from 'vitest-mock-extended';
 
 import { AuthError } from '@/errors/response-errors/auth.error';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
+import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import type { ProvisioningService } from '@/modules/provisioning/provisioning.service';
 
 import { RSA_TEST_CERTIFICATE, RSA_TEST_PRIVATE_KEY } from './saml-signing-test-fixtures';
@@ -45,7 +46,8 @@ const cipher = mock<Cipher>();
 const outboundHttp = mock<OutboundHttp>();
 const httpClient = mock<HttpRequestClient>();
 const provisioningService = mock<ProvisioningService>();
-const roleMappingRuleRepository = mock<RoleMappingRuleRepository>();
+// SSRF protection is opt-in instance-wide; the metadata fetch follows that setting.
+const ssrfConfig = mock<SsrfProtectionConfig>({ enabled: false });
 
 const globalConfig = Container.get(GlobalConfig);
 
@@ -56,7 +58,6 @@ describe('SamlService', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		flowState = new SamlFlowState();
-		roleMappingRuleRepository.count.mockResolvedValue(0);
 		settingsRepository.findByKey.mockResolvedValue(null);
 		cipher.encrypt.mockImplementation((data) => `encrypted:${String(data)}`);
 		cipher.decrypt.mockImplementation((data) => data.replace(/^encrypted:/, ''));
@@ -69,6 +70,17 @@ describe('SamlService', () => {
 			scopesInstanceRoleClaimName: 'n8n_instance_role',
 			scopesProjectsRolesClaimName: 'n8n_projects',
 		});
+		provisioningService.resolveLoginProvisioning.mockResolvedValue({
+			outcome: 'allow',
+			provider: 'saml',
+			projectRoles: [],
+			managedProjectIds: [],
+		});
+		provisioningService.applyLoginProvisioning.mockResolvedValue({
+			instanceRoleChanged: false,
+			projectsAdded: 0,
+			projectsRemoved: 0,
+		});
 
 		service = new SamlService(
 			mock(),
@@ -80,7 +92,8 @@ describe('SamlService', () => {
 			outboundHttp,
 			provisioningService,
 			flowState,
-			roleMappingRuleRepository,
+			ssrfConfig,
+			mock(),
 		);
 	});
 
@@ -379,45 +392,74 @@ describe('SamlService', () => {
 			userRepository.findOne.mockResolvedValue(null);
 		});
 
-		const configuredProvisioning = (overrides: Record<string, unknown>) => {
-			provisioningService.getProvisioningConfig.mockResolvedValue({
-				scopesProvisionInstanceRole: false,
-				scopesProvisionProjectRoles: false,
-				scopesUseExpressionMapping: false,
-				scopesName: 'n8n',
-				scopesInstanceRoleClaimName: 'n8n_instance_role',
-				scopesProjectsRolesClaimName: 'n8n_projects',
-				...overrides,
-			});
-		};
-
 		it.each([
-			['expression mapping', { scopesUseExpressionMapping: true }],
-			['instance role provisioning', { scopesProvisionInstanceRole: true }],
-			['project role provisioning', { scopesProvisionProjectRoles: true }],
-			['a default condition denying access', { defaultInstanceRole: 'block:access' }],
-		])(
-			'denies the login when %s is configured, before any account is looked up',
-			async (_, config) => {
-				configuredProvisioning(config);
-
-				await expect(service.handleSamlLogin(mockRequest, 'post')).rejects.toThrowError(
-					'role provisioning policy cannot be applied',
-				);
-				expect(userRepository.findOne).not.toHaveBeenCalled();
-				expect(userRepository.createUserWithProject).not.toHaveBeenCalled();
-				expect(userRepository.save).not.toHaveBeenCalled();
-			},
-		);
-
-		it('denies the login when role mapping rules exist', async () => {
-			roleMappingRuleRepository.count.mockResolvedValue(2);
+			['access is blocked by the policy', 'block-access' as const],
+			['the policy cannot be evaluated', 'evaluation-failed' as const],
+		])('denies the login before any account is looked up when %s', async (_, reason) => {
+			provisioningService.resolveLoginProvisioning.mockResolvedValue({ outcome: 'deny', reason });
 
 			await expect(service.handleSamlLogin(mockRequest, 'post')).rejects.toThrowError(
-				'role provisioning policy cannot be applied',
+				ForbiddenError,
 			);
 			expect(userRepository.findOne).not.toHaveBeenCalled();
 			expect(userRepository.createUserWithProject).not.toHaveBeenCalled();
+			expect(userRepository.save).not.toHaveBeenCalled();
+		});
+
+		it('evaluates the policy against the raw assertion and the mapped role claims', async () => {
+			vi.spyOn(service, 'getAttributesFromLoginResponse').mockResolvedValue({
+				mapped: {
+					email: 'provisioned@example.com',
+					firstName: 'New',
+					lastName: 'User',
+					userPrincipalName: 'provisioned',
+					n8nInstanceRole: 'global:admin',
+					n8nProjectRoles: ['project-1:project:editor'],
+				},
+				raw: { email: 'provisioned@example.com', department: 'it' },
+			});
+			userRepository.findOne.mockResolvedValue(
+				Object.assign(new User(), {
+					id: 'user-id',
+					email: 'provisioned@example.com',
+					role: { slug: 'global:member' },
+					authIdentities: [{ providerType: 'saml' }],
+				}),
+			);
+			userRepository.save.mockResolvedValue(new User());
+
+			await service.handleSamlLogin(mockRequest, 'post');
+
+			expect(provisioningService.resolveLoginProvisioning).toHaveBeenCalledWith({
+				provider: 'saml',
+				claims: { email: 'provisioned@example.com', department: 'it' },
+				providerContext: {
+					provider: 'saml',
+					rawAttributes: { email: 'provisioned@example.com', department: 'it' },
+				},
+				directClaims: {
+					instanceRole: 'global:admin',
+					projectRoles: ['project-1:project:editor'],
+				},
+			});
+		});
+
+		it('applies the decision to the account the login resolved to', async () => {
+			const user = Object.assign(new User(), {
+				id: 'user-id',
+				email: 'provisioned@example.com',
+				role: { slug: 'global:member' },
+				authIdentities: [{ providerType: 'saml' }],
+			});
+			userRepository.findOne.mockResolvedValue(user);
+			userRepository.save.mockResolvedValue(user);
+
+			await service.handleSamlLogin(mockRequest, 'post');
+
+			expect(provisioningService.applyLoginProvisioning).toHaveBeenCalledWith(
+				expect.objectContaining({ id: 'user-id' }),
+				expect.objectContaining({ outcome: 'allow' }),
+			);
 		});
 
 		it('allows the login when no provisioning policy is configured', async () => {

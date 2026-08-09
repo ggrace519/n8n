@@ -174,14 +174,15 @@
       "id": "E11-provisioning",
       "phase": "E",
       "title": "Rebuild modules/provisioning.ee (provisioning.service + constants) fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"provisioning.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
       "notes": "Clean-room: consumers (users.controller, project.controller) + surviving provisioning tests. EXPANDED 2026-08-09 (E5/E6): E11 must also deliver the role-mapping EVALUATION ENGINE (ordered rule fetch, expression evaluation against {$claims, $oidc:{idToken,userInfo} | $saml, $provider}, block:access, defaultInstanceRole, project-role reconciliation, provisioning events) and hook it into handleSamlLogin / resolveSignInUser BEFORE account mutation, then remove the fail-closed deny branches both SSO backends now carry (see issue #10). Acceptance gates: test/integration/saml/saml.api.test.ts must RUN and pass (issue #11), and the provisioning instance-settings-loader key mismatch must be settled (issue #9).",
       "closes_issues": [
         "#9",
         "#10",
         "#11"
-      ]
+      ],
+      "verified": "2026-08-09: module + role-mapping engine rebuilt. grep -ran provisioning.ee (src+test) = 0; saml.api.test.ts RUNS and passes 69/69 (was 0 collected - closes #11); provisioning loader 7/7 (closes #9, settings key sso.provisioning.config proven authoritative); both SSO deny branches replaced with real evaluation before account mutation (closes #10); provisioning units 55/55 incl. isolate facade; SSO units 144/144; SSO+provisioning integration 118/118; role-mapping-rule.api 51/51; provisioning-config.api 7/7; main-only-modules 6/6; db 409/409; eslint clean. Expressions evaluate in an isolated V8 (@n8n/expression-runtime, 500ms/16MB, structured-cloned claims only, boolean result required, fail-closed). Also fixed: IdP endpoint fetches now follow the instance SSRF setting; ACS accepts connection-test callbacks pre-enablement."
     },
     {
       "id": "E12-dynamic-credentials",

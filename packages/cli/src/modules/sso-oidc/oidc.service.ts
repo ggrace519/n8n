@@ -1,8 +1,8 @@
 import type { OidcConfigDto } from '@n8n/api-types';
 import { OIDC_PROMPT_VALUES } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
-import { OutboundHttp } from '@n8n/backend-network';
-import { GlobalConfig } from '@n8n/config';
+import { OutboundHttp, SsrfProtectionService } from '@n8n/backend-network';
+import { GlobalConfig, SsrfProtectionConfig } from '@n8n/config';
 import type { User } from '@n8n/db';
 import {
 	AuthIdentity,
@@ -26,6 +26,7 @@ import { AuthError } from '@/errors/response-errors/auth.error';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { ProvisioningService } from '@/modules/provisioning/provisioning.service';
+import type { ProvisioningDecision } from '@/modules/provisioning/types';
 import type { AuthlessRequest } from '@/requests';
 import { PasswordUtility } from '@/services/password.utility';
 import { UrlService } from '@/services/url.service';
@@ -142,6 +143,8 @@ export class OidcService {
 		private readonly userRepository: UserRepository,
 		private readonly cipher: Cipher,
 		private readonly outboundHttp: OutboundHttp,
+		private readonly ssrfConfig: SsrfProtectionConfig,
+		private readonly ssrfProtectionService: SsrfProtectionService,
 		private readonly urlService: UrlService,
 		private readonly authService: AuthService,
 		private readonly passwordUtility: PasswordUtility,
@@ -258,7 +261,7 @@ export class OidcService {
 
 		const parameters = new URLSearchParams();
 		parameters.set('redirect_uri', this.getCallbackUrl());
-		parameters.set('scope', this.buildScopes(config.additionalScopes));
+		parameters.set('scope', await this.buildScopes(config.additionalScopes));
 		parameters.set('prompt', config.prompt);
 		parameters.set('state', state);
 		parameters.set('nonce', nonce);
@@ -454,8 +457,14 @@ export class OidcService {
 	}
 
 	private buildCustomFetch(): oidcClient.CustomFetch {
-		// Route provider traffic through the outbound-HTTP factory (proxy + SSRF policy).
-		const transportFetch = this.outboundHttp.transport().asCustomFetch();
+		// Route provider traffic through the outbound-HTTP factory (proxy + SSRF
+		// policy). The provider is administrator-configured, so it follows the
+		// instance-wide SSRF setting like other admin-configured endpoints rather
+		// than forcing protection on: providers are commonly reachable only on an
+		// internal address.
+		const transportFetch = this.outboundHttp
+			.transport({ ssrf: this.ssrfConfig.enabled ? this.ssrfProtectionService : 'disabled' })
+			.asCustomFetch();
 		return async (url, options) =>
 			await transportFetch(url, {
 				method: options.method,
@@ -477,9 +486,15 @@ export class OidcService {
 		return `${this.urlService.getInstanceBaseUrl()}/${restEndpoint}/sso/oidc/callback`;
 	}
 
-	private buildScopes(additionalScopes: string): string {
+	/**
+	 * Scope generation reads the same persisted policy the login-time evaluation
+	 * reads. Sourcing it from `GlobalConfig` instead would let the config
+	 * endpoint enable a role claim without ever requesting its scope, so the
+	 * claim would never arrive.
+	 */
+	private async buildScopes(additionalScopes: string): Promise<string> {
 		const scopes = new Set(['openid', 'profile', 'email']);
-		const provisioning = this.globalConfig.sso.provisioning;
+		const provisioning = await this.provisioningService.getProvisioningConfig();
 		if (provisioning.scopesProvisionInstanceRole || provisioning.scopesProvisionProjectRoles) {
 			scopes.add(provisioning.scopesName);
 		}
@@ -662,25 +677,54 @@ export class OidcService {
 	}
 
 	/**
-	 * Refuses the login while role provisioning is configured. Rule evaluation
-	 * (ordered mapping rules, `block:access`, default condition, project
-	 * reconciliation) is not part of this build, and a configured policy that
-	 * cannot be evaluated must not be treated as "no policy". Runs before any
-	 * account lookup, so no mutation can precede the decision.
+	 * Evaluates the role-provisioning policy for this login. Runs before any
+	 * account lookup, so a denial — or a policy that cannot be evaluated —
+	 * cannot be preceded by a mutation.
 	 */
-	private async assertProvisioningPolicyIsEvaluable(): Promise<void> {
-		const provisioning = await this.provisioningService.getProvisioningConfig();
-		const isConfigured =
-			provisioning.scopesProvisionInstanceRole ||
-			provisioning.scopesProvisionProjectRoles ||
-			provisioning.scopesUseExpressionMapping ||
-			provisioning.defaultInstanceRole !== undefined;
-		if (!isConfigured) return;
+	private async decideProvisioning(
+		claims: oidcClient.IDToken,
+		userInfo: oidcClient.UserInfoResponse,
+	): Promise<ProvisioningDecision> {
+		const idToken: Record<string, unknown> = { ...claims };
+		const userInfoClaims: Record<string, unknown> = { ...userInfo };
 
-		this.logger.warn(
-			'OIDC login refused: role provisioning is configured but rule evaluation is unavailable',
-		);
-		throw new AuthError(GENERIC_LOGIN_FAILURE);
+		const decision = await this.provisioningService.resolveLoginProvisioning({
+			provider: 'oidc',
+			// UserInfo overlays the ID token: it is the fuller profile document and
+			// is already the preferred source for identity claims in this service.
+			claims: { ...idToken, ...userInfoClaims },
+			providerContext: { provider: 'oidc', idToken, userInfo: userInfoClaims },
+			directClaims: await this.extractConfiguredRoleClaims(idToken, userInfoClaims),
+		});
+
+		if (decision.outcome === 'deny') {
+			this.logger.warn('OIDC login denied by the role provisioning policy', {
+				reason: decision.reason,
+			});
+			throw new AuthError(GENERIC_LOGIN_FAILURE);
+		}
+		return decision;
+	}
+
+	/** Direct role claims, read under the names the persisted policy configures. */
+	private async extractConfiguredRoleClaims(
+		idToken: Record<string, unknown>,
+		userInfo: Record<string, unknown>,
+	): Promise<{ instanceRole?: string; projectRoles?: string[] }> {
+		const config = await this.provisioningService.getProvisioningConfig();
+		const read = (name: string): unknown => userInfo[name] ?? idToken[name];
+
+		const instanceRoleClaim = config.scopesProvisionInstanceRole
+			? read(config.scopesInstanceRoleClaimName)
+			: undefined;
+		const projectRolesClaim = config.scopesProvisionProjectRoles
+			? read(config.scopesProjectsRolesClaimName)
+			: undefined;
+
+		return {
+			instanceRole: typeof instanceRoleClaim === 'string' ? instanceRoleClaim : undefined,
+			projectRoles: toStringArray(projectRolesClaim),
+		};
 	}
 
 	/**
@@ -692,8 +736,23 @@ export class OidcService {
 		claims: oidcClient.IDToken,
 		userInfo: oidcClient.UserInfoResponse,
 	): Promise<User> {
-		await this.assertProvisioningPolicyIsEvaluable();
+		const decision = await this.decideProvisioning(claims, userInfo);
+		const user = await this.resolveAccount(claims, userInfo);
 
+		const result = await this.provisioningService.applyLoginProvisioning(user, decision);
+		if (!result.instanceRoleChanged) return user;
+
+		const reloaded = await this.userRepository.findOne({
+			where: { id: user.id },
+			relations: ['role'],
+		});
+		return reloaded ?? user;
+	}
+
+	private async resolveAccount(
+		claims: oidcClient.IDToken,
+		userInfo: oidcClient.UserInfoResponse,
+	): Promise<User> {
 		const config = await this.loadConfig();
 		const identity = this.resolveIdentityClaims(claims, userInfo);
 
@@ -875,4 +934,12 @@ export class OidcService {
 	private pickString(value: unknown): string | undefined {
 		return typeof value === 'string' && value ? value : undefined;
 	}
+}
+
+/** Normalize a role claim that may arrive as a single value or a list. */
+function toStringArray(value: unknown): string[] | undefined {
+	if (typeof value === 'string') return [value];
+	if (!Array.isArray(value)) return undefined;
+	const entries = value.filter((entry): entry is string => typeof entry === 'string');
+	return entries.length > 0 ? entries : undefined;
 }

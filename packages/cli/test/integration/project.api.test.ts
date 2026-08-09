@@ -32,7 +32,7 @@ import {
 import { EntityNotFoundError } from '@n8n/typeorm';
 
 import { ActiveWorkflowManager } from '@/active-workflow-manager';
-import { ProvisioningService } from '@/modules/provisioning.ee/provisioning.service.ee';
+import { ProvisioningService } from '@/modules/provisioning/provisioning.service';
 import { createFolder } from '@test-integration/db/folders';
 
 import {
@@ -354,7 +354,7 @@ describe('Project members endpoints', () => {
 
 		beforeEach(async () => {
 			provisioningService = Container.get(ProvisioningService);
-			await provisioningService.getConfig();
+			await provisioningService.getProvisioningConfig();
 			// @ts-expect-error - provisioningConfig is private
 			savedConfig = { ...provisioningService.provisioningConfig };
 		});
