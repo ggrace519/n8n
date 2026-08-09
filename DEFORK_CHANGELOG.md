@@ -331,3 +331,56 @@ No `.ee` source read.
 cli tsc 815→802, remaining errors belong to other E-items. Public-api suite
 now advances past credentials to the next purged import
 (`workflow.service.ee` → E14, the last shared-router blocker).
+
+### 2026-08-08 — E14: sharing-aware workflow operations rebuilt fair-code (+ E11 slice)
+
+**Added (clean-room rebuild of purged `workflows/workflow.service.ee.ts`)**
+- `packages/cli/src/workflows/workflow-collaboration.service.ts`
+  (`EnterpriseWorkflowService`, name kept for its 7 consumers): 9 methods —
+  `addOwnerAndSharings` (homeProject/sharedWithProjects/usedCredentials
+  response metadata), `addCredentialsToWorkflow` (per-credential access info),
+  `validateCredentialPermissionsToUser`, `preventTampering` (rejects nodes
+  newly referencing inaccessible credentials; reverts edits to read-only
+  credential nodes; returns adjusted data), `getWorkflowIdsWithResolvableCredentials`
+  (via the workflow dependency index), `shareWithProjects` (workflow:editor
+  upserts in the controller's transaction), `transferWorkflow` and
+  `transferFolder` (destination gated on `workflow:create`; subtree re-homing;
+  foreign-workflow rejection; active workflows deactivated/reactivated with
+  activation errors propagating — pinned 500; ownership caches invalidated;
+  `shareCredentials` shares only credentials the user may SHARE — a use-grant
+  must not escalate), `getFolderUsedCredentials` (folder subtree credential
+  usage, FolderNotFoundError → 404).
+- `@n8n/db`: SharedWorkflowRepository.{shareWithProjects, transferOwnership},
+  WorkflowRepository.{findByParentFolderIds, findIdsWithResolvableCredentials},
+  FolderRepository.moveFoldersToProject.
+- E11 slice: `packages/cli/src/modules/provisioning/{constants,provisioning.service}.ts`
+  — ProvisioningService reading the persisted ProvisioningConfigDto row
+  (disabled-defaults fallback pinned by the fair-code settings loader);
+  unblocked project/users controllers and the public-api projects handler.
+- `@n8n/permissions` scope-model corrections, all pinned by the newly-runnable
+  workflow/folder/n8n-packages specs: workflow sharing masks rebuilt (owner
+  mask includes redaction ops, export and `execution:reveal`, excludes
+  list/activate/deactivate; editor mask = read/update/execute/execute-chat/
+  export/publish/unpublish); `COUPLED_HIDDEN_SCOPES` introduced
+  (workflow:activate/deactivate are legacy public-API aliases coupled to
+  publish/unpublish — hidden from role sets, granted to API keys through the
+  coupling); team-project admins no longer hold workflow:share/unshare;
+  personal-project owners hold no projectVariable:* scopes (project variables
+  are a team feature — closes E2's importer-gating open question);
+  `execution:reveal` moved out of editor-tier ops.
+
+**Clean-room sources:** 7 consumer files, surviving specs
+(workflows.controller.test.ts, folder.controller.test.ts,
+workflow.service.test.ts, workflow-sharing.service.test.ts, public-api
+workflows spec, n8n-packages variable import/export specs), fair-code
+analogues (OwnershipService.addOwnedByAndSharedWith, CredentialsFinderService,
+E15's credentials-sharing service). No `.ee` source read.
+
+**Verification:** `workflow.service.ee` + `provisioning.ee` refs in src = 0;
+regression battery **448/448** (credentials 80, workflows 201, workflow
+service/sharing 35, folders 107, projects 25); n8n-packages variable specs +
+REST variables **98/98** (E2's deferred gate now closed); permissions 105/105;
+db 409/409; cli tsc 1046→784 across the session, zero errors in new files;
+eslint clean. Public-api suite still gated by the six remaining subsystems
+(E3 source-control, E5 saml, E6 oidc, E7 ldap, E9 log-streaming, E13
+evaluation) whose handlers the shared router imports.

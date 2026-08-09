@@ -388,3 +388,54 @@ Consumers: workflows.controller, workflow.service (2 lazy imports),
 workflow-creation.service, folder.controller, public-api workflows handler,
 instance-ai.adapter. After E14: re-run the whole public-api suite (tags 404→500
 class still open) + n8n-packages variable specs (E2's deferred gate).
+
+## 2026-08-08 — E14 done (workflow-collaboration service; E11 slice; scope model corrected)
+
+**WHAT.** Rebuilt `workflow.service.ee` as
+`src/workflows/workflow-collaboration.service.ts` (EnterpriseWorkflowService,
+9 methods) + db repo methods (SharedWorkflow share/transfer, workflow
+folder/resolvable queries, folder re-homing) + minimal ProvisioningService
+(E11 slice — full module/controller still open) + major @n8n/permissions
+scope-model corrections pinned by the newly-runnable specs.
+
+**SCOPE-MODEL PINS LEARNED (critical for remaining items).**
+- Workflow sharing masks: owner = read/update/delete/move/share/unshare/
+  execute/execute-chat/export/publish/unpublish/enable+disableRedaction +
+  execution:reveal (cross-resource); editor sharee = read/update/execute/
+  execute-chat/export/publish/unpublish. list/activate/deactivate NEVER pass
+  the per-item mask.
+- COUPLED_HIDDEN_SCOPES: workflow:activate/deactivate are legacy public-API
+  aliases of publish/unpublish — excluded from role sets, added to API keys
+  when the coupled scope is held (getApiKeyScopesForRole).
+- Team admins do NOT hold workflow:share/unshare (personal owners do).
+- Personal owners hold NO projectVariable:* (team feature) — this closed the
+  E2/importer open question and its 3 failing specs.
+- Editor tier: no move, no reveal (both SHARE_OPS now); editors DO delete.
+
+**VERIFIED.** Regression battery 448/448 (credentials 80, workflows 201+35,
+folders 107, projects 25); n8n-packages variable + REST variables 98/98 (E2's
+deferred gate CLOSED); permissions 105/105; db 409/409 build+tests; cli tsc
+session total 1046→784, 0 errors in new files; eslint 0 errors.
+
+**KEY FACTS.**
+- Public-api router still gated by SIX subsystems' handler imports:
+  E3 source-control, E5 saml, E6 oidc, E7 ldap, E9 log-streaming,
+  E13 evaluation (test-runner.service.ee via evaluations.handler). Each lands
+  → rerun the full public-api suite; it is effectively the A10 pre-gate.
+- transferFolder/transferWorkflow pins: destination gated on workflow:create
+  (404), same-project 400, foreign workflows in folder 400, '0' = root parent,
+  activation errors PROPAGATE (500 pin — do not swallow), ownership caches
+  must be invalidated (ownershipService.invalidateWorkflowProjectCacheByIds),
+  shareCredentials only shares what the user may SHARE (use-grant must not
+  escalate).
+- addOwnerAndSharings must initialize usedCredentials: [] (create-response pin).
+- provisioning-config.api.test.ts pins the FULL E11 surface
+  (/sso/provisioning/config GET/PATCH, provisioning:manage scope,
+  handleReloadSsoProvisioningConfiguration) — finish at E11 and repoint that
+  spec's .ee imports.
+- main-only-modules.test.ts imports provisioning.ee/provisioning.module —
+  repoint when E11's module definition lands.
+
+**NEXT.** E3 (source-control — largest; 5 surviving specs in
+test/integration/environments/) or E13 (evaluation backend — unlocks
+evaluations handler + agent-evals). E4 (sso-helpers) before E5/E6.

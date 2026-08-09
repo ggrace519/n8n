@@ -1,6 +1,6 @@
 import { Service } from '@n8n/di';
 import type { EntityManager, SelectQueryBuilder } from '@n8n/typeorm';
-import { DataSource, Repository } from '@n8n/typeorm';
+import { DataSource, In, Repository } from '@n8n/typeorm';
 import { PROJECT_ROOT } from 'n8n-workflow';
 
 import { Folder, FolderTagMapping, TagEntity } from '../entities';
@@ -290,6 +290,12 @@ export class FolderRepository extends Repository<Folder> {
 							},
 			},
 		);
+	}
+
+	/** Re-home the given folders (by ID) into another project. */
+	async moveFoldersToProject(folderIds: string[], projectId: string) {
+		if (folderIds.length === 0) return;
+		await this.update({ id: In(folderIds) }, { homeProject: { id: projectId } });
 	}
 
 	async transferAllFoldersToProject(

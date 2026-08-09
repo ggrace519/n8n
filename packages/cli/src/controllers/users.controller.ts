@@ -42,7 +42,7 @@ import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { EventService } from '@/events/event.service';
 import { ExternalHooks } from '@/external-hooks';
-import { ProvisioningService } from '@/modules/provisioning.ee/provisioning.service.ee';
+import { ProvisioningService } from '@/modules/provisioning/provisioning.service';
 import { UserRequest } from '@/requests';
 import { JwtService } from '@/services/jwt.service';
 import { OwnershipTransferService } from '@/services/ownership-transfer/ownership-transfer.service';

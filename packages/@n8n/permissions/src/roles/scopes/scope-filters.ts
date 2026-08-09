@@ -38,7 +38,6 @@ export const WRITE_OPS = [
 	'writeRow',
 	'writeColumn',
 	'retry',
-	'reveal',
 ];
 
 /** Sharing / ownership operations reserved for admin/owner roles. */
@@ -48,5 +47,6 @@ export const SHARE_OPS = [
 	'shareGlobally',
 	'createEndUser',
 	'move',
+	'reveal',
 	'manageInstance',
 ];

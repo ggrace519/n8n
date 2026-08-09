@@ -6,7 +6,7 @@ import { mock } from 'vitest-mock-extended';
 
 import { ProjectController } from '@/controllers/project.controller';
 import type { EventService } from '@/events/event.service';
-import type { ProvisioningService } from '@/modules/provisioning.ee/provisioning.service.ee';
+import type { ProvisioningService } from '@/modules/provisioning/provisioning.service';
 import type { ProjectService } from '@/services/project.service';
 import type { UserManagementMailer } from '@/user-management/email';
 

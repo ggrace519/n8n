@@ -28,9 +28,22 @@ const FULL_PROJECT_SCOPES: Scope[] = [
 	...pick(['project'], ['read', 'update', 'delete', 'export']),
 ];
 
-export const PERSONAL_PROJECT_OWNER_SCOPES: Scope[] = [...FULL_PROJECT_SCOPES];
+/**
+ * Personal projects don't have project variables (a team-project feature),
+ * so the personal owner carries no `projectVariable:*` scopes.
+ */
+export const PERSONAL_PROJECT_OWNER_SCOPES: Scope[] = FULL_PROJECT_SCOPES.filter(
+	(scope) => !scope.startsWith('projectVariable:'),
+);
 
-export const REGULAR_PROJECT_ADMIN_SCOPES: Scope[] = [...FULL_PROJECT_SCOPES];
+/**
+ * A team-project admin has full control of the project's resources except
+ * re-sharing workflows out of the project — that stays with the personal
+ * owner / global admins.
+ */
+export const REGULAR_PROJECT_ADMIN_SCOPES: Scope[] = FULL_PROJECT_SCOPES.filter(
+	(scope) => scope !== 'workflow:share' && scope !== 'workflow:unshare',
+);
 
 /**
  * An editor creates and edits resources but cannot share them, manage end-user

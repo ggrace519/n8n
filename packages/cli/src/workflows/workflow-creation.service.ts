@@ -37,7 +37,7 @@ import { dropRedactionPolicy } from './utils';
 import { WorkflowFinderService } from './workflow-finder.service';
 import { WorkflowHistoryService } from './workflow-history/workflow-history.service';
 import { WorkflowValidationService } from './workflow-validation.service';
-import { EnterpriseWorkflowService } from './workflow.service.ee';
+import { EnterpriseWorkflowService } from './workflow-collaboration.service';
 
 @Service()
 export class WorkflowCreationService {

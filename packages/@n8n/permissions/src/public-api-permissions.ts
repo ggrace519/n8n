@@ -1,5 +1,6 @@
 import { API_KEY_RESOURCES } from './constants';
-import type { ApiKeyScope } from './types';
+import { COUPLED_HIDDEN_SCOPES } from './roles/scopes/global-scopes';
+import type { ApiKeyScope, Scope } from './types';
 
 /** Every scope grantable to a public API key, flattened from the catalog. */
 export const API_KEY_SCOPES: ApiKeyScope[] = Object.entries(API_KEY_RESOURCES).flatMap(
@@ -18,6 +19,13 @@ export const getApiKeyScopesForRole = (principal: {
 	role: { scopes: Array<{ slug: string }> };
 }): ApiKeyScope[] => {
 	const held = new Set((principal.role.scopes ?? []).map((scope) => scope.slug));
+	// Legacy public-API scopes ride along with their coupled modern scope
+	// (e.g. workflow:activate with workflow:publish).
+	for (const [hidden, coupledTo] of Object.entries(COUPLED_HIDDEN_SCOPES) as Array<
+		[Scope, Scope]
+	>) {
+		if (held.has(coupledTo)) held.add(hidden);
+	}
 	return API_KEY_SCOPES.filter((scope) => held.has(scope));
 };
 

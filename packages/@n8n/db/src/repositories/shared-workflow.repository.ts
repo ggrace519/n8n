@@ -152,6 +152,44 @@ export class SharedWorkflowRepository extends BaseRepository<SharedWorkflow> {
 		)?.project;
 	}
 
+	/**
+	 * Share a workflow into the given projects with the `workflow:editor`
+	 * role. Nonexistent projects are skipped; existing relations are kept.
+	 */
+	async shareWithProjects(workflowId: string, projectIds: string[], trx?: EntityManager) {
+		trx = trx ?? this.manager;
+		if (projectIds.length === 0) return;
+		const projects = await trx.find(Project, {
+			select: { id: true },
+			where: { id: In(projectIds) },
+		});
+		if (projects.length === 0) return;
+		await trx.upsert(
+			SharedWorkflow,
+			projects.map(({ id: projectId }) => ({
+				workflowId,
+				projectId,
+				role: 'workflow:editor' as const,
+			})),
+			['workflowId', 'projectId'],
+		);
+	}
+
+	/**
+	 * Move a workflow's ownership to another project: removes ALL existing
+	 * sharing relations and creates a single owner relation in the destination.
+	 */
+	async transferOwnership(workflowId: string, destinationProjectId: string) {
+		await this.manager.transaction(async (em) => {
+			await em.delete(SharedWorkflow, { workflowId });
+			await em.insert(SharedWorkflow, {
+				workflowId,
+				projectId: destinationProjectId,
+				role: 'workflow:owner',
+			});
+		});
+	}
+
 	async getRelationsByWorkflowIdsAndProjectIds(workflowIds: string[], projectIds: string[]) {
 		return await this.find({
 			where: {

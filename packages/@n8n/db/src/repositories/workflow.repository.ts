@@ -18,6 +18,7 @@ import { FolderRepository } from './folder.repository';
 import { SharedWorkflowRepository } from './shared-workflow.repository';
 import { WorkflowHistoryRepository } from './workflow-history.repository';
 import {
+	CredentialsEntity,
 	WebhookEntity,
 	TagEntity,
 	WorkflowEntity,
@@ -1483,6 +1484,31 @@ export class WorkflowRepository extends BaseRepository<WorkflowEntity> {
 			select: ['id', 'name'],
 			where: { id: In(workflowIds) },
 		});
+	}
+
+	/** Workflows placed in any of the given folders, with their node bodies. */
+	async findByParentFolderIds(folderIds: string[]) {
+		if (folderIds.length === 0) return [];
+		return await this.find({
+			where: { parentFolder: { id: In(folderIds) } },
+		});
+	}
+
+	/**
+	 * The subset of the given workflow IDs that reference at least one
+	 * resolvable (per-user) credential, via the workflow dependency index.
+	 */
+	async findIdsWithResolvableCredentials(workflowIds: string[]): Promise<string[]> {
+		if (workflowIds.length === 0) return [];
+		const rows = (await this.manager
+			.createQueryBuilder(WorkflowDependency, 'dep')
+			.select('DISTINCT dep.workflowId', 'workflowId')
+			.innerJoin(CredentialsEntity, 'credential', 'credential.id = dep.dependencyKey')
+			.where('dep.dependencyType = :depType', { depType: 'credentialId' })
+			.andWhere('dep.workflowId IN (:...workflowIds)', { workflowIds })
+			.andWhere('credential.isResolvable = :isResolvable', { isResolvable: true })
+			.getRawMany()) as Array<{ workflowId: string }>;
+		return rows.map((row) => row.workflowId);
 	}
 
 	async findWebhookBasedActiveWorkflows() {

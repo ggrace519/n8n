@@ -1079,7 +1079,7 @@ export class ActiveWorkflowManager {
 		// path only (NonWebhookTriggerRegistrar).
 		// This legacy manager is slated for removal.
 		// But a few flows still reactivate through here with the publication flag on:
-		// - workflow/folder transfer (workflow.service.ee.ts)
+		// - workflow/folder transfer (workflow-collaboration.service.ts)
 		// - credential-resolver cleanup
 		//
 		// And with N8N_SCHEDULER_ENABLED the trigger context then hands schedule nodes

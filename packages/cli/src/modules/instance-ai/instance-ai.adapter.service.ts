@@ -160,7 +160,7 @@ import { WorkflowFinderService } from '@/workflows/workflow-finder.service';
 import { WorkflowHistoryService } from '@/workflows/workflow-history/workflow-history.service';
 import { WorkflowService } from '@/workflows/workflow.service';
 import { getRequiredRedactionScopes } from '@/workflows/utils';
-import { EnterpriseWorkflowService } from '@/workflows/workflow.service.ee';
+import { EnterpriseWorkflowService } from '@/workflows/workflow-collaboration.service';
 import { Telemetry } from '@/telemetry';
 import { WorkflowRunner } from '@/workflow-runner';
 
@@ -1524,7 +1524,7 @@ export class InstanceAiAdapterService {
 			async list(options) {
 				// In a project-bound thread the credential list is always the bound
 				// project's usable set (project-shared + global) — the same intersection
-				// `preventTampering` (workflow.service.ee.ts) accepts. A caller-supplied
+				// `preventTampering` (workflow-collaboration.service.ts) accepts. A caller-supplied
 				// workflowId/projectId must not broaden it.
 				if (boundProjectId) {
 					const scoped = await credentialsService.getCredentialsAUserCanUseInAWorkflow(user, {

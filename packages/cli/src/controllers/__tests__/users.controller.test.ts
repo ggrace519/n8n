@@ -6,7 +6,7 @@ import type { Response } from 'express';
 import type { EventService } from '@/events/event.service';
 import type { JwtService } from '@/services/jwt.service';
 import type { UserService } from '@/services/user.service';
-import type { ProvisioningService } from '@/modules/provisioning.ee/provisioning.service.ee';
+import type { ProvisioningService } from '@/modules/provisioning/provisioning.service';
 import type { UrlService } from '@/services/url.service';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';

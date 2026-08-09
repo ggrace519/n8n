@@ -1,14 +1,14 @@
 {
   "project": "n8n de-fork: fair-code clean-room rebuild + AI-native features",
-  "iron_law": "One task per iteration. Memory is files, not context. Evidence before flipping passes:true. NEVER read .ee source from git history/other branches/upstream — clean-room only.",
+  "iron_law": "One task per iteration. Memory is files, not context. Evidence before flipping passes:true. NEVER read .ee source from git history/other branches/upstream \u2014 clean-room only.",
   "completion_promise": "DEFORK_LOOP_COMPLETE",
   "iteration_cap": 400,
   "policy": "User decision 2026-08-08: REBUILD EVERY enterprise subsystem fair-code (clean-room), do NOT drop. Clean sources only: the fair-code consumers that import the removed symbols, surviving fair-code tests, and public standards/specs (SAML, OIDC, LDAP, git). Log every rebuild in DEFORK_CHANGELOG.md with the clean-room source used.",
   "phases": {
-    "A": "Green build — clean-room fair-code replacements for purged .ee plumbing",
+    "A": "Green build \u2014 clean-room fair-code replacements for purged .ee plumbing",
     "E": "Enterprise subsystem fair-code rebuilds in packages/cli (clean-room)",
     "B": "Re-add chosen feature modules (fair-code)",
-    "C": "AI-native innovations (INNOVATIONS.md) — on innovation/<slug> branches, after green build"
+    "C": "AI-native innovations (INNOVATIONS.md) \u2014 on innovation/<slug> branches, after green build"
   },
   "verify_notes": "Most cli-side items share one gate: `pnpm --filter n8n build` (tsc). A per-item proxy: after rebuilding subsystem X, `grep -rnE \"<X-module>\\.ee\" packages/cli/src` (non-test) returns 0, and the cli tsc output no longer references X's files. The definitive gate is A10-cli-green.",
   "items": [
@@ -84,7 +84,7 @@
       "title": "Rebuild permissions.ee/check-access + permissions.ee/project-scope.service (RBAC access layer, ~45 consumers)",
       "passes": true,
       "verify": "grep -rnE \"permissions\\.ee/(check-access|project-scope)\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0 after rename; then cli tsc has no check-access errors",
-      "notes": "MOST foundational cli item — do FIRST. Clean-room source: the 45 consumers' call sites (what functions/signatures they import & how they use them) + @n8n/permissions utilities (hasScope/hasGlobalScope/getResourcePermissions) + db repositories (SharedWorkflow/SharedCredentials/ProjectRelation). Rebuild the access checks (userHasScopes / project-scope guards) in a fair-code path (drop the .ee suffix). Do NOT read the purged .ee. Log source in DEFORK_CHANGELOG.md."
+      "notes": "MOST foundational cli item \u2014 do FIRST. Clean-room source: the 45 consumers' call sites (what functions/signatures they import & how they use them) + @n8n/permissions utilities (hasScope/hasGlobalScope/getResourcePermissions) + db repositories (SharedWorkflow/SharedCredentials/ProjectRelation). Rebuild the access checks (userHasScopes / project-scope guards) in a fair-code path (drop the .ee suffix). Do NOT read the purged .ee. Log source in DEFORK_CHANGELOG.md."
     },
     {
       "id": "A7-project-service",
@@ -194,7 +194,7 @@
       "id": "E14-workflow-service-ee",
       "phase": "E",
       "title": "Rebuild workflows/workflow.service.ee (EnterpriseWorkflowService) fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"workflow.service.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
       "notes": "Clean-room: consumers + surviving workflow.service tests + SharedWorkflow repo. Merge the .ee 'half' into the fair-code WorkflowService or a fair-code extension."
     },
@@ -246,7 +246,7 @@
     {
       "id": "B-eval-node",
       "phase": "B",
-      "title": "Rebuild the Evaluation node classes (fair-code) — classes were .ee",
+      "title": "Rebuild the Evaluation node classes (fair-code) \u2014 classes were .ee",
       "passes": false,
       "notes": "Node CLASSES were .ee and purged (Evaluation.node.ee.ts, EvaluationTrigger.node.ee.ts); deregistered from package.json in A-nodesbase-green. Rebuild the 2 node classes clean-room from surviving helpers (nodes/Evaluation/{Evaluation/Description.node.ts, methods/*, utils/*, Evaluation/CannedMetricPrompts.ts}) + the 3 orphaned .node.ee tests (spec). Re-register in package.json. Per user policy, rebuild (do not drop)."
     },
