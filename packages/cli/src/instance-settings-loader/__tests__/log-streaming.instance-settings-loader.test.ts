@@ -5,7 +5,7 @@ import { MessageEventBusDestinationTypeNames } from 'n8n-workflow';
 import type { Mock } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
-import type { EventDestinationsRepository } from '@/modules/log-streaming.ee/database/repositories/event-destination.repository';
+import type { EventDestinationsRepository } from '@/modules/log-streaming/database/repositories/event-destination.repository';
 
 import { InstanceBootstrappingError } from '../instance-bootstrapping.error';
 import { LogStreamingInstanceSettingsLoader } from '../loaders/log-streaming.instance-settings-loader';

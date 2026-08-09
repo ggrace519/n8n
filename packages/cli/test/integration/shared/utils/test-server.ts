@@ -219,7 +219,7 @@ export const setupTestServer = ({
 					}
 
 					case 'eventBus':
-						await import('@/modules/log-streaming.ee/log-streaming.controller.js');
+						await import('@/modules/log-streaming/log-streaming.controller.js');
 						break;
 
 					case 'auth':

@@ -28,7 +28,7 @@ import { inE2ETests } from '@/constants';
 import type { FeatureReturnType } from '@/license';
 import { License } from '@/license';
 import { MfaService } from '@/mfa/mfa.service';
-import { LogStreamingDestinationService } from '@/modules/log-streaming.ee/log-streaming-destination.service';
+import { LogStreamingDestinationService } from '@/modules/log-streaming/log-streaming-destination.service';
 import { Push } from '@/push';
 import { CacheService } from '@/services/cache/cache.service';
 import { FrontendService } from '@/services/frontend.service';

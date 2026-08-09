@@ -875,3 +875,76 @@ tmpdirs) and `__tests__/source-control.service.push-selection.test.ts` 4/4
 cli `tsc -p tsconfig.build.json` — 0 errors mentioning source-control;
 `eslint src/modules/source-control src/public-api/v1/handlers/source-control
 --quiet` exit 0, no rule disables.
+
+## 2026-08-09 — E9: log-streaming module (`packages/cli`)
+
+Rebuilt the purged log-streaming module fair-code at
+`packages/cli/src/modules/log-streaming/` (no `.ee` path):
+
+- `log-streaming.module.ts` — `@BackendModule({ name: 'log-streaming',
+  licenseFlag: 'feat:logStreaming' })`; registers the `EventDestinations`
+  entity via `entities()` (collected before license gating), initializes the
+  destination service + controller on `init()`, closes destinations on
+  shutdown.
+- `database/entities/index.ts` — `EventDestinations` (`id` uuid PK,
+  `destination` JSON via `JsonColumn`, `WithTimestamps`), mapping onto the
+  pre-existing `event_destinations` table created by the surviving
+  fair-code migrations in `@n8n/db` (no migration changes).
+- `database/repositories/event-destination.repository.ts` —
+  `EventDestinationsRepository` extending `BaseRepository` with use-case
+  methods (`getAll`, `saveDestination` upsert, `deleteById`); TypeORM stays
+  inside the module `database/` dir.
+- `log-streaming-destination.service.ts` — owns the destination registry.
+  **Open-area decisions:** a single service-owned `"message"` listener fans
+  out to enabled+subscribed destinations; each successful delivery confirms
+  the message under the destination's identity; zero applicable destinations
+  confirm as `{ id: '0', name: 'eventBus' }` (mirrors the bus's no-listener
+  behavior); all-failed leaves the message unconfirmed for the bus retry
+  loop. `removeDestination(id, persist = true)`: always closes/unregisters,
+  skips the DB delete when `persist === false` (the only surviving caller of
+  the boolean is test teardown).
+- `create-message-event-bus-destination.ts` — factory dispatching on the
+  three `__type` discriminators via type predicates; unknown type throws
+  `UserError`.
+- `destinations/` — abstract base (segment-aware event filtering incl. `*`
+  wildcard, contained delivery errors logged verbatim, audit-payload
+  anonymization) plus webhook (via `OutboundHttp.requests()`; keypair/JSON
+  headers+query, generic httpHeaderAuth/httpBasicAuth credential resolution
+  through `CredentialsRepository` + n8n-core `Credentials`), syslog
+  (`@n8n/syslog-client`; udp/tcp/tls, `tlsCa` → `tlsCA`), and sentry
+  (raw envelope POST to the DSN's ingestion endpoint through `OutboundHttp`
+  instead of the global Sentry SDK, keeping instance error reporting
+  untouched). Circuit-breaker options are persisted/serialized but have no
+  runtime behavior (nothing surviving pins one).
+- `log-streaming.controller.ts` — `/eventbus/destination` GET/POST/DELETE +
+  `/eventbus/testmessage`, `@Licensed('feat:logStreaming')` +
+  `@GlobalScope('logStreaming:manage')`; POST validated by
+  `CreateDestinationDto`; env-managed mode returns 403 for mutations
+  (public API keeps its 409).
+
+Rewires (path repointing only, assertions untouched): public-api handler,
+instance-settings loader + its two tests, `test-server.ts` `eventBus` group,
+the four integration specs, and `e2e.controller.ts` (missed by ripgrep-style
+tools — the file trips binary detection; found via `tsc`). Removed the stale
+`log-streaming.ee` eslint ratchet entry (the new service imports no TypeORM).
+
+Also hardened `public-api/index.ts` operation-handler resolution: a handler
+module that fails to import now 500s only its own routes instead of poisoning
+the whole v1 router (the not-yet-rebuilt sso-oidc/sso-saml services were
+blocking every public API route, including this epic's acceptance suite).
+
+**Clean-room sources:** the E9 contract inventory (`.defork/e9-contract.md`),
+the surviving fair-code specs (eventbus, log-streaming controller, syslog-tls,
+loader unit+integration, public-api log-streaming, Playwright delivery spec),
+the fair-code option schemas/defaults in `packages/workflow/src/message-event-bus.ts`,
+`@n8n/syslog-client`, and this repo's own fair-code consumers. No enterprise
+source or history was consulted.
+
+**Verification:** integration 68/68 (eventbus 6, controller 12, syslog-tls 2,
+loader roundtrip 4, public-api log-streaming 44); loader unit 20/20;
+`grep -rn "log-streaming.ee" src test` → 0; cli `tsc -p tsconfig.build.json`
+110 errors before and after, none mentioning log-streaming (12 missing-module
+errors resolved); `eslint src/modules/log-streaming
+src/public-api/v1/handlers/log-streaming --quiet` exit 0, no rule disables;
+sqlite migrations suite 214 passed / 1 skipped; public-api tags.test.ts now
+runs: 23/24 (1 pre-existing RBAC failure unrelated to log-streaming).

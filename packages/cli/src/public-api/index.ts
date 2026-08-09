@@ -177,6 +177,24 @@ function controllerOwnedNoopHandler() {
 	];
 }
 
+/**
+ * A handler-module import failure must only break the routes owned by that
+ * module, not poison the whole v1 router — eov resolves every operation's
+ * handler while building the router, so an unresolvable module would
+ * otherwise turn every public API route into a 500.
+ */
+function brokenHandlerModuleHandler(modulePath: string, cause: unknown) {
+	Container.get(Logger).error(
+		`Public API handler module '${modulePath}' could not be loaded; its routes are unavailable`,
+		{ error: cause instanceof Error ? cause.message : String(cause) },
+	);
+	return [
+		(_req: unknown, _res: unknown, next: (error?: unknown) => void) => {
+			next(new UnexpectedError(`Handler module '${modulePath}' failed to load`));
+		},
+	];
+}
+
 function resolveOperationHandler(
 	handlersPath: string,
 	routeArg: unknown,
@@ -201,10 +219,15 @@ function resolveOperationHandler(
 	const modulePath = path.join(handlersPath, handlerModule);
 
 	if (loader === 'require') {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports
-		const imported = require(modulePath) as Record<string, unknown> & {
-			default?: Record<string, unknown>;
-		};
+		let imported: Record<string, unknown> & { default?: Record<string, unknown> };
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-require-imports
+			imported = require(modulePath) as Record<string, unknown> & {
+				default?: Record<string, unknown>;
+			};
+		} catch (error) {
+			return brokenHandlerModuleHandler(modulePath, error);
+		}
 		const handler = imported[operationId] ?? imported.default?.[operationId] ?? imported.default;
 		if (!handler) {
 			throw new UnexpectedError(
@@ -215,9 +238,14 @@ function resolveOperationHandler(
 	}
 
 	return (async () => {
-		const imported = (await import(/* @vite-ignore */ modulePath)) as Record<string, unknown> & {
-			default?: Record<string, unknown>;
-		};
+		let imported: Record<string, unknown> & { default?: Record<string, unknown> };
+		try {
+			imported = (await import(/* @vite-ignore */ modulePath)) as Record<string, unknown> & {
+				default?: Record<string, unknown>;
+			};
+		} catch (error) {
+			return brokenHandlerModuleHandler(modulePath, error);
+		}
 		const handler = imported[operationId] ?? imported.default?.[operationId] ?? imported.default;
 		if (!handler) {
 			throw new UnexpectedError(

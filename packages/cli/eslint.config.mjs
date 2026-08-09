@@ -276,7 +276,6 @@ export default defineConfig(
 			'./src/modules/instance-ai/storage/typeorm-agent-memory.ts',
 			'./src/modules/instance-ai/storage/typeorm-observation-log-store.ts',
 			'./src/modules/instance-ai/suspended-thread-persistence.service.ts',
-			'./src/modules/log-streaming.ee/log-streaming-destination.service.ts',
 			'./src/modules/mcp/mcp-api-key.service.ts',
 			'./src/modules/mcp/mcp.settings.service.ts',
 			'./src/modules/oauth-jwe/oauth-jwe-key.service.ts',
