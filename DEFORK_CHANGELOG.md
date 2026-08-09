@@ -457,3 +457,27 @@ them (two surviving tests, reconciled controller-side); an invalid-email
 directory entry for an existing user counts as "seen" so the user is NOT
 disabled; email→LDAP account conversion must adopt the directory's mapped
 first/last name, not just attach the identity.
+
+## 2026-08-09 — E13a: evaluation persistence layer (`@n8n/db`)
+
+**Rebuilt (clean-room):** `entities/test-run.ts`, `entities/test-case-execution.ts`,
+`entities/evaluation-config.ts`, `entities/evaluation-collection.ts`,
+`repositories/test-run.repository.ts`, `repositories/test-case-execution.repository.ts`;
+`WorkflowEntity.testRuns` relation restored; entities/repository index registration.
+
+**Clean-room sources:** the surviving fair-code migrations
+(`CreateTestRunTable` → `CleanEvaluations` → `AddScalingFieldsToTestRun` →
+`AddWorkflowVersionToTestRun` → `AddEvaluationConfigColumnsToTestRun` →
+`CreateEvaluationCollection`, + `CreateEvaluationConfig`,
+`AddInputsOutputsToTestCaseExecution`, `AddRunIndexToTestCaseExecution`) which
+pin the exact schema; surviving `types-db.ts` types (`TestRunErrorCode`,
+`TestCaseExecutionErrorCode`, `TestRunFinalResult`, `AggregatedTestRunMetrics`);
+the fair-code consumers (`public-api/v1/handlers/evaluations/*`,
+`test/integration/shared/db/evaluation.ts` factory, both surviving integration
+specs) which pin repository method contracts;
+`@n8n/api-types/dto/evaluations/public-api-test-run.dto.ts` status unions;
+`WorkflowRepository.getWorkflowsWithEvaluationCount` (pins the `testRuns`
+relation). No `.ee` source read.
+
+**Verification:** `pnpm --filter @n8n/db build` exit 0;
+`pnpm --filter @n8n/db test` 31 files / 409 tests pass.

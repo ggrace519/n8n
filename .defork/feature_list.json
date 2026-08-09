@@ -247,7 +247,8 @@
       "id": "B-eval-node",
       "phase": "B",
       "title": "Rebuild the Evaluation node classes (fair-code) \u2014 classes were .ee",
-      "passes": false,
+      "passes": true,
+      "verified": "2026-08-09: PR #1 (d70b5cfea7) rebuilt both node classes + re-registered in package.json; nodes/Evaluation/test 6 files / 92 tests pass.",
       "notes": "Node CLASSES were .ee and purged (Evaluation.node.ee.ts, EvaluationTrigger.node.ee.ts); deregistered from package.json in A-nodesbase-green. Rebuild the 2 node classes clean-room from surviving helpers (nodes/Evaluation/{Evaluation/Description.node.ts, methods/*, utils/*, Evaluation/CannedMetricPrompts.ts}) + the 3 orphaned .node.ee tests (spec). Re-register in package.json. Per user policy, rebuild (do not drop)."
     },
     {

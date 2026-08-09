@@ -9,6 +9,12 @@ import {
 } from './credential-dependency-entity';
 import { CredentialsEntity, type CredentialUsageScope } from './credentials-entity';
 import { DeploymentKey } from './deployment-key';
+import { EvaluationCollection } from './evaluation-collection';
+import {
+	EvaluationConfig,
+	type EvaluationConfigStatus,
+	type EvaluationDatasetSource,
+} from './evaluation-config';
 import { ExecutionData } from './execution-data';
 import { ExecutionEntity } from './execution-entity';
 import type { ExecutionDataStorageLocation } from './execution-entity';
@@ -43,6 +49,8 @@ import { Settings } from './settings';
 import { SharedCredentials } from './shared-credentials';
 import { SharedWorkflow } from './shared-workflow';
 import { TagEntity } from './tag-entity';
+import { TestCaseExecution, type TestCaseExecutionStatus } from './test-case-execution';
+import { TestRun, type TestRunStatus } from './test-run';
 import { User } from './user';
 import { Variables } from './variables';
 import { WebhookEntity } from './webhook-entity';
@@ -101,6 +109,14 @@ export {
 	SharedCredentials,
 	SharedWorkflow,
 	TagEntity,
+	TestCaseExecution,
+	type TestCaseExecutionStatus,
+	TestRun,
+	type TestRunStatus,
+	EvaluationCollection,
+	EvaluationConfig,
+	type EvaluationConfigStatus,
+	type EvaluationDatasetSource,
 	User,
 	WorkflowDependency,
 	WorkflowEntity,
@@ -147,6 +163,10 @@ export const entities = {
 	SharedCredentials,
 	SharedWorkflow,
 	TagEntity,
+	TestCaseExecution,
+	TestRun,
+	EvaluationCollection,
+	EvaluationConfig,
 	User,
 	WorkflowDependency,
 	WorkflowEntity,

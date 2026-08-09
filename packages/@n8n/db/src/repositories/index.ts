@@ -46,6 +46,8 @@ export type {
 export { ProcessedDataRepository } from './processed-data.repository';
 export { SettingsRepository } from './settings.repository';
 export { TagRepository } from './tag.repository';
+export { TestCaseExecutionRepository } from './test-case-execution.repository';
+export { TestRunRepository, type TestRunSummary } from './test-run.repository';
 export { VariablesRepository } from './variables.repository';
 export { WorkflowHistoryRepository } from './workflow-history.repository';
 export { WorkflowStatisticsRepository } from './workflow-statistics.repository';
