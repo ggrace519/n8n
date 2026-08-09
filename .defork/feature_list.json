@@ -178,9 +178,9 @@
       "id": "E12-dynamic-credentials",
       "phase": "E",
       "title": "Rebuild modules/dynamic-credentials.ee/services/shared-fields fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"dynamic-credentials.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + credentials sharing model."
+      "notes": "Clean-room: consumers + credentials sharing model. DONE 2026-08-08: shared-fields helper rebuilt at modules/dynamic-credentials/services/shared-fields.ts (only consumer surface); grep = 0."
     },
     {
       "id": "E13-evaluation-backend",
@@ -202,9 +202,9 @@
       "id": "E15-credentials-service-ee",
       "phase": "E",
       "title": "Rebuild credentials/credentials.service.ee fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"credentials.service.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + surviving credentials.service tests + SharedCredentials repo."
+      "notes": "Clean-room: consumers + surviving credentials.service tests + SharedCredentials repo. DONE 2026-08-08: rebuilt as credentials-sharing.service.ts; credentials.api.test 80/80."
     },
     {
       "id": "E16-execution-service-ee",
