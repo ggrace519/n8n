@@ -176,14 +176,12 @@ export class ObjectStoreService {
 
 	async deleteMany(prefix: string) {
 		const items = await this.list(prefix);
-		if (items.length === 0) return;
+		const keys = items.map((item) => item.key).filter((key): key is string => key !== undefined);
+		if (keys.length === 0) return;
 
-		const command = new DeleteObjectsCommand({
-			Bucket: this.bucketName,
-			Delete: { Objects: items.map((item) => ({ Key: item.key })) },
-		});
-
-		await this.run(async () => await this.client.send(command));
+		// Delegate to deleteByKeys so large prefixes are chunked to S3's
+		// 1000-key-per-request limit and per-object failures are surfaced.
+		await this.deleteByKeys(keys);
 	}
 
 	async deleteByKeys(keys: string[]) {

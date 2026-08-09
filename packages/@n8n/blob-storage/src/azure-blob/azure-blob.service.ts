@@ -136,7 +136,15 @@ export class AzureBlobService {
 
 		// A connection string bundles endpoint and credentials, so it takes precedence.
 		if (connectionString) {
-			return BlobServiceClient.fromConnectionString(connectionString);
+			try {
+				return BlobServiceClient.fromConnectionString(connectionString);
+			} catch {
+				// Deliberately no `cause`: a connection string embeds the account key,
+				// and the SDK's parse error may echo the input.
+				throw new UserError(
+					'Invalid Azure Blob storage connection string (N8N_EXTERNAL_STORAGE_AZURE_CONNECTION_STRING).',
+				);
+			}
 		}
 
 		if (!accountName) {
