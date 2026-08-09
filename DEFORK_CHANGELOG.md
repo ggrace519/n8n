@@ -384,3 +384,19 @@ db 409/409; cli tsc 1046→784 across the session, zero errors in new files;
 eslint clean. Public-api suite still gated by the six remaining subsystems
 (E3 source-control, E5 saml, E6 oidc, E7 ldap, E9 log-streaming, E13
 evaluation) whose handlers the shared router imports.
+
+### 2026-08-08 — E16: sharing-licensed execution reads rebuilt fair-code
+
+**Added:** `packages/cli/src/executions/execution-sharing.service.ts`
+(`EnterpriseExecutionsService.findOne`). The single consumer
+(`executions.controller`) switches between it and the community
+`ExecutionService.findOne` on the sharing license; both take the same
+caller-scoped accessible-workflow IDs and return the same response shape, and
+no surviving spec distinguishes their behavior — with sharing enabled the
+access difference already flows through the role-based workflow-ID resolution.
+The licensed path therefore delegates to the community implementation, kept as
+a separate DI seam for future divergence.
+
+**Clean-room sources:** the consumer call site + fair-code
+`ExecutionService.findOne`. **Verification:** `execution.service.ee` refs = 0;
+execution-persistence spec 4/4; cli tsc 784→783; eslint clean.

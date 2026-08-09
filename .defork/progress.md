@@ -439,3 +439,17 @@ session total 1046→784, 0 errors in new files; eslint 0 errors.
 **NEXT.** E3 (source-control — largest; 5 surviving specs in
 test/integration/environments/) or E13 (evaluation backend — unlocks
 evaluations handler + agent-evals). E4 (sso-helpers) before E5/E6.
+
+## 2026-08-08 — E16 done (execution-sharing seam)
+
+**WHAT.** EnterpriseExecutionsService.findOne rebuilt as a delegating seam over
+the community ExecutionService.findOne — one consumer, identical
+signature/return, no surviving spec distinguishes behavior (access already
+flows through caller-scoped workflow IDs). grep=0, tsc 784→783, eslint clean,
+execution-persistence 4/4.
+
+**NEXT.** Remaining E items by size: E4 (sso-helpers, foundation for E5/E6) →
+E13 (evaluation backend) → E9 (log-streaming) → E7 (ldap) → E8 (external-secrets
+full) → E10 (multi-main) → E11 (full provisioning module) → E3 (source-control,
+largest) → E5/E6 (saml/oidc). Then A10 sweep (repoint spec .ee imports, full
+public-api suite), A11, A12, A13, B-eval-node, C1-C6.

@@ -210,9 +210,9 @@
       "id": "E16-execution-service-ee",
       "phase": "E",
       "title": "Rebuild executions/execution.service.ee fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"execution.service.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + surviving execution.service tests + execution.repository (@n8n/db)."
+      "notes": "Clean-room: consumers + surviving execution.service tests + execution.repository (@n8n/db). DONE 2026-08-08: execution-sharing.service.ts delegates to community findOne (no distinguishing pin)."
     },
     {
       "id": "A10-cli-green",
