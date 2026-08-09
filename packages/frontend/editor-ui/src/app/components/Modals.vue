@@ -107,7 +107,7 @@ import ModalRoot from '@/app/components/ModalRoot.vue';
 import NpsSurvey from '@/app/components/NpsSurvey.vue';
 import PersonalizationModal from '@/features/settings/users/components/PersonalizationModal.vue';
 import ProjectMoveResourceModal from '@/features/collaboration/projects/components/ProjectMoveResourceModal.vue';
-import EventDestinationSettingsModal from '@/features/integrations/logStreaming.ee/components/EventDestinationSettingsModal.vue';
+import EventDestinationSettingsModal from '@/features/integrations/logStreaming/components/EventDestinationSettingsModal.vue';
 import SetupWorkflowCredentialsModal from '@/features/workflows/templates/components/SetupWorkflowCredentialsModal.vue';
 import SourceControlPullModal from '@/features/integrations/sourceControl/components/SourceControlPullModal.vue';
 import SourceControlPullResultModal from '@/features/integrations/sourceControl/components/SourceControlPullResultModal.vue';
