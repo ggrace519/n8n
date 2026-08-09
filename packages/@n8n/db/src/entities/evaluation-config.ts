@@ -1,5 +1,5 @@
+import type { DataTableDatasetRef, EvaluationMetric, GoogleSheetsDatasetRef } from '@n8n/api-types';
 import { Column, Entity, ManyToOne, Relation, Unique } from '@n8n/typeorm';
-import type { IDataObject } from 'n8n-workflow';
 
 import { JsonColumn, WithTimestampsAndStringId } from './abstract-entity';
 import { WorkflowEntity } from './workflow-entity';
@@ -11,8 +11,8 @@ export type EvaluationDatasetSource = 'data_table' | 'google_sheets';
  * A saved, workflow-scoped evaluation setup: which dataset to feed in, the
  * segment of the workflow to exercise (start/end node), and the metrics to
  * score each case with. The structured `datasetRef`/`metrics` payloads are
- * validated in the service layer against the `@n8n/api-types` zod schemas;
- * the persistence layer stores them as JSON.
+ * validated against the `@n8n/api-types` zod schemas before they reach the
+ * persistence layer, which stores them as JSON.
  */
 @Entity()
 @Unique(['workflowId', 'name'])
@@ -37,7 +37,7 @@ export class EvaluationConfig extends WithTimestampsAndStringId {
 	datasetSource: EvaluationDatasetSource;
 
 	@JsonColumn()
-	datasetRef: IDataObject;
+	datasetRef: DataTableDatasetRef | GoogleSheetsDatasetRef;
 
 	@Column({ type: 'varchar', length: 255 })
 	startNodeName: string;
@@ -46,5 +46,5 @@ export class EvaluationConfig extends WithTimestampsAndStringId {
 	endNodeName: string;
 
 	@JsonColumn()
-	metrics: IDataObject[];
+	metrics: EvaluationMetric[];
 }
