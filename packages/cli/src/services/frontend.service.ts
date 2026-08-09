@@ -25,7 +25,7 @@ import type { CommunityPackagesService } from '@/modules/community-packages/comm
 import { isApiEnabled } from '@/public-api';
 import { PushConfig } from '@/push/push.config';
 import { OwnershipService } from '@/services/ownership.service';
-import { getSamlLoginLabel, getCurrentAuthenticationMethod } from '@/sso.ee/sso-helpers';
+import { getSamlLoginLabel, getCurrentAuthenticationMethod } from '@/sso/sso-helpers';
 import { UserManagementMailer } from '@/user-management/email';
 import { resolveFrontendHealthEndpointPath } from '@/utils/health-endpoint.util';
 import {

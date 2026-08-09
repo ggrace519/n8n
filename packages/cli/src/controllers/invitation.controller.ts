@@ -18,7 +18,7 @@ import { AuthlessRequest } from '@/requests';
 import { OwnershipService } from '@/services/ownership.service';
 import { PasswordUtility } from '@/services/password.utility';
 import { UserService } from '@/services/user.service';
-import { isSsoCurrentAuthenticationMethod } from '@/sso.ee/sso-helpers';
+import { isSsoCurrentAuthenticationMethod } from '@/sso/sso-helpers';
 
 @RestController('/invitations')
 export class InvitationController {

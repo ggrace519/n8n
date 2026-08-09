@@ -114,7 +114,7 @@
       "id": "E4-sso-core",
       "phase": "E",
       "title": "Rebuild sso.ee/sso-helpers (shared SSO helpers) fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"sso.ee/sso-helpers\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
       "notes": "Clean-room: consumers + AuthIdentity entity + public SSO concepts. Foundation for E5/E6."
     },

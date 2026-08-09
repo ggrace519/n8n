@@ -38,10 +38,7 @@ import {
 } from '@/modules/sso-saml/__tests__/saml-signing-test-fixtures';
 import { setSamlLoginEnabled } from '@/modules/sso-saml/saml-helpers';
 import { SamlService } from '@/modules/sso-saml/saml.service.ee';
-import {
-	getCurrentAuthenticationMethod,
-	setCurrentAuthenticationMethod,
-} from '@/sso.ee/sso-helpers';
+import { getCurrentAuthenticationMethod, setCurrentAuthenticationMethod } from '@/sso/sso-helpers';
 import { createHandlebarsEngine } from '@/utils/handlebars.util';
 
 import { sampleConfig, sampleMetadata } from './sample-metadata';

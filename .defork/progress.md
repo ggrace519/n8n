@@ -453,3 +453,23 @@ E13 (evaluation backend) → E9 (log-streaming) → E7 (ldap) → E8 (external-s
 full) → E10 (multi-main) → E11 (full provisioning module) → E3 (source-control,
 largest) → E5/E6 (saml/oidc). Then A10 sweep (repoint spec .ee imports, full
 public-api suite), A11, A12, A13, B-eval-node, C1-C6.
+
+## 2026-08-08 — E4 done (sso-helpers)
+
+**WHAT.** `src/sso/sso-helpers.ts`: auth-method state (config.getEnv/set on
+'userManagement.authenticationMethod' + settings row loadOnStartup — start.ts
+feeds rows back into config on boot), predicates, enable-guard (pinned by
+surviving saml-helpers.ts), SAML license/label accessors. 8 consumers rewired.
+
+**VERIFIED.** grep sso.ee (src, non-test) = 0; invitation.controller 10/10
+(was a load-failure all session); me/password 47/47; tsc 783→766; eslint 0.
+
+**KEY FACTS.**
+- modules/sso-saml survived EXCEPT saml.service.ee/saml.controller.ee/
+  service-provider.ee — saml-helpers.ts + middleware + types are fair-code and
+  pin much of E5.
+- auth.controller.test still blocked by ldap.ee (E7).
+- isOidcLicensed lives on LicenseState (not sso-helpers).
+
+**NEXT.** E7 (ldap — unblocks auth.controller suite) or E13 (evaluation) or
+E9 (log-streaming). E5/E6 now unblocked by E4.

@@ -400,3 +400,23 @@ a separate DI seam for future divergence.
 **Clean-room sources:** the consumer call site + fair-code
 `ExecutionService.findOne`. **Verification:** `execution.service.ee` refs = 0;
 execution-persistence spec 4/4; cli tsc 784→783; eslint clean.
+
+### 2026-08-08 — E4: SSO helpers rebuilt fair-code
+
+**Added:** `packages/cli/src/sso/sso-helpers.ts` — the shared SSO state
+helpers: current-authentication-method get/set (runtime config +
+load-on-startup settings row, the persistence mechanism pinned by the
+fair-code `start` command and `config/schema.ts`), per-method predicates,
+`isSsoCurrentAuthenticationMethod` (SAML or OIDC),
+`assertAuthenticationMethodCanBeEnabled` (a protocol may only be enabled from
+`email` or itself — pinned by the surviving `saml-helpers.ts` toggle logic),
+SAML license/enabled/label accessors over `LicenseState`/`GlobalConfig`.
+All 8 consumers rewired (frontend settings, auth/me/password-reset/invitation
+controllers, SSO settings loaders, surviving sso-saml module files).
+
+**Clean-room sources:** the 8 consumer call sites (the surviving
+`modules/sso-saml/saml-helpers.ts` pins the enable/disable semantics verbatim),
+`config/schema.ts`, `start.ts` settings loading, `AuthenticationMethod` in
+api-types. **Verification:** `sso.ee` refs in src = 0; invitation controller
+suite now loads and passes 10/10 (failed to load all session); me/password
+controller suites 47/47; cli tsc 783→766; eslint clean.

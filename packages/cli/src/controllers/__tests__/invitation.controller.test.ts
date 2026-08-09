@@ -1,5 +1,5 @@
 import { Logger } from '@n8n/backend-common';
-import * as ssoHelpers from '@/sso.ee/sso-helpers';
+import * as ssoHelpers from '@/sso/sso-helpers';
 import { InvitationController } from '../invitation.controller';
 import type { AcceptInvitationRequestDto } from '@n8n/api-types';
 import { InviteUsersRequestDto } from '@n8n/api-types';
