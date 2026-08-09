@@ -613,3 +613,35 @@ instance-ai module boundary).
 specs in test/integration/environments/), or E9 (log-streaming) / E5/E6
 (saml/oidc) / E8 / E10 / E11 / E17-agent-eval-db. After those: A10 sweep
 (public-api suite ungated once source-control/saml/oidc/log-streaming land).
+
+## 2026-08-09 — E13 merged (PR #3); E3 iteration started
+
+**WHAT.** Pushed feat/defork-e13-evaluation-backend, PR #3 opened + merged
+(merge commit, preserving the 9 slice commits), master synced. Started E3
+(source-control): codex contract extraction dispatched over the 5 surviving
+specs (4,745 lines) + consumers → will land at the session scratchpad as
+e3-contract.md (re-dispatch with .defork/e3-brief snapshot if lost).
+
+**E3 FILE MAP (from spec imports — the files to rebuild).**
+modules/source-control.ee/: constants.ts, source-control-context.factory.ts,
+source-control-export.service.ee.ts, source-control-git.service.ee.ts,
+source-control-import.service.ee.ts, source-control-scoped.service.ts,
+source-control-status.service.ee.ts, plus source-control.service.ee +
+source-control-helper.ee (public-api handler imports) + controller + types.
+Preferences service ALREADY fair-code at modules/source-control/.
+SourceControlledFile type survives in @n8n/api-types. Specs also pin export
+constants (SOURCE_CONTROL_{CREDENTIAL,DATATABLES,WORKFLOW}_EXPORT_FOLDER,
+SOURCE_CONTROL_{FOLDERS,TAGS}_EXPORT_FILE) and use Cipher (n8n-core) +
+fast-glob. Consumers beyond specs: public-api handler, data-table
+branch-write-access middleware + controller + proxy, instance-ai service +
+adapter, telemetry/pubsub event maps.
+
+**PLAN.** Decompose E3 into: E3a git service + helpers + constants; E3b
+export service; E3c import service (2,019-line spec — crown jewel); E3d
+status/scoped/context; E3e service + controller + public-api handler rewire.
+Delegate mechanical slices to n8n:developer subagents (non-overlapping
+files), verify each against its own spec file, codex review at the end.
+
+**NEXT.** When e3-contract.md lands: decompose + dispatch. Verify gate per
+slice: its spec file green; item gate: all 5 specs + grep source-control.ee
+= 0 (non-test).
