@@ -37,7 +37,7 @@ import {
 	RSA_TEST_PRIVATE_KEY,
 } from '@/modules/sso-saml/__tests__/saml-signing-test-fixtures';
 import { setSamlLoginEnabled } from '@/modules/sso-saml/saml-helpers';
-import { SamlService } from '@/modules/sso-saml/saml.service.ee';
+import { SamlService } from '@/modules/sso-saml/saml.service';
 import { getCurrentAuthenticationMethod, setCurrentAuthenticationMethod } from '@/sso/sso-helpers';
 import { createHandlebarsEngine } from '@/utils/handlebars.util';
 

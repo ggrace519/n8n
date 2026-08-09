@@ -16,6 +16,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-09 — E5: SAML backend rebuilt fair-code
+
+**Added (clean-room rebuild of purged `sso-saml/*.ee` files):**
+`packages/cli/src/modules/sso-saml/` — `saml.service.ts` (preference lifecycle
+persisted as the `features.saml` settings row with the signing private key
+encrypted via `Cipher`; secret-update semantics `''`=clear /
+`CREDENTIAL_BLANKING_VALUE`=keep; PEM format + key/cert pair validation gated
+on `N8N_ENV_FEAT_SIGNED_SAML_REQUESTS`; IdP metadata validation through the
+surviving `SamlValidator` and metadata-URL fetching through `OutboundHttp`
+(SSRF policy + `ignoreSSL`); samlify SP/IdP adapters with per-request
+RelayState; assertion consumption + attribute mapping via surviving
+`saml-helpers` with JIT user create/update; single-use hex-token
+connection-test cache with 5-min TTL), `saml.controller.ts` (`/sso/saml`
+metadata/config/config\/toggle/config\/test/initsso/acs; `saml:manage` scope +
+surviving licensed/enabled middlewares; ACS renders the surviving
+connection-test handlebars templates always-200, normal-login failures return
+401 `SAML Authentication failed`, success issues the auth cookie, emits
+`user-logged-in` and redirects only to same-origin relative RelayState paths),
+`service-provider.ts` (entityID/ACS/config-test URL helpers + samlify SP
+factory), plus `__tests__/saml.service.test.ts` (16 unit tests covering
+metadata rejection, metadata-URL fetch errors, connection-test token flow,
+signing-key encryption round-trip, email validation and JIT-disabled login).
+Rewired the `.ee` import paths in `sso-saml.module.ts`, the public-api
+sso-saml handler/mapper, the test server, and the SAML/OIDC specs (path
+repoints only; `saml.instance-settings-loader.test.ts` also repointed
+`provisioning.ee/constants` → surviving `provisioning/constants`).
+
+**Clean-room sources:** the `.defork/e5e6-contract.md` consumer contract; the
+surviving sso-saml fair-code (validator, helpers + their tests, DTOs, module,
+middlewares, XSD schemas, connection-test templates, `init-sso-post` view);
+`test/integration/saml/*` and `test/integration/public-api/sso-saml.test.ts`
+pins; `sso-helpers`, `UrlService`, `AuthService.issueCookie`, the LDAP module
+as the fair-code module pattern; the SAML 2.0 public standard and samlify
+2.13.0's installed public API. No `.ee` source read.
+
+**Verification:** `.ee` SAML refs in `packages/cli` src+test = 0; unit
+`src/modules/sso-saml/__tests__` **39/39** (validator 8, helpers 15, new
+service 16); integration `public-api/sso-saml.test.ts` **16/16**,
+`saml/saml-helpers.test.ts` 1/1, `saml/saml.instance-settings-loader.test.ts`
+**2/2** (was a load-failure); api-types SAML DTO tests 14/14; cli
+`tsc -p tsconfig.build.json` 0 sso-saml errors; eslint clean (0 errors, no
+rule disables). `saml/saml.api.test.ts` remains blocked by its import of
+missing `modules/provisioning.ee/provisioning.service.ee` (E-provisioning),
+not an E5 defect — expression-based role provisioning inside `handleSamlLogin`
+is deferred to that rebuild.
+
 ### 2026-08-08 — Repo severed from upstream & Enterprise code purged
 
 **Removed**
@@ -1030,3 +1076,58 @@ ordering 10, breaker 9, queue 5); loader unit 20/20; eventbus unit 22/22;
 `public-api/index`; `eslint src/modules/log-streaming
 src/public-api/v1/handlers/log-streaming --quiet` exit 0, no rule disables;
 public-api tags.test.ts 23/24 (same pre-existing RBAC failure).
+
+## 2026-08-09 — E6: OIDC backend rebuilt fair-code
+
+**Rebuilt (clean-room):** `packages/cli/src/modules/sso-oidc/oidc.service.ts`
+(`OidcService`: settings-row persistence under `features.oidc` with
+`Cipher.encryptV2`-encrypted client secret and exact-sentinel redaction,
+`loadConfig(includeSecret?)` per the pinned surface, `updateConfig` with
+discovery-validated writes and SAML/OIDC/LDAP mutual exclusion as 400s,
+authorization-URL generation with per-request state/nonce/PKCE-S256, callback
+token exchange + UserInfo via `openid-client` 6.8.4, claims→user resolution
+(identity → email → JIT create), encrypted `n8n-oidc-id-token` cookie with the
+3,800-byte ceiling, RP-initiated logout URL building) and
+`oidc.controller.ts` (`/sso/oidc` internal routes: config get/set/test under
+`feat:oidc` + `oidc:manage`, public login/callback, authenticated logout that
+always ends the local session). Filenames drop the `.ee` infix.
+
+**Rewired:** `sso-oidc.module.ts`, public-api `sso-oidc.handler.ts` +
+`sso-oidc.mapper.ts`, `test-server.ts` (oidc case), and the two OIDC specs —
+path repointing only. Added state/nonce/PKCE cookie-name constants to the
+surviving `constants.ts`. Fixed the pinned Convict drift: `config/schema.ts`
+`authenticationMethod` format now includes `oidc`.
+
+**Open-area decisions (contract §8, chosen + documented in code):** plain
+`sub` as `AuthIdentity.providerId`; resolution order identity → email →
+JIT-create honoring `N8N_SSO_JUST_IN_TIME_PROVISIONING`; UserInfo canonical
+with ID-token fallback for email/names; base scopes `openid profile email`
+plus the provisioning scope when claim provisioning is enabled; state/nonce/
+PKCE verifier in httpOnly SameSite=Lax 15-min cookies scoped to
+`/{rest}/sso/oidc`; connection tests marked by an in-memory single-use
+pending-state map; normal-callback success 302→instance base URL, failure
+401 `OIDC Authentication failed`; `post_logout_redirect_uri` = instance base
+URL, provider errors degrade to local-only logout (`redirectUrl: null`);
+unset discovery endpoint surfaces a syntactically valid example.com
+placeholder URL. Role provisioning/expression mapping stays delegated to the
+provisioning rebuild (inputs preserved, nothing wired).
+
+**Clean-room sources:** the E5/E6 contract inventory
+(`.defork/e5e6-contract.md`), surviving fair-code (module file, constants,
+`oidc-test-result` views + test, DTOs, env loader, sso-helpers, public-api
+handler/mapper, discovery spec, frontend REST client), the OpenID Connect
+Core/Discovery/RP-Initiated-Logout specs, and openid-client's public API. No
+enterprise source or history was consulted.
+
+**Verification:** new unit tests 32/32
+(`src/modules/sso-oidc/__tests__/oidc.service.test.ts`: state/PKCE flow,
+token-exchange failure modes, claim mapping, sentinel handling, logout);
+surviving `oidc-test-result` 3/3 and OIDC DTO 3/3 unchanged; integration
+`oidc-discovery-http` 2/2; public-api `sso-oidc.test.ts` **24/24** (was a
+load failure — also exercises the internal `/sso/oidc/config` routes);
+public-api `log-streaming` baseline 44/44; `main-only-modules` 6/6;
+`grep oidc.service.ee|oidc.controller.ee` in src+test = 0; build `tsc` → 0
+sso-oidc errors; `eslint src/modules/sso-oidc
+src/public-api/v1/handlers/sso-oidc --quiet` exit 0, no rule disables.
+`oidc.instance-settings-loader.test.ts` remains blocked on the missing
+`modules/provisioning.ee/constants` import (provisioning rebuild scope).
