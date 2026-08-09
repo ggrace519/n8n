@@ -138,7 +138,7 @@
       "id": "E7-ldap",
       "phase": "E",
       "title": "Rebuild modules/ldap.ee (ldap.service, helpers, errors) fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"ldap.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
       "notes": "Clean-room: consumers + LDAP protocol + fair-code lib (ldapts) + surviving ldap tests."
     },

@@ -6,8 +6,8 @@ import { Container } from '@n8n/di';
 import { CREDENTIAL_BLANKING_VALUE } from 'n8n-workflow';
 
 import { FeatureNotLicensedError } from '@/errors/feature-not-licensed.error';
-import { getLdapUsers, saveLdapSynchronization } from '@/modules/ldap.ee/helpers.ee';
-import { LdapService } from '@/modules/ldap.ee/ldap.service.ee';
+import { getLdapUsers, saveLdapSynchronization } from '@/modules/ldap/helpers';
+import { LdapService } from '@/modules/ldap/ldap.service';
 import { setCurrentAuthenticationMethod } from '@/sso/sso-helpers';
 import { createOwnerWithApiKey } from '@test-integration/db/users';
 import { setupTestServer } from '@test-integration/utils';

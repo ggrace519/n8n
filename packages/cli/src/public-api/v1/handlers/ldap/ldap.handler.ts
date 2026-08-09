@@ -3,9 +3,9 @@ import { Container } from '@n8n/di';
 
 import { ResponseError } from '@/errors/response-errors/abstract/response.error';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
-import { getLdapSynchronizationsWithCount } from '@/modules/ldap.ee/helpers.ee';
-import { LdapConnectionError, LdapRejectionError } from '@/modules/ldap.ee/ldap.errors';
-import { LdapService } from '@/modules/ldap.ee/ldap.service.ee';
+import { getLdapSynchronizationsWithCount } from '@/modules/ldap/helpers';
+import { LdapConnectionError, LdapRejectionError } from '@/modules/ldap/ldap.errors';
+import { LdapService } from '@/modules/ldap/ldap.service';
 
 import {
 	toLdapConfigurationResponse,

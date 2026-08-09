@@ -420,3 +420,40 @@ controllers, SSO settings loaders, surviving sso-saml module files).
 api-types. **Verification:** `sso.ee` refs in src = 0; invitation controller
 suite now loads and passes 10/10 (failed to load all session); me/password
 controller suites 47/47; cli tsc 783→766; eslint clean.
+
+### 2026-08-08 — E7: LDAP subsystem rebuilt fair-code
+
+**Added (clean-room rebuild of purged `modules/ldap.ee/`):**
+`packages/cli/src/modules/ldap/` — `ldap.service.ts` (config lifecycle
+persisted as the `features.ldap` settings row; `ldapts`-backed
+`searchWithAdminBinding`/`validUser`/`testConnection`; dry/live user sync with
+`AuthProviderSyncHistory`; scheduled sync; RFC-4515 filter escaping;
+admin-password encryption via `Cipher`), `ldap.controller.ts` (REST /ldap
+config/test-connection/sync, `ldap:manage` + `feat:ldap` gated; PUT rejects
+unknown properties while the DTO strips them — reconciling the two surviving
+tests), `ldap.auth-handler.ts` (`@AuthHandler` password login: create /
+update / email-account-conversion with mapped-field adoption), `helpers.ts`
+(sync persistence + LDAP-identity/user queries + mapping + email validation),
+`ldap.errors.ts` (LdapConnectionError/LdapRejectionError), `ldap.module.ts`.
+Added `'ldap'` to `@n8n/config` LOG_SCOPES.
+
+**Clean-room sources:** the 709-line `ldap.api.test.ts`, `shared/ldap.ts`
+fixtures, the public-api ldap handler/mapper, `auth.controller` login flow +
+`EmailAuthHandler` pattern, `commands/ldap/reset.ts`, `AuthIdentity` /
+`AuthProviderSyncHistory` entities, `LDAP_DEFAULT_CONFIGURATION` /
+`LdapConfig` in `@n8n/constants`, the ldap DTOs. No `.ee` source read; codex
+produced the consumer/spec contract inventory.
+
+**Verification:** `ldap.ee` refs in src = 0; internal `ldap.api.test.ts`
+**30/30** (was a load-failure); permissions 105/105; api-types 1773/1773;
+config 121/121; db 409/409; cli tsc 766→736, 0 errors in the module; eslint
+clean. The public-api ldap spec + `ldap:reset` command spec remain blocked on
+`evaluation.ee/test-runner` (E13), imported by the shared public-api router and
+`base-command.ts` — not an E7 defect.
+
+**Key finding:** three real behaviors the spec pins and the first cut missed —
+config PUT must reject unknown props at the endpoint though the DTO strips
+them (two surviving tests, reconciled controller-side); an invalid-email
+directory entry for an existing user counts as "seen" so the user is NOT
+disabled; email→LDAP account conversion must adopt the directory's mapped
+first/last name, not just attach the identity.

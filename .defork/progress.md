@@ -473,3 +473,44 @@ surviving saml-helpers.ts), SAML license/label accessors. 8 consumers rewired.
 
 **NEXT.** E7 (ldap — unblocks auth.controller suite) or E13 (evaluation) or
 E9 (log-streaming). E5/E6 now unblocked by E4.
+
+## 2026-08-08 — E7 done (LDAP subsystem)
+
+**WHAT.** Full LDAP rebuild at src/modules/ldap/ (service, controller,
+auth-handler, helpers, errors, module). Internal ldap.api.test.ts 30/30.
+Config persisted as features.ldap settings row; ldapts client;
+dry/live sync into AuthProviderSyncHistory; @AuthHandler password login.
+Codex extracted the contract from the 709-line spec (17KB, high value).
+
+**3 SPEC BEHAVIORS the first cut missed (all fixed):**
+1. Config PUT rejects unknown props at the ENDPOINT even though the DTO strips
+   them — two surviving tests conflict (ldap-configuration.dto.test.ts pins
+   STRIP, ldap.api.test.ts pins REJECT). Resolution: DTO stays strip;
+   controller re-validates req.body with schema.strict(). Do NOT make the DTO
+   strict (breaks the unit test).
+2. Invalid-email directory entry for an EXISTING user = "seen" → user NOT
+   disabled (add ldapId to seenLdapIds BEFORE the email-validity skip).
+3. email→LDAP conversion must ADOPT the directory's mapped first/last name,
+   not just attach the identity.
+
+**KEY FACTS.**
+- Auth handlers self-register via @AuthHandler decorator (import the file);
+  login flow tries the registry's password handler for the current auth method
+  when the preliminary user isn't the instance owner. EmailAuthHandler is the
+  template.
+- Module dir <name>/ auto-substitutes for the purged <name>.ee/ in
+  module-registry (getModuleEntryUrl fallback) — no registry edit needed.
+- LOG_SCOPES (@n8n/config) is a closed union — new scoped loggers need the
+  scope added there ('ldap' added).
+- RunningMode/SyncStatus come from @n8n/db via types-db re-export.
+- test-server.ts endpointGroups 'ldap' imports the controller + auth-handler.
+
+**BLOCKED (not E7 defects):** public-api ldap spec + ldap:reset command spec
+both fail to LOAD on evaluation.ee/test-runner (E13) — base-command.ts and the
+shared public-api router import it. E13 unblocks both.
+
+**NEXT.** E13 (evaluation backend) — highest leverage: unblocks base-command
+(→ all command specs), the public-api router (→ full public-api suite incl.
+E7's ldap public-api spec), and agent-evals. Then E9 (log-streaming), E5/E6
+(saml/oidc, need service-provider rebuild), E8 (external-secrets full), E10,
+E11 (full provisioning module), E3 (source-control, largest).
