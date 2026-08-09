@@ -34,6 +34,10 @@ export class SettingsRepository extends BaseRepository<Settings> {
 		return await this.findBy({ key: In(keys) });
 	}
 
+	async deleteByKey(key: string): Promise<void> {
+		await this.delete({ key });
+	}
+
 	async findByKeyPrefix(prefix: string): Promise<Settings[]> {
 		return await this.findBy({ key: Like(`${prefix}%`) });
 	}

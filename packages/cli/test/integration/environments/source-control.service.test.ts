@@ -30,20 +30,20 @@ import {
 	SOURCE_CONTROL_FOLDERS_EXPORT_FILE,
 	SOURCE_CONTROL_TAGS_EXPORT_FILE,
 	SOURCE_CONTROL_WORKFLOW_EXPORT_FOLDER,
-} from '@/modules/source-control.ee/constants';
-import { SourceControlContextFactory } from '@/modules/source-control.ee/source-control-context.factory';
-import { SourceControlExportService } from '@/modules/source-control.ee/source-control-export.service.ee';
-import type { SourceControlGitService } from '@/modules/source-control.ee/source-control-git.service.ee';
-import { SourceControlImportService } from '@/modules/source-control.ee/source-control-import.service.ee';
+} from '@/modules/source-control/constants';
+import { SourceControlContextFactory } from '@/modules/source-control/source-control-context.factory';
+import { SourceControlExportService } from '@/modules/source-control/source-control-export.service';
+import type { SourceControlGitService } from '@/modules/source-control/source-control-git.service';
+import { SourceControlImportService } from '@/modules/source-control/source-control-import.service';
 import { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
-import { SourceControlScopedService } from '@/modules/source-control.ee/source-control-scoped.service';
-import { SourceControlStatusService } from '@/modules/source-control.ee/source-control-status.service.ee';
-import { SourceControlService } from '@/modules/source-control.ee/source-control.service.ee';
-import type { ExportableCredential } from '@/modules/source-control.ee/types/exportable-credential';
-import type { ExportableDataTable } from '@/modules/source-control.ee/types/exportable-data-table';
-import type { ExportableFolder } from '@/modules/source-control.ee/types/exportable-folders';
-import type { ExportableWorkflow } from '@/modules/source-control.ee/types/exportable-workflow';
-import type { RemoteResourceOwner } from '@/modules/source-control.ee/types/resource-owner';
+import { SourceControlScopedService } from '@/modules/source-control/source-control-scoped.service';
+import { SourceControlStatusService } from '@/modules/source-control/source-control-status.service';
+import { SourceControlService } from '@/modules/source-control/source-control.service';
+import type { ExportableCredential } from '@/modules/source-control/types/exportable-credential';
+import type { ExportableDataTable } from '@/modules/source-control/types/exportable-data-table';
+import type { ExportableFolder } from '@/modules/source-control/types/exportable-folders';
+import type { ExportableWorkflow } from '@/modules/source-control/types/exportable-workflow';
+import type { RemoteResourceOwner } from '@/modules/source-control/types/resource-owner';
 import { createCredentials } from '@test-integration/db/credentials';
 import { createDataTable } from '@test-integration/db/data-tables';
 import { createFolder } from '@test-integration/db/folders';

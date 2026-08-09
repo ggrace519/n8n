@@ -3,8 +3,8 @@ import { Container } from '@n8n/di';
 
 import '../sso-oidc/sso-oidc.module';
 import '../sso-saml/sso-saml.module';
-import '../source-control.ee/source-control.module';
-import '../provisioning.ee/provisioning.module';
+import '../source-control/source-control.module';
+import '../provisioning/provisioning.module';
 import '../breaking-changes/breaking-changes.module';
 import '../mcp/mcp.module';
 import '../oauth-server/oauth-server.module';

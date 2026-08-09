@@ -726,3 +726,58 @@ matrix); `test/integration/environments/source-control-import.service.test.ts`
 (remaining source-control errors are the pre-existing `.ee` imports in the
 not-yet-rewired public-api handler); `eslint src/modules/source-control`
 exit 0, no rule disables; `@n8n/db` build exit 0 and tests 409/409.
+
+## 2026-08-09 — E3d: source-control status/service/controller/module (`packages/cli`)
+
+Clean-room rebuild of the final source-control slice:
+`source-control-status.service.ts` (`SourceControlStatusService` — local↔work-folder
+diff for workflows, credentials, folders, data tables, tags, plus synthesized
+`project` entries for team projects owning changed resources; scoped callers
+never see out-of-scope resources, and a remote resource whose local ownership
+moved out of scope is reported neither as deleted nor modified),
+`source-control.service.ts` (`SourceControlService` — sanity check, direction-aware
+status authorization (pull requires global `sourceControl:pull`, push accepts
+global or project-level `sourceControl:push` with per-candidate team-ownership
+validation), pushWorkfolder (read-only branch rejects with BadRequest before
+authorization; `fileNames: []` pushes all changes; per-resource exports plus
+aggregate folders/tags merges and `projects/<id>.json` files; stage/commit/push
+via the git wrapper), pullWorkfolder (409 + full status on unforced conflicts,
+imports workflows/credentials/tags on success), connect/disconnect/branch
+operations, SSH key-pair management (RSA via node:crypto + sshpk public-key
+derivation, Ed25519 via sshpk; private key encrypted with the instance key in
+`features.sourceControl.sshKeys`), work-folder-restricted `remote-content`
+reads, and a `reload-source-control-config` pubsub handler),
+`source-control.controller.ts` (REST routes under `/source-control` with the
+pinned redaction tiers on GET /preferences and route scopes per the contract),
+and `source-control.module.ts` (`@BackendModule({ name: 'source-control',
+instanceTypes: ['main'], licenseFlag: 'feat:sourceControl' })`). Rewired the
+public-api handler, `test-server.ts`, `main-only-modules.test.ts`, and the four
+surviving spec files off `source-control.ee` paths (import repointing only);
+removed the stale `source-control.ee` entries from the cli eslint ratchet
+allowlist. Added the use-case method `SettingsRepository.deleteByKey` to
+`@n8n/db`. Also added a minimal `modules/provisioning/provisioning.module.ts`
+registration (`name: 'provisioning'`, `instanceTypes: ['main']`) so the module
+loader and the `main-only-modules` metadata pin resolve; the full provisioning
+surface remains E11.
+
+**Clean-room sources:** the E3 contract inventory (§2 service contract, §5
+routes, §6 helpers, §8 events/pubsub); the three acceptance specs
+`source-control.service.test.ts` (1,608 lines),
+`source-control.api.test.ts`, `source-control-access-control.test.ts`; the
+E3a–E3c fair-code foundation (constants, types, context factory, scoped/git/
+helper/preferences/export/import services); surviving fair-code consumers
+(public-api handler, relay.event-map, pubsub types) and sibling module/controller
+patterns (`modules/ldap`). No enterprise source or history was consulted.
+
+**Verification:** service spec 26/26, api spec 20/20, access-control spec
+16/16 (sqlite); regression export 13/13 + import 47/47 (60/60 combined);
+`main-only-modules.test.ts` 6/6; `grep -rn "source-control.ee" packages/cli/src
+packages/cli/test --include='*.ts'` → 0 matches; cli `tsc -p
+tsconfig.build.json` — 0 errors mentioning source-control; `eslint
+src/modules/source-control src/public-api/v1/handlers/source-control` exit 0,
+no rule disables; `@n8n/db` build exit 0 and tests 409/409. The rewired
+public-api spec `test/integration/public-api/source-control.test.ts` now loads
+but 6/9 tests fail on a pre-existing repo-wide public-api breakage: the
+log-streaming handler still imports the not-yet-rebuilt `log-streaming.ee`
+module (E9), which breaks handler resolution for all public-api routes
+(untouched `tags.test.ts` fails identically).

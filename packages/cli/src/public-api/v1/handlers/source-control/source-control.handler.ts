@@ -6,9 +6,9 @@ import { EventService } from '@/events/event.service';
 import {
 	getTrackingInformationFromPullResult,
 	isSourceControlLicensed,
-} from '@/modules/source-control.ee/source-control-helper.ee';
+} from '@/modules/source-control/source-control-helper';
 import { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
-import { SourceControlService } from '@/modules/source-control.ee/source-control.service.ee';
+import { SourceControlService } from '@/modules/source-control/source-control.service';
 
 import type { PublicAPIEndpoint } from '../../shared/handler.types';
 import { apiKeyHasScopeWithGlobalScopeFallback } from '../../shared/middlewares/global.middleware';
