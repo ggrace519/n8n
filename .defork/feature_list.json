@@ -186,9 +186,10 @@
       "id": "E13-evaluation-backend",
       "phase": "E",
       "title": "Rebuild evaluation.ee backend (concurrency helper, llm-judge-provider-registry, test-runner services, evaluation-config service) fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"evaluation.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + surviving evaluation tests + fair-code Evaluation node helpers. PROGRESS 2026-08-09: E13a (db entities/repos) + E13b (test-runner core, internal controller, cleanup, judge registry) DONE and committed; remaining: E13c evaluation-config service/controller/repo + WorkflowCompilerService (compileFromConfig), E13d collections + insights controllers. See progress.md."
+      "notes": "Clean-room: consumers + surviving evaluation tests + fair-code Evaluation node helpers. PROGRESS 2026-08-09: E13a (db entities/repos) + E13b (test-runner core, internal controller, cleanup, judge registry) DONE and committed; remaining: E13c evaluation-config service/controller/repo + WorkflowCompilerService (compileFromConfig), E13d collections + insights controllers. See progress.md.",
+      "verified": "2026-08-09: E13a-d complete. grep evaluation.ee = 0 (src+test); internal spec 28/28; instance-ai adapter 179/179; insights unit 10/10; db 409/409; ldap/license command specs unblocked 16/16; eslint clean; cli tsc 0 errors in src/evaluation. Codex adversarial review: 8/11 findings fixed, 3 deferred (logged in DEFORK_CHANGELOG)."
     },
     {
       "id": "E17-agent-eval-db",

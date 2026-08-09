@@ -576,3 +576,40 @@ E11 (full provisioning module), E3 (source-control, largest).
 **NEXT.** E13c (delegate config service+controller+repo to n8n:developer with
 the codex contract; compiler + runner threading by hand), then E13d, then flip
 E13. Then E9 (log-streaming) or E4-done→E5/E6.
+
+## 2026-08-09 — E13 DONE (evaluation backend fully rebuilt; multi-provider loop)
+
+**WHAT.** E13c (config service/controller/repo — delegated to n8n:developer
+subagent, verified independently: adapter 179/179) + WorkflowCompilerService +
+compileFromConfig/collection/version-pin threading in the runner (by hand) +
+E13d (collections + insights — second n8n:developer subagent; grep
+evaluation.ee = 0 across src+test) + codex adversarial review (11 findings,
+8 fixed: queue-mode executionData serialization mirroring offloaded manual
+executions, triggerToStartFrom forcing, evaluationData extraction for
+setInputs/setOutputs, cancel classification + completion CAS on
+cancelRequested, failRun rethrow, internal 409 lifecycle guards, OpenAI
+plain-string model param, ordering tiebreakers). E13 flipped passes:true.
+
+**DEFERRED (non-blocking, no surviving consumer pins):** structured
+EvaluationApiError transport on config-validation responses; SQL-side run
+summaries (getMany relation-loads cases — perf risk for huge runs); Vertex
+projectId + Azure authentication params on compiled judge nodes (needs DTO
+extension); execution-id registration window in cancellation; insights LLM
+path (deterministic 'fallback' only — no injectable model seam outside the
+instance-ai module boundary).
+
+**KEY LESSONS.**
+- setInputs/setOutputs put data on item.evaluationData of the FIRST item
+  (node comment literally says "test-runner only looks at first item") —
+  json holds the passthrough workflow item.
+- Queue mode persists ONLY executionData; transient IWorkflowExecutionDataProcess
+  fields (pinData/triggerToStartFrom/destinationNode) must be serialized via
+  createRunExecutionData exactly like OFFLOAD_MANUAL_EXECUTIONS does.
+- Evaluation mode DOES enqueue in queue mode (workflow-runner shouldEnqueue
+  excludes only 'manual').
+- markAsCompleted is a CAS on cancelRequested=false — late cancels must win.
+
+**NEXT.** Per feature_list order: E3 (source-control, largest — 5 surviving
+specs in test/integration/environments/), or E9 (log-streaming) / E5/E6
+(saml/oidc) / E8 / E10 / E11 / E17-agent-eval-db. After those: A10 sweep
+(public-api suite ungated once source-control/saml/oidc/log-streaming land).
