@@ -1,6 +1,7 @@
 import type { HttpRequestClient, OutboundHttp } from '@n8n/backend-network';
 import { mockInstance } from '@n8n/backend-test-utils';
 import { GlobalConfig } from '@n8n/config';
+import type { SsrfProtectionConfig } from '@n8n/config';
 import { AuthIdentityRepository, User, UserRepository } from '@n8n/db';
 import type { SettingsRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
@@ -45,6 +46,8 @@ const cipher = mock<Cipher>();
 const outboundHttp = mock<OutboundHttp>();
 const httpClient = mock<HttpRequestClient>();
 const provisioningService = mock<ProvisioningService>();
+// SSRF protection is opt-in instance-wide; the metadata fetch follows that setting.
+const ssrfConfig = mock<SsrfProtectionConfig>({ enabled: false });
 
 const globalConfig = Container.get(GlobalConfig);
 
@@ -89,6 +92,8 @@ describe('SamlService', () => {
 			outboundHttp,
 			provisioningService,
 			flowState,
+			ssrfConfig,
+			mock(),
 		);
 	});
 

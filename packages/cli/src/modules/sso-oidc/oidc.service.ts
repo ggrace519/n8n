@@ -1,8 +1,8 @@
 import type { OidcConfigDto } from '@n8n/api-types';
 import { OIDC_PROMPT_VALUES } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
-import { OutboundHttp } from '@n8n/backend-network';
-import { GlobalConfig } from '@n8n/config';
+import { OutboundHttp, SsrfProtectionService } from '@n8n/backend-network';
+import { GlobalConfig, SsrfProtectionConfig } from '@n8n/config';
 import type { User } from '@n8n/db';
 import {
 	AuthIdentity,
@@ -143,6 +143,8 @@ export class OidcService {
 		private readonly userRepository: UserRepository,
 		private readonly cipher: Cipher,
 		private readonly outboundHttp: OutboundHttp,
+		private readonly ssrfConfig: SsrfProtectionConfig,
+		private readonly ssrfProtectionService: SsrfProtectionService,
 		private readonly urlService: UrlService,
 		private readonly authService: AuthService,
 		private readonly passwordUtility: PasswordUtility,
@@ -455,8 +457,14 @@ export class OidcService {
 	}
 
 	private buildCustomFetch(): oidcClient.CustomFetch {
-		// Route provider traffic through the outbound-HTTP factory (proxy + SSRF policy).
-		const transportFetch = this.outboundHttp.transport().asCustomFetch();
+		// Route provider traffic through the outbound-HTTP factory (proxy + SSRF
+		// policy). The provider is administrator-configured, so it follows the
+		// instance-wide SSRF setting like other admin-configured endpoints rather
+		// than forcing protection on: providers are commonly reachable only on an
+		// internal address.
+		const transportFetch = this.outboundHttp
+			.transport({ ssrf: this.ssrfConfig.enabled ? this.ssrfProtectionService : 'disabled' })
+			.asCustomFetch();
 		return async (url, options) =>
 			await transportFetch(url, {
 				method: options.method,

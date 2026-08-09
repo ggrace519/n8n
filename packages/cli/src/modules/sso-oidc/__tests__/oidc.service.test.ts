@@ -1,7 +1,7 @@
 import type { ProvisioningConfigDto } from '@n8n/api-types';
 import type { Logger } from '@n8n/backend-common';
 import type { OutboundHttp } from '@n8n/backend-network';
-import type { GlobalConfig } from '@n8n/config';
+import type { GlobalConfig, SsrfProtectionConfig } from '@n8n/config';
 import type {
 	AuthIdentity,
 	AuthIdentityRepository,
@@ -147,6 +147,9 @@ describe('OidcService', () => {
 			userRepository,
 			cipher,
 			outboundHttp,
+			// SSRF protection is opt-in instance-wide; provider traffic follows it.
+			mock<SsrfProtectionConfig>({ enabled: false }),
+			mock(),
 			urlService,
 			authService,
 			passwordUtility,

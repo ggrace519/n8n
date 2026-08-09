@@ -1,7 +1,7 @@
 import type { SamlPreferences } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
-import { OutboundHttp } from '@n8n/backend-network';
-import { GlobalConfig } from '@n8n/config';
+import { OutboundHttp, SsrfProtectionService } from '@n8n/backend-network';
+import { GlobalConfig, SsrfProtectionConfig } from '@n8n/config';
 import type { User } from '@n8n/db';
 import { GLOBAL_ADMIN_ROLE, GLOBAL_OWNER_ROLE, SettingsRepository, UserRepository } from '@n8n/db';
 import { Service } from '@n8n/di';
@@ -160,6 +160,8 @@ export class SamlService {
 		private readonly outboundHttp: OutboundHttp,
 		private readonly provisioningService: ProvisioningService,
 		private readonly flowState: SamlFlowState,
+		private readonly ssrfConfig: SsrfProtectionConfig,
+		private readonly ssrfProtectionService: SsrfProtectionService,
 	) {}
 
 	get samlPreferences(): SamlPreferences {
@@ -712,7 +714,14 @@ export class SamlService {
 
 		let fetched: unknown;
 		try {
-			fetched = await this.outboundHttp.requests().request<string>({
+			// The metadata URL is administrator-supplied, so it follows the
+			// instance-wide SSRF setting like other admin-configured endpoints
+			// rather than forcing protection on: identity providers are commonly
+			// reachable only on an internal address.
+			const client = this.outboundHttp.requests({
+				ssrf: this.ssrfConfig.enabled ? this.ssrfProtectionService : 'disabled',
+			});
+			fetched = await client.request<string>({
 				url,
 				method: 'GET',
 				skipSslCertificateValidation: ignoreSSL,
