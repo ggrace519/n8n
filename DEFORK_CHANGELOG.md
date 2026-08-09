@@ -16,6 +16,143 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-09 — E8: external-secrets module rebuilt fair-code
+
+Rebuilds the purged external-secrets module clean-room at
+`packages/cli/src/modules/external-secrets/`. Only `external-secrets.config.ts`
+and `secret-provider-access-check.service.ts` had survived; everything else —
+the provider contract, the two registries, the manager and its lifecycle, the
+secret cache, the legacy settings store, the connection service, five route
+groups, project-deletion cleanup and module registration — is new here.
+Clean-room sources: `.defork/e8-contract.md`, the nine surviving executable
+specs and their shared provider fixture, the surviving entities/repositories/
+migrations in `@n8n/db`, the DTOs and schemas in `@n8n/api-types`, the
+`@n8n/permissions` scope catalog, the surviving event maps and relays, and the
+fair-code consumers (`ExternalSecretsProxy`, `get-secrets-proxy.ts`,
+`get-additional-keys.ts`, `credentials-helper.ts`, `credentials/validation.ts`).
+No `.ee` body was read.
+
+**Added — the provider contract.** `SecretsProvider` owns the connection state
+machine so every provider reports progress and failure identically: `connect()`
+moves `initializing → connecting → connected`, and on failure records `error`
+plus a `connectionError` message instead of throwing — one unreachable store
+must not abort start-up for the rest. Two registries, as the API requires:
+`ExternalSecretsProviders` catalogs provider *types*, while
+`ExternalSecretsProviderRegistry` holds live instances keyed by the connection's
+expression-facing `providerKey`, which is what allows several AWS or Vault
+connections with different `$secrets` names.
+
+**Added — the manager.** `ExternalSecretsManager` selects the storage model
+(legacy settings row, or connection entities once
+`N8N_EXTERNAL_SECRETS_FOR_PROJECTS` / `N8N_EXTERNAL_SECRETS_MULTIPLE_CONNECTIONS`
+is on), starts every configured provider, connects the enabled ones, and
+registers itself on `ExternalSecretsProxy` — nothing else did, so without it
+`$secrets` resolved to no providers at all. It handles the payload-less
+`reload-external-secrets-providers` pubsub command and shuts down under
+`@OnShutdown`. Teardown detaches the shared registry synchronously before
+disconnecting, so a slow shutdown can never evict a concurrent restart's fresh
+providers.
+
+**Added — the connection API.** Five route groups: the legacy
+`/external-secrets/**` routes, global connection CRUD plus test/reload at
+`/secret-providers/connections`, the project-scoped equivalents under
+`/secret-providers/projects/:projectId/connections`, provider-type metadata at
+`/secret-providers/types`, and secret-name completions at
+`/secret-providers/completions`. Project routes may *read* global connections
+but never mutate them, and a connection belonging to another project is reported
+as not found rather than forbidden, so a project cannot enumerate keys elsewhere.
+
+**Added — project-deletion cleanup.** Registered as a
+`ProjectOwnershipTransferHandler`, so deleting a project takes the connections it
+owns with it, and merely *disables* connections it was only granted, dropping the
+grant. Both halves and the grant removal run in one transaction through the
+sanctioned `TransactionRunner`; a partial cleanup would either strand a
+connection nobody can administer or leave grants pointing at a deleted project.
+Connections are not *transferred* with a project, matching the `notTransferred`
+decision already recorded for `ProjectSecretsProviderAccess` in the
+ownership-transfer manifest.
+
+**Added — `@n8n/db` surface the specs required.**
+`ProjectSecretsProviderAccessRepository` (absent entirely) plus
+`findEnabledGlobalConnections` and `findEnabledByProjectId` on
+`SecretsProviderConnectionRepository`, which now extends `BaseRepository` so
+deletion/disable run inside the caller's transaction.
+
+**Secret handling.** Provider settings are only ever persisted encrypted with the
+same `Cipher` API the credential subsystem uses — as `encryptedSettings` on the
+connection row, or as the encrypted `feature.externalSecrets` settings row.
+Password-typed settings fields are blanked with `CREDENTIAL_BLANKING_VALUE` in
+every response that carries settings (legacy provider list and detail, and
+connection create/read/update); the connection *list* endpoint omits `settings`
+altogether and `DELETE` returns 204 with no body. Non-password fields (region,
+URL, namespace) are returned verbatim — they are configuration, not credentials.
+A payload that echoes the blanking marker back keeps the stored password rather
+than overwriting it. Completions return secret *names* only; values are read
+live from the provider and never cached, and remain confined to credential
+expression evaluation. No log line, error message or API response carries a
+secret value, a decrypted settings object or ciphertext.
+
+**Provider implementations, stated plainly.** The six catalogued provider types
+(`awsSecretsManager`, `gcpSecretsManager`, `vault`, `azureKeyVault`, `infisical`,
+`onePassword`) are pinned by the public DTO enum, and settings metadata is
+pinned only for Vault (display name, icon, `url`/`token`/`namespace`) and AWS
+(`region` plus three password fields). **No vendor SDK contract survives for any
+of them, and no spec exercises a real provider** — every acceptance spec
+registers its own dummy provider. Rather than guess at an authentication
+protocol and risk handing credentials to the wrong endpoint, these providers
+ship their identity and settings form and fail loudly on connect
+("No integration is available for the … secrets provider on this instance").
+Azure Key Vault, Infisical and 1Password expose no settings fields at all,
+because none survived. GCP declares only the `projectId` an update example
+implies.
+
+**Other under-pinned decisions.** Polling is implemented from the surviving
+300-second `N8N_EXTERNAL_SECRETS_UPDATE_INTERVAL` as a serialised, unref'd
+interval that refreshes connected providers; timer type, retry, backoff and
+failure isolation were unpinned. `N8N_EXTERNAL_SECRETS_MULTIPLE_CONNECTIONS` is
+a name chosen here for the config field the specs require. Connection-route scope
+decorators follow the permission catalog (`externalSecretsProvider:*`,
+`externalSecret:list`); the missing controllers could not confirm them. The
+`SetSecretsProviderConnectionIsEnabledDto` and
+`UpdateExternalSecretsSettingsDto` DTOs have **no route** — their paths and
+semantics were unpinned and none was invented; enabling/disabling is reachable
+through the connection `PATCH`. `roleBasedAccess` in the module's frontend
+settings reports whether project scoping is on, and `systemRolesEnabled` reads
+the surviving `externalSecrets.systemRoles.enabled` instance setting (whose scope
+map is empty in this fork, so switching it on currently widens nothing).
+`hasProvider()` reports true only for a *connected* provider, so an errored or
+retrying one surfaces the "not reachable" expression error rather than "secret
+not found" — intermediate states are untested upstream, and this is the chosen
+semantic. `getSecretNames()` answers from the cache alone, which is refreshed on
+every successful connect and update: a connected provider whose `update()` has
+never succeeded therefore reports no secrets rather than being queried live.
+Behavior when `feat:externalSecrets` is unlicensed is untested upstream; the
+module is gated on the flag, so an unlicensed instance registers no routes and
+starts no providers.
+
+**Verification:** integration `test/integration/external-secrets/` **154/154**
+across 9 files — 8 of them previously failed to import (0 tests); the ninth,
+`external-secrets.expression-access.test.ts`, already passed and is unchanged
+here. `secrets-provider-connection.repository.test.ts` **11/11** (including the
+three `findAllAccessibleProviderKeysByCredentialId` cases, which re-prove the
+credential-side `$secrets` allowlist after the repository's base-class change);
+`@n8n/db` unit **409/409**; credential validation/service/controller unit
+**276/276**; regression `credentials.api.test.ts` **80/80** and
+sso-saml/sso-oidc/provisioning/dynamic-credentials **201/201**, both unmoved.
+The two consumer halves of §9 — the allowlist population in
+`credentials-helper.ts` and the `externalSecret:list` / provider-existence checks
+in `credentials/validation.ts` — survive untouched and already point at the
+fair-code `secret-provider-access-check.service` path.
+`grep -ran "external-secrets\.ee"` over `packages/cli/src` and `packages/cli/test`
+returns **0**; `tsc -p tsconfig.build.json` reports **0** external-secrets errors;
+`eslint src/modules/external-secrets --quiet` exits 0 with no rule disables, and
+the stale `external-secrets.ee` entry was **removed** from the
+`misplaced-n8n-typeorm-import` ratchet rather than repointed — the new connection
+service imports no TypeORM at all. `ExternalSecretsProxy` registration, which no
+spec covers, was verified by driving the real proxy through a temporary
+integration probe (empty before `init()`, serving the provider's secrets after)
+which was then removed.
+
 ### 2026-08-09 — E12: dynamic-credentials module rebuilt fair-code
 
 Rebuilds the purged end-user ("private") credentials module clean-room at

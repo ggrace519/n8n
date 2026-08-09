@@ -6,7 +6,11 @@ export { BaseRepository } from './base-repository';
 export { BinaryDataRepository } from './binary-data.repository';
 export { CredentialsRepository } from './credentials.repository';
 export { CredentialDependencyRepository } from './credential-dependency.repository';
-export { SecretsProviderConnectionRepository } from './secrets-provider-connection.repository';
+export { ProjectSecretsProviderAccessRepository } from './project-secrets-provider-access.repository';
+export {
+	SecretsProviderConnectionRepository,
+	type SecretsProviderConnectionFilter,
+} from './secrets-provider-connection.repository';
 export {
 	DeploymentKeyRepository,
 	type DeploymentKeySortField,

@@ -10,8 +10,8 @@ import { Container } from '@n8n/di';
 import { Cipher } from 'n8n-core';
 import { mock } from 'vitest-mock-extended';
 
-import { ExternalSecretsProviders } from '@/modules/external-secrets.ee/external-secrets-providers.ee';
-import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-secrets.config';
+import { ExternalSecretsProviders } from '@/modules/external-secrets/external-secrets-providers';
+import { ExternalSecretsConfig } from '@/modules/external-secrets/external-secrets.config';
 
 import { MockProviders, createDummyProvider } from '../../shared/external-secrets/utils';
 import { createAdmin, createMember, createOwner } from '../shared/db/users';
@@ -766,7 +766,7 @@ describe('Secret Providers Connections API', () => {
 
 		test('should successfully reload connection secrets', async () => {
 			const { ExternalSecretsManager } = await import(
-				'@/modules/external-secrets.ee/external-secrets-manager.ee.js'
+				'@/modules/external-secrets/external-secrets-manager.js'
 			);
 
 			await ownerAgent
@@ -811,7 +811,7 @@ describe('Secret Providers Connections API', () => {
 				{ role: 'member', allowed: false },
 			])('should allow=$allowed for $role to reload connection', async ({ role, allowed }) => {
 				const { ExternalSecretsManager } = await import(
-					'@/modules/external-secrets.ee/external-secrets-manager.ee.js'
+					'@/modules/external-secrets/external-secrets-manager.js'
 				);
 
 				const providerKey = `reloadAccess${role.charAt(0).toUpperCase() + role.slice(1)}`;

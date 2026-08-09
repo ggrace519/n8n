@@ -7,18 +7,18 @@ import { CREDENTIAL_BLANKING_VALUE, type IDataObject } from 'n8n-workflow';
 import { mock } from 'vitest-mock-extended';
 
 import type { EventService } from '@/events/event.service';
-import { ExternalSecretsManager } from '@/modules/external-secrets.ee/external-secrets-manager.ee';
-import { ExternalSecretsProviders } from '@/modules/external-secrets.ee/external-secrets-providers.ee';
-import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-secrets.config';
-import { ExternalSecretsProviderConnectionManager } from '@/modules/external-secrets.ee/external-secrets-provider-connection-manager.ee';
-import { ExternalSecretsProviderLifecycle } from '@/modules/external-secrets.ee/provider-lifecycle.service';
-import { ExternalSecretsProviderRegistry } from '@/modules/external-secrets.ee/provider-registry.service';
-import { ExternalSecretsSecretsCache } from '@/modules/external-secrets.ee/secrets-cache.service';
-import { ExternalSecretsSettingsStore } from '@/modules/external-secrets.ee/settings-store.service';
+import { ExternalSecretsManager } from '@/modules/external-secrets/external-secrets-manager';
+import { ExternalSecretsProviders } from '@/modules/external-secrets/external-secrets-providers';
+import { ExternalSecretsConfig } from '@/modules/external-secrets/external-secrets.config';
+import { ExternalSecretsProviderConnectionManager } from '@/modules/external-secrets/external-secrets-provider-connection-manager';
+import { ExternalSecretsProviderLifecycle } from '@/modules/external-secrets/provider-lifecycle.service';
+import { ExternalSecretsProviderRegistry } from '@/modules/external-secrets/provider-registry.service';
+import { ExternalSecretsSecretsCache } from '@/modules/external-secrets/secrets-cache.service';
+import { ExternalSecretsSettingsStore } from '@/modules/external-secrets/settings-store.service';
 import type {
 	ExternalSecretsSettings,
 	SecretsProviderState,
-} from '@/modules/external-secrets.ee/types';
+} from '@/modules/external-secrets/types';
 
 import {
 	DummyProvider,

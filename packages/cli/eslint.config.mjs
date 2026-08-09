@@ -266,7 +266,6 @@ export default defineConfig(
 			'./src/modules/data-table/data-table.service.ts',
 			'./src/modules/data-table/utils/sql-utils.ts',
 			'./src/modules/dynamic-credentials/services/credential-connection-status.service.ts',
-			'./src/modules/external-secrets.ee/secrets-providers-connections.service.ee.ts',
 			'./src/modules/favorites/favorites.service.ts',
 			'./src/modules/insights/insights-collection.service.ts',
 			'./src/modules/instance-ai/instance-ai.adapter.service.ts',

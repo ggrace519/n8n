@@ -944,3 +944,44 @@ NO end-to-end coverage: resolveIfNeeded/storeIfNeeded, CredentialCheckService.
 
 **NEXT.** E8 (external-secrets: src already 0, the work is what its 10
 surviving specs pin), E10, E17, E18, then A10. A11 is the other agent's.
+
+## 2026-08-09 — E8 DONE (external-secrets)
+
+**WHAT.** 25 new files at modules/external-secrets: two-registry split (type
+catalog vs live instances keyed by providerKey), provider lifecycle state
+machine, secrets cache, settings store, connection manager, project-cleanup,
+system-roles store, module wiring (pubsub reload + @OnShutdown), 5 controllers
+covering 25 endpoints, and the $secrets expression integration. New
+ProjectSecretsProviderAccessRepository in @n8n/db.
+
+**GATES.** external-secrets 154/154 (9 files: module 5, api 16, connections 44,
+project 46, types 13, completions 21, project-deletion 5, events 2,
+expression-access 2) + secrets-provider-connection.repository 11/11 = 165/165.
+Regression: credentials.api 80/80, sso+provisioning+dynamic-credentials
+201/201, db 409/409. grep -ran external-secrets.ee = 0. eslint clean.
+
+**THE CAVEAT THAT MATTERS.** 154 passing tests = ZERO real-provider coverage.
+Every acceptance spec registers its OWN dummy provider. Provider identities are
+pinned by the DTO enum; settings metadata is pinned only for Vault + AWS, and
+only via test fixtures. GCP has one projectId example; Azure/Infisical/
+1Password are identity-only. All six ship metadata + interface and FAIL LOUDLY
+on connect rather than fabricating vendor protocols. Real SDK integrations are
+deliberately NOT built — if someone later needs live Vault/AWS/etc., that is
+new work with new gates, not a bug in this rebuild.
+
+**REDACTION INVENTORY (verified).** encryptedSettings + feature.externalSecrets
+row encrypted at rest via the credential subsystem's Cipher; password-typed
+fields blanked with CREDENTIAL_BLANKING_VALUE in legacy GET /providers,
+GET /providers/:provider, and connection create/read/update; settings+secrets
+omitted entirely from the connection LIST; DELETE returns 204 no body;
+non-password fields (region/url/namespace) returned verbatim per spec;
+blanking marker round-trips without overwriting the stored password;
+completions return names only, values read live and never cached.
+
+**DEFECT FOUND (filed #15, not fixed).** ownership-transfer.manifest.test.ts
+fails 2/6 on master: the manifest still lists WorkflowReviewRequest ->
+workflow-review-request.ee.ts (purged). Belongs to E18 — fixing it here would
+pre-empt that item's rebuild-vs-remove decision.
+
+**NEXT.** E10 (multi-main), E17 (agent-eval db), E18 (workflow-reviews, owns
+#15), then A10. A11 is the other agent's.
