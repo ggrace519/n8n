@@ -40,10 +40,10 @@ import type { Mock } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
 import type { IWorkflowToImport } from '@/interfaces';
-import { SourceControlContextFactory } from '@/modules/source-control.ee/source-control-context.factory';
-import { SourceControlImportService } from '@/modules/source-control.ee/source-control-import.service.ee';
-import { SourceControlScopedService } from '@/modules/source-control.ee/source-control-scoped.service';
-import type { ExportableCredential } from '@/modules/source-control.ee/types/exportable-credential';
+import { SourceControlContextFactory } from '@/modules/source-control/source-control-context.factory';
+import { SourceControlImportService } from '@/modules/source-control/source-control-import.service';
+import { SourceControlScopedService } from '@/modules/source-control/source-control-scoped.service';
+import type { ExportableCredential } from '@/modules/source-control/types/exportable-credential';
 import { WorkflowHistoryService } from '@/workflows/workflow-history/workflow-history.service';
 import { createFolder } from '@test-integration/db/folders';
 import { assignTagToWorkflow, createTag } from '@test-integration/db/tags';

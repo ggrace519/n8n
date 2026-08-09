@@ -688,3 +688,41 @@ enterprise source or history was consulted.
 or `modules/source-control/` (remaining errors are pre-existing `.ee`
 imports in not-yet-rebuilt slices); `eslint src/modules/source-control`
 exit 0, no rule disables; `@n8n/db` build exit 0 and tests 409/409.
+
+## 2026-08-09 — E3c: source-control import service (`packages/cli`)
+
+Clean-room rebuild of `SourceControlImportService` at
+`packages/cli/src/modules/source-control/source-control-import.service.ts`
+(formerly `source-control.ee/source-control-import.service.ee.ts`), plus one
+use-case-named repository method in `@n8n/db`
+(`SharedCredentialsRepository.findOwnedCredentialsInProjects`). The service
+covers scope-filtered discovery of remote (work-folder JSON) and local (DB)
+workflows, credentials, folders, and tags/mappings — instance-wide contexts
+see everything, project-scoped admins only resources owned by their
+administered team projects (a serialized personal owner never matches, even
+the caller's own email), everyone else nothing — and the import paths:
+credentials (re-encrypted via `Cipher.encryptV2`, ownership replaced to match
+the serialized owner, team projects recreated with exact source id/name,
+personal/legacy-email owners falling back to the importing user's personal
+project), tags (definitions upserted and never deleted; mappings reconciled
+only for workflows represented in the import, with a workflow-file scan
+determining representation when the tag file has no mappings), and workflows
+(files missing versionId/nodes/connections skipped without error; history
+recorded per `(workflowId, versionId)` with author
+`import by <firstName> <lastName>`, rewritten only when content changed;
+archived local workflows get `active`/`activeVersionId` cleared even when the
+incoming file is unarchived). The spec's `.ee` import paths were repointed to
+the fair-code module.
+
+**Clean-room sources:** the E3 contract inventory §4 (import contract, scope
+matrix); `test/integration/environments/source-control-import.service.test.ts`
+(2,019-line spec, acceptance gate); the E3a/E3b fair-code foundation
+(constants, context factory, scoped service, export service types,
+`types/*`); existing fair-code repositories/entities in `@n8n/db` and
+`WorkflowHistoryService`. No enterprise source or history was consulted.
+
+**Verification:** import spec 47/47 green (sqlite); cli
+`tsc -p tsconfig.build.json` — 0 errors mentioning `source-control-import`
+(remaining source-control errors are the pre-existing `.ee` imports in the
+not-yet-rewired public-api handler); `eslint src/modules/source-control`
+exit 0, no rule disables; `@n8n/db` build exit 0 and tests 409/409.
