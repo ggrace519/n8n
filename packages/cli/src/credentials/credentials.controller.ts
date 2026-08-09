@@ -33,7 +33,7 @@ import { z } from 'zod';
 import { CredentialConnectionStatusProxy } from './credential-connection-status-proxy';
 import { CredentialsFinderService } from './credentials-finder.service';
 import { CredentialsService } from './credentials.service';
-import { EnterpriseCredentialsService } from './credentials.service.ee';
+import { EnterpriseCredentialsService } from './credentials-sharing.service';
 import { getExternalSecretExpressionPaths } from './external-secrets.utils';
 
 import { CredentialsOverwrites } from '@/credentials-overwrites';

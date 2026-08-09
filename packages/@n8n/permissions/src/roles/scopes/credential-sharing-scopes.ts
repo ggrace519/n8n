@@ -8,8 +8,8 @@ import { pick } from './scope-filters';
  */
 export const CREDENTIALS_SHARING_OWNER_SCOPES: Scope[] = pick(
 	['credential'],
-	['read', 'update', 'delete', 'list', 'move', 'share', 'unshare', 'createEndUser', 'connect'],
+	['read', 'update', 'delete', 'move', 'share', 'unshare', 'createEndUser', 'connect'],
 );
 
 /** Scopes a credential *user* (sharee) has — read/use only, no management. */
-export const CREDENTIALS_SHARING_USER_SCOPES: Scope[] = pick(['credential'], ['read', 'list']);
+export const CREDENTIALS_SHARING_USER_SCOPES: Scope[] = pick(['credential'], ['read', 'connect']);

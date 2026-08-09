@@ -292,3 +292,42 @@ api-types 1773/1773; db build + 409/409; cli tsc 946→815 with zero regressions
 Deferred to later gates: public-api variables spec (blocked by E15
 credentials.service.ee in the shared public-api router init) and the
 n8n-packages variable integration specs (blocked by E14 workflow.service.ee).
+
+### 2026-08-08 — E15: sharing-aware credential operations rebuilt fair-code
+
+**Added (clean-room rebuild of purged `credentials/credentials.service.ee.ts`)**
+- `packages/cli/src/credentials/credentials-sharing.service.ts`
+  (`EnterpriseCredentialsService`, name kept for its 2 consumers):
+  `getOneForUser` (role-resolved credential with sharing relations; decryption
+  gated on `credential:update`, redacted via `CredentialsService.decrypt`;
+  resolvable-credential `connectedByMe`/`connectedUserCount`/per-user
+  oauthTokenData semantics mirror the fair-code `getOne` and are pinned by
+  `credentials.resolvable.api.test.ts`); `shareWithProjects` (credential:user
+  upserts, tolerant of nonexistent projects, joins the controller's
+  transaction); `transferOne` (needs `credential:move` on the credential +
+  `credential:create` in the destination; destination becomes sole owner —
+  pinned by the public-api transfer spec).
+- `@n8n/db`: rebuilt purged `SecretsProviderConnectionRepository`
+  (findIdByProviderKey, findIdsByProviderKeys, findByProviderKeyWithAccess,
+  findAllAccessibleProviderKeysByCredentialId) — its absence made DI inject
+  `undefined` into `CredentialDependencyService` and 500 every credential
+  create/update; `SharedCredentialsRepository.{shareWithProjects,
+  transferOwnership}`. The cli external-secrets module now uses the db repo.
+- `@n8n/permissions` fixes pinned by the newly-runnable credentials spec:
+  `getAuthPrincipalScopes(principal, filters?)` gained the resource filter
+  (`combineResourceScopes` was leaking global member scopes into per-resource
+  scope lists); credential sharing masks corrected (owner: read/update/delete/
+  move/share/unshare/createEndUser/connect; sharee: read/connect); editors
+  `connect` credentials but don't `move` them (ownership-level op).
+
+**Clean-room sources:** consumers (credentials.controller, public-api
+credentials handler), fair-code `CredentialsFinderService`/`CredentialsService`
+patterns, surviving specs (`credentials.api.test.ts`,
+`credentials.resolvable.api.test.ts`, `public-api/credentials.test.ts`).
+No `.ee` source read.
+
+**Verification:** `credentials.service.ee` refs = 0; `credentials.api.test.ts`
+**80/80** (was: file could not even load); permissions 105/105; db 409/409;
+cli tsc 815→802, remaining errors belong to other E-items. Public-api suite
+now advances past credentials to the next purged import
+(`workflow.service.ee` → E14, the last shared-router blocker).

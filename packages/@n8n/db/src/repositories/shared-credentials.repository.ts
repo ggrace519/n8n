@@ -33,6 +33,44 @@ export class SharedCredentialsRepository extends Repository<SharedCredentials> {
 		);
 	}
 
+	/**
+	 * Share a credential into the given projects with the `credential:user`
+	 * role. Nonexistent projects are skipped; existing relations are kept.
+	 */
+	async shareWithProjects(credentialsId: string, projectIds: string[], trx?: EntityManager) {
+		trx = trx ?? this.manager;
+		if (projectIds.length === 0) return;
+		const projects = await trx.find(Project, {
+			select: { id: true },
+			where: { id: In(projectIds) },
+		});
+		if (projects.length === 0) return;
+		await trx.upsert(
+			SharedCredentials,
+			projects.map(({ id: projectId }) => ({
+				credentialsId,
+				projectId,
+				role: 'credential:user' as const,
+			})),
+			['credentialsId', 'projectId'],
+		);
+	}
+
+	/**
+	 * Move a credential's ownership to another project: removes ALL existing
+	 * sharing relations and creates a single owner relation in the destination.
+	 */
+	async transferOwnership(credentialsId: string, destinationProjectId: string) {
+		await this.manager.transaction(async (em) => {
+			await em.delete(SharedCredentials, { credentialsId });
+			await em.insert(SharedCredentials, {
+				credentialsId,
+				projectId: destinationProjectId,
+				role: 'credential:owner',
+			});
+		});
+	}
+
 	async makeOwner(credentialIds: string[], projectId: string, trx?: EntityManager) {
 		trx = trx ?? this.manager;
 		return await trx.upsert(

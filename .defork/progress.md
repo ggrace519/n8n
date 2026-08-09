@@ -353,3 +353,38 @@ credentials/**`) in the ccds-guard plugin's guard-rules.txt first.
 `credentials-sharing.service.ts`), verify with credentials.api.test.ts + the
 public-api credentials spec, then confirm the public-api variables spec (E2's
 deferred gate) turns green too. Then E3 or E14.
+
+## 2026-08-08 — E15 done (credentials sharing service rebuilt; guard removed)
+
+**WHAT.** Greg removed the ccds-guard block; finished E15. New
+`src/credentials/credentials-sharing.service.ts` (EnterpriseCredentialsService:
+getOneForUser / shareWithProjects / transferOne — thin over the fair-code
+CredentialsFinderService, which already had the role-based sharing lookup).
+Also rebuilt the purged `SecretsProviderConnectionRepository` in @n8n/db (DI
+was injecting undefined → 500s on every credential create/update) and fixed
+three permissions-package bugs the newly-runnable credentials spec exposed:
+getAuthPrincipalScopes resource filter, credential sharing masks
+(owner: +connect -list; sharee: read+connect), editor ops (connect yes, move no
+— move is ownership-level, now in SHARE_OPS).
+
+**VERIFIED.** credentials.api.test.ts 80/80; resolvable spec pins honored via
+mirrored getOne enrichment; permissions 105/105; db 409/409; cli tsc 815→802;
+grep credentials.service.ee = 0; eslint clean (ratchet entry carried over).
+
+**KEY FACTS.**
+- CredentialsFinderService.findCredentialForUser IS the sharing lookup — future
+  sharing-ish rebuilds should reuse it, not reimplement.
+- test/integration/database/repositories/secrets-provider-connection.repository
+  .test.ts is a SURVIVING E8 spec pinning more repo methods
+  (findEnabledGlobalConnections, ProjectSecretsProviderAccessRepository) — use
+  it as the E8 spec.
+- Public-api router chain now blocks ONLY on workflow.service.ee (E14).
+
+**NEXT.** **E14** — EnterpriseWorkflowService, 9 methods pinned by consumers:
+addCredentialsToWorkflow, addOwnerAndSharings, getFolderUsedCredentials,
+getWorkflowIdsWithResolvableCredentials, preventTampering, shareWithProjects,
+transferFolder, transferWorkflow, validateCredentialPermissionsToUser.
+Consumers: workflows.controller, workflow.service (2 lazy imports),
+workflow-creation.service, folder.controller, public-api workflows handler,
+instance-ai.adapter. After E14: re-run the whole public-api suite (tags 404→500
+class still open) + n8n-packages variable specs (E2's deferred gate).

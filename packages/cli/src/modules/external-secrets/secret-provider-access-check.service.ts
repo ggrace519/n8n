@@ -1,6 +1,6 @@
 import { Service } from '@n8n/di';
 
-import { SecretsProviderConnectionRepository } from './secrets-provider-connection.repository';
+import { SecretsProviderConnectionRepository } from '@n8n/db';
 
 /**
  * Answers "may this project use this secrets provider?". A provider

@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { CredentialTypes } from '@/credential-types';
 import { CredentialsService } from '@/credentials/credentials.service';
-import { EnterpriseCredentialsService } from '@/credentials/credentials.service.ee';
+import { EnterpriseCredentialsService } from '@/credentials/credentials-sharing.service';
 import { CredentialsHelper } from '@/credentials-helper';
 import { CredentialNotFoundError } from '@/errors/credential-not-found.error';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';

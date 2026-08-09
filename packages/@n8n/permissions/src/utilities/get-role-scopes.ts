@@ -23,6 +23,10 @@ export const getRoleScopes = (role: AllRoleTypes, filters?: Resource[]): Scope[]
 	return scopes.filter((scope) => filters.includes(scope.split(':')[0] as Resource));
 };
 
-/** The scopes attached to an authenticated principal's role. */
-export const getAuthPrincipalScopes = (principal: AuthPrincipal): Scope[] =>
-	principal.role.scopes.map((scope) => scope.slug);
+/** The scopes attached to an authenticated principal's role, optionally
+ * filtered to the given resources. */
+export const getAuthPrincipalScopes = (principal: AuthPrincipal, filters?: Resource[]): Scope[] => {
+	const scopes = principal.role.scopes.map((scope) => scope.slug);
+	if (!filters) return scopes;
+	return scopes.filter((scope) => filters.includes(scope.split(':')[0] as Resource));
+};

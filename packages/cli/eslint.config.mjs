@@ -318,6 +318,7 @@ export default defineConfig(
 			'./src/modules/chat-hub/chat-hub.settings.service.ts',
 			'./src/modules/dynamic-credentials.ee/services/credential-resolver-workflow.service.ts',
 			// fair-code rebuilds of purged .ee files, carrying those files' pre-existing leak entries:
+			'./src/credentials/credentials-sharing.service.ts',
 			'./src/permissions/check-access.ts',
 			'./src/services/project.service.ts',
 			'./src/scheduling/durable-job-provisioner.ts',

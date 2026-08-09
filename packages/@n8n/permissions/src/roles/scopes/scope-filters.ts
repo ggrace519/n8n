@@ -19,12 +19,14 @@ export const allOps = (resources: Resource[]): Scope[] =>
 /** Read-only operations, used to grade viewer-style roles. */
 export const READ_OPS = ['read', 'list', 'get', 'listProject', 'readRow', 'readColumn'];
 
-/** Mutating operations available to editor-style roles (no sharing/ownership). */
+/** Mutating operations available to editor-style roles (no sharing/ownership).
+ * Editors may `connect` (use) credentials but not `move` them — relocation is
+ * an ownership-level operation. */
 export const WRITE_OPS = [
 	'create',
 	'update',
 	'delete',
-	'move',
+	'connect',
 	'execute',
 	'execute-chat',
 	'activate',
@@ -45,6 +47,6 @@ export const SHARE_OPS = [
 	'unshare',
 	'shareGlobally',
 	'createEndUser',
-	'connect',
+	'move',
 	'manageInstance',
 ];
