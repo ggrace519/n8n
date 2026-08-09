@@ -550,3 +550,44 @@ survives to pin their routes.
 **Verification:** cli tsc 0 errors in `src/evaluation/**` (125 pre-existing
 elsewhere); internal test-runs spec 28/28; instance-ai adapter suite
 **179/179** (was import-blocked); `@n8n/db` build exit 0; eslint clean.
+
+## 2026-08-09 — E13d: eval collections + AI insights (`packages/cli`, `@n8n/db`)
+
+**Rebuilt (clean-room):** `@n8n/db`
+`repositories/evaluation-collection.repository.ts` (findManyByWorkflowId with
+grouped run counts, workflow-scoped findOneInWorkflow /
+findOneWithRunsInWorkflow, updateInsightsCache) + index export;
+`src/evaluation/evaluation-collections.service.ts` (list/detail/create/
+update/delete/addRun/cancelCollection; detail maps runs through the
+api-types scoring helpers — `metricScalesFromSnapshot` falling back to
+`metricScalesFromConfig`, `averageNormalizedScore`; create validates the
+config + referenced runs up front, then attaches existing runs or starts new
+ones via `TestRunnerService.startTestRun` with `compileFromConfig` +
+`collectionId` (+ `workflowVersionId` unless "current draft"), detached
+`finished` rejections routed to ErrorReporter; insightsCache invalidated on
+addRun/cancel); `evaluation-collections.controller.ts`
+(`/workflows/:workflowId/eval-collections` GET/POST/GET:id/PATCH/DELETE/
+POST:id/runs/POST:id/cancel, workflow-finder 404 authorization, read=
+workflow:read, mutate=workflow:update, run-affecting=workflow:execute);
+`src/evaluation/insights/eval-insights.service.ts` + `.controller.ts`
+(GET cached envelope — `null` when absent or failing the strict schema —
+POST generates/stores; deterministic `status:'fallback'` generator: winner =
+highest avgScore with run-order labels V1…Vn, regressions = metrics ≥5
+points below the winner, templated suggestedNext, all strings clamped to the
+schema caps and the envelope `.strict()`-parsed before storing). server.ts
+rewired off the two `evaluation.ee` imports. LLM path deliberately NOT
+implemented: the only model seam lives inside the conditionally-loaded
+`instance-ai` backend module, which core evaluation code must not import;
+`fallback` is a first-class schema state.
+
+**Clean-room sources:** codex contract inventory §5/8/9;
+`@n8n/api-types` eval-collections + eval-insights schemas (DTOs, response
+types, scoring helpers — reused, not reimplemented); the compare-view E2E
+(`eval-collections-compare.spec.ts`, route + envelope pins); sibling
+fair-code evaluation controllers/services/repositories (patterns);
+pubsub event map. No `.ee` source read.
+
+**Verification:** `@n8n/db` build exit 0, tests 409/409; cli tsc 0 errors in
+`src/evaluation/**` + `server.ts` (pre-existing errors elsewhere only);
+`eslint src/evaluation` exit 0; `grep evaluation.ee packages/cli/src` → 0
+lines; internal test-runs spec 28/28; new insights unit tests 10/10.

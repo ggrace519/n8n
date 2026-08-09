@@ -13,6 +13,10 @@ export {
 	type DeploymentKeySortDirection,
 	type ListDeploymentKeysOptions,
 } from './deployment-key.repository';
+export {
+	EvaluationCollectionRepository,
+	type EvaluationCollectionWithRunCount,
+} from './evaluation-collection.repository';
 export { EvaluationConfigRepository } from './evaluation-config.repository';
 export { ExecutionDataRepository } from './execution-data.repository';
 export { ExecutionMetadataRepository } from './execution-metadata.repository';
