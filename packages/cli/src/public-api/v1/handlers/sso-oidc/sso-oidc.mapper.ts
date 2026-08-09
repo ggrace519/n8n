@@ -1,7 +1,7 @@
 import type { OidcConfigDto } from '@n8n/api-types';
 
 import { OIDC_CLIENT_SECRET_REDACTED_VALUE } from '@/modules/sso-oidc/constants';
-import type { OidcService } from '@/modules/sso-oidc/oidc.service.ee';
+import type { OidcService } from '@/modules/sso-oidc/oidc.service';
 
 type OidcRuntimeConfig = Awaited<ReturnType<OidcService['loadConfig']>>;
 
