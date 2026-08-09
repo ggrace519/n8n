@@ -6,6 +6,7 @@ import {
 	TestCaseExecutionRepository,
 	TestRunErrorCode,
 	TestRunRepository,
+	WorkflowHistoryRepository,
 	WorkflowRepository,
 } from '@n8n/db';
 import { Service } from '@n8n/di';
@@ -43,6 +44,13 @@ export type StartTestRunOptions = {
 	compileFromConfig?: boolean;
 	rowIndices?: number[];
 	via?: 'public-api';
+	/** Attach the run to an evaluation collection. */
+	collectionId?: string;
+	/**
+	 * Execute this workflow-history version instead of the saved workflow.
+	 * Collections pin each run to a version so compared runs stay comparable.
+	 */
+	workflowVersionId?: string;
 };
 
 /** Hard per-run fan-out cap, matching the start payload's 1–10 clamp. */
@@ -77,6 +85,7 @@ export class TestRunnerService {
 		private readonly publisher: Publisher,
 		private readonly evaluationConfigRepository: EvaluationConfigRepository,
 		private readonly workflowCompilerService: WorkflowCompilerService,
+		private readonly workflowHistoryRepository: WorkflowHistoryRepository,
 	) {
 		this.logger = this.logger.scoped('evaluation');
 	}
@@ -96,9 +105,26 @@ export class TestRunnerService {
 		const workflow = await this.workflowRepository.findById(workflowId);
 		if (!workflow) throw new UserError(`Workflow ${workflowId} not found`);
 
+		// A version-pinned run executes that history version's graph on top of
+		// the saved workflow's identity (id/name/settings stay current).
+		let workflowToRun: IWorkflowBase = workflow;
+		if (options?.workflowVersionId) {
+			const version = await this.workflowHistoryRepository.findOne({
+				where: { workflowId, versionId: options.workflowVersionId },
+			});
+			if (!version) {
+				throw new UserError(`Workflow version ${options.workflowVersionId} not found`);
+			}
+			workflowToRun = {
+				...workflow,
+				nodes: version.nodes,
+				connections: version.connections,
+				versionId: version.versionId,
+			};
+		}
+
 		// Config resolution and compilation happen before the run row exists so
 		// a bad request fails the HTTP call instead of leaving an errored run.
-		let workflowToRun: IWorkflowBase = workflow;
 		let configSnapshot: IDataObject | undefined;
 		if (options?.evaluationConfigId) {
 			const config = await this.evaluationConfigRepository.findOneInWorkflow(
@@ -124,15 +150,20 @@ export class TestRunnerService {
 				}),
 			);
 			if (options.compileFromConfig) {
-				workflowToRun = this.workflowCompilerService.compile(workflow, config);
+				workflowToRun = this.workflowCompilerService.compile(workflowToRun, config);
 			}
 		}
 
 		const testRun = await this.testRunRepository.createTestRun(workflowId);
-		if (options?.evaluationConfigId) {
+		if (options?.evaluationConfigId ?? options?.collectionId) {
 			await this.testRunRepository.update(testRun.id, {
-				evaluationConfigId: options.evaluationConfigId,
-				evaluationConfigSnapshot: configSnapshot ?? null,
+				...(options.evaluationConfigId
+					? {
+							evaluationConfigId: options.evaluationConfigId,
+							evaluationConfigSnapshot: configSnapshot ?? null,
+						}
+					: {}),
+				...(options.collectionId ? { collectionId: options.collectionId } : {}),
 			});
 		}
 
