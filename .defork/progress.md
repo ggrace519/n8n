@@ -767,3 +767,37 @@ repoint to surviving `modules/provisioning/constants` where that works.
 **NEXT.** Verify hardening → re-review the auth-critical diff → flip E5/E6 →
 PR. Then E11 (unblocks 2 SSO specs + carries role provisioning), E8, E10,
 E17, A10.
+
+## 2026-08-09 — VERIFICATION FLAW FOUND: corrected a false green (E12) + audit
+
+**WHAT.** While hardening E6, a subagent hit a NUL byte that made `grep` treat
+a source file as binary and silently skip it. That is the SECOND such incident
+(E9 found the same in e2e.controller.ts). Since my per-item "0 `.ee`
+references" evidence is exactly this kind of grep, I re-ran every past claim
+with `grep -ran` over src AND test.
+
+**RESULT — one false green, one untracked item, one scope error.**
+- **E12 (dynamic-credentials) REOPENED (was passes:true).** Its grep excluded
+  `.test.` files and never scanned `packages/cli/test`. Only
+  `services/shared-fields.ts` was ever rebuilt (the single consumer that
+  blocked the build). 8 surviving spec files pin a whole module: the
+  DynamicCredentialEntry/UserEntry entities, three repositories, the *Storage
+  classes, DynamicCredentialsConfig, constants, credential-resolver
+  (N8NIdentifier).
+- **E18-workflow-reviews ADDED** — `workflow-reviews.ee` was never in the
+  feature list at all (1 ref: test-server.ts module import).
+- **E8 scope corrected** — src is already 0; the real remaining work is the
+  module its 10 surviving spec files pin.
+- CONFIRMED GENUINELY CLEAN across src+test with -a: evaluation, source-control,
+  log-streaming, permissions, environments, sso, ldap, project.service,
+  workflow.service, credentials.service, execution.service. Those flips stand.
+
+**FIX APPLIED TO THE LOOP ITSELF (not just the code).** PROMPT.md "Verify" now
+mandates `grep -ran`, scanning src AND test, never filtering `.test.` files,
+and honest scoping ("the build stopped complaining" != "the subsystem is
+rebuilt" — list which surviving specs actually RUN before flipping).
+feature_list.verify_notes carries the same rule.
+
+**LESSON.** Narrow verification scope is how a long-horizon loop lies to
+itself. The grep that proves an item done must cover every place the symbol
+can appear, in a form that cannot silently skip files.

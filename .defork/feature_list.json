@@ -10,7 +10,7 @@
     "B": "Re-add chosen feature modules (fair-code)",
     "C": "AI-native innovations (INNOVATIONS.md) \u2014 on innovation/<slug> branches, after green build"
   },
-  "verify_notes": "Most cli-side items share one gate: `pnpm --filter n8n build` (tsc). A per-item proxy: after rebuilding subsystem X, `grep -rnE \"<X-module>\\.ee\" packages/cli/src` (non-test) returns 0, and the cli tsc output no longer references X's files. The definitive gate is A10-cli-green.",
+  "verify_notes": "Per-item greps MUST use `grep -ran` (forced text scan \u2014 a NUL byte or binary-flagged file makes plain grep silently skip it; this hid real references twice) and MUST cover packages/cli/src AND packages/cli/test, without filtering out test files. Orphaned specs that import a purged module are part of the item: rebuild them or delete them deliberately (A8d precedent) \u2014 never leave them unrunnable. The definitive gate is A10-cli-green.",
   "items": [
     {
       "id": "A0-guardrails",
@@ -148,8 +148,8 @@
       "phase": "E",
       "title": "Rebuild external-secrets (secret-provider-access-check.service + external-secrets.config) fair-code",
       "passes": false,
-      "verify": "grep -rn \"external-secrets.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + provider SDK docs (Vault/AWS/GCP/Azure) + surviving external-secrets tests."
+      "verify": "grep -ran 'external-secrets\\.ee' packages/cli/src packages/cli/test --include='*.ts' | wc -l  # expect 0 (src is already 0; 10 spec files remain)",
+      "notes": "Clean-room: consumers + provider SDK docs (Vault/AWS/GCP/Azure) + surviving external-secrets tests. SCOPE CORRECTED 2026-08-09: packages/cli/src is already 0 (E2 rebuilt config + SecretsProviderAccessCheckService + connection repository); the remaining work is the module the 10 surviving spec files pin (providers, service, controller). Surviving spec noted at E15: test/integration/database/repositories/secrets-provider-connection.repository.test.ts."
     },
     {
       "id": "E9-log-streaming",
@@ -180,9 +180,9 @@
       "id": "E12-dynamic-credentials",
       "phase": "E",
       "title": "Rebuild modules/dynamic-credentials.ee/services/shared-fields fair-code",
-      "passes": true,
-      "verify": "grep -rn \"dynamic-credentials.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + credentials sharing model. DONE 2026-08-08: shared-fields helper rebuilt at modules/dynamic-credentials/services/shared-fields.ts (only consumer surface); grep = 0."
+      "passes": false,
+      "verify": "grep -ran 'dynamic-credentials\\.ee' packages/cli/src packages/cli/test --include='*.ts' | wc -l  # expect 0 (forced text scan, INCLUDING tests)",
+      "notes": "REOPENED 2026-08-09: the earlier flip was verified with a grep that excluded test files and never scanned packages/cli/test \u2014 only services/shared-fields.ts (the one build-blocking consumer surface) was actually rebuilt. 8 surviving spec files pin a whole module: DynamicCredentialEntry + DynamicCredentialUserEntry entities, DynamicCredentialResolverRepository / DynamicCredentialEntryRepository / DynamicCredentialUserEntryRepository, the *Storage classes, DynamicCredentialsConfig, constants, and credential-resolver (N8NIdentifier). Specs: test/integration/dynamic-credentials/** (6), credentials/credentials.resolvable.api.test.ts, manual-execution-credential-context.test.ts, src/__tests__/credentials-helper.test.ts."
     },
     {
       "id": "E13-evaluation-backend",
@@ -224,6 +224,14 @@
       "passes": true,
       "verify": "grep -rn \"execution.service.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
       "notes": "Clean-room: consumers + surviving execution.service tests + execution.repository (@n8n/db). DONE 2026-08-08: execution-sharing.service.ts delegates to community findOne (no distinguishing pin)."
+    },
+    {
+      "id": "E18-workflow-reviews",
+      "phase": "E",
+      "title": "Rebuild modules/workflow-reviews.ee (workflow review requests) fair-code",
+      "passes": false,
+      "verify": "grep -ran 'workflow-reviews\\.ee' packages/cli/src packages/cli/test --include='*.ts' | wc -l  # expect 0",
+      "notes": "Discovered 2026-08-09 by a corrected full-repo .ee audit; was never in the feature list. Currently 1 reference: test/integration/shared/utils/test-server.ts imports workflow-reviews.module. A8d deleted the orphaned @n8n/db workflow-review-request tests, so check what fair-code survives (api-types DTOs, WorkflowPublishHistory review states) before deciding rebuild vs remove-and-unwire."
     },
     {
       "id": "A10-cli-green",
