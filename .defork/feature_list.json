@@ -123,17 +123,19 @@
       "id": "E5-saml",
       "phase": "E",
       "title": "Rebuild modules/sso-saml (saml.service, saml.controller, service-provider) fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"sso-saml/.*\\.ee\\|service-provider.ee\\|saml.service.ee\\|saml.controller.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + the SAML 2.0 spec + a fair-code SAML lib (e.g. samlify / @node-saml) + surviving saml tests. Depends on E4."
+      "notes": "Clean-room: consumers + the SAML 2.0 spec + a fair-code SAML lib (e.g. samlify / @node-saml) + surviving saml tests. Depends on E4.",
+      "verified": "2026-08-09: modules/sso-saml rebuilt + hardened. grep (-ran, src+test) = 0; unit 84/84; integration 21/21 (public-api 16, helpers 1, loader 2, initsso 2). Codex hostile-IdP review: all assigned findings fixed (assertion binding, explicit signature enforcement, one-time use + flow binding, https-only endpoints, privileged-linking refusal, provisioning fail-closed). Also fixed a redirect-binding octet-string defect found during hardening. CAVEAT: saml.api.test.ts (authoritative ACS/permission/signing spec) still cannot run - blocked on E11 (KNOWN_ISSUES KI-5); its pins are met by construction + unit tests, and it is an E11 acceptance gate. KI-1 (node-rsa override) affects outbound signed AuthnRequests only, unfixed."
     },
     {
       "id": "E6-oidc",
       "phase": "E",
       "title": "Rebuild modules/sso-oidc (oidc.service, oidc.controller) fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"oidc.service.ee\\|oidc.controller.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + OpenID Connect spec + fair-code OIDC lib (openid-client) + surviving oidc tests. Depends on E4."
+      "notes": "Clean-room: consumers + OpenID Connect spec + fair-code OIDC lib (openid-client) + surviving oidc tests. Depends on E4.",
+      "verified": "2026-08-09: modules/sso-oidc rebuilt + hardened. grep (-ran, src+test) = 0; unit 60/60; integration 28/28 (public-api 24, discovery 2, loader 1, legacy-identity 1). Codex hostile-IdP review: all assigned findings fixed (atomic email/email_verified from one document, subject+email disagreement rejection, privileged-linking refusal, verified-email requirement for matching existing accounts, issuer-scoped identity with gated legacy upgrade, provisioning fail-closed). Review confirmed state/nonce/PKCE and ID-token iss/aud/exp/alg are genuinely enforced."
     },
     {
       "id": "E7-ldap",
