@@ -27,7 +27,7 @@ import type {
 import { License } from '@/license';
 import { PostHogClient } from '@/posthog';
 
-import { SourceControlPreferencesService } from '../modules/source-control.ee/source-control-preferences.service.ee';
+import { SourceControlPreferencesService } from '../modules/source-control/source-control-preferences.service';
 
 type ExecutionTrackDataKey =
 	| 'manual_error'

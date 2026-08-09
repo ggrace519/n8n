@@ -247,3 +247,48 @@ subsystems); integration 25/25; @n8n/permissions 105/105; @n8n/api-types
 1773/1773 (fixed 3 pre-existing failures); @n8n/db 409/409; eslint clean on
 changed files (ratchet allowlist entries carried over for the renamed/rebuilt
 files, not new leaks).
+
+### 2026-08-08 — E2: variables subsystem rebuilt fair-code (+ boot-chain slices of E3/E8/E12/E13)
+
+**Added (clean-room rebuilds of purged `environments.ee/variables` + boot-chain deps)**
+- `packages/cli/src/variables/{variables.service.ts,variables.controller.ts}` —
+  full variables subsystem: cache-backed reads (`getAllCached`/`getCached`/
+  `updateCache`), user-visibility filtering (`getAllForUser`: global variables +
+  projects where the role grants `projectVariable:read`; owner unrestricted),
+  quota (`getRemainingVariableQuota` → `{limit,remaining}|null`), create/update/
+  delete with per-destination key uniqueness and `VariableCountLimitReachedError`
+  for both quota and duplicate (one error type — the package importer's pinned
+  race-recovery contract), REST routes with `variable:*` global scopes +
+  `feat:variables` license gates on mutations.
+- Boot-chain slices (each unblocked the variables spec's app boot):
+  `src/evaluation/evaluation-concurrency.helper.ts` (E13 slice; env override →
+  license quota → unlimited), `src/modules/source-control/
+  source-control-preferences.service.ts` + types (E3 slice; settings-persisted
+  prefs, branch guards), `src/modules/external-secrets/{external-secrets.config,
+  secret-provider-access-check.service,secrets-provider-connection.repository}`
+  (E8 slice; empty project-access = global provider), `src/modules/
+  dynamic-credentials/services/shared-fields.ts` (E12 slice; changed
+  non-resolvableField names).
+- Fixes surfaced by newly-runnable suites: `getApiKeyScopesForRole` now takes an
+  `AuthPrincipal`-shaped input (was slug-array; every cli caller passes scope
+  OBJECTS — API keys got empty scope sets → public-api 403s); A8c's migration
+  workaround reverted accordingly. `API_KEY_RESOURCES` catalog completed
+  (`variable:update`, `credential:list`, folder/eventBusDestination/ldap/oidc/
+  otel/saml/securitySettings entries the public-api handlers use). Public-api
+  variables create handler now returns the created variable (spec pins
+  `response.body.id`; the surviving handler discarded it). `GLOBAL_MEMBER_SCOPES`
+  drops global `projectVariable:{read,list}` (visibility comes from project
+  roles — pinned by the public-api cross-project test).
+
+**Clean-room sources:** surviving specs (`test/integration/variables.test.ts`,
+`public-api/variables.test.ts`), consumers (workflow-helpers, n8n-packages
+variable importer/exporter, public-api handlers, telemetry, data-table branch
+guards, concurrency-control), api-types DTOs, db entities, FE mock-server
+preferences shape. No `.ee` source read.
+
+**Verification:** `environments.ee` refs = 0 repo-wide; REST spec 23/23; 111
+variable-consumer unit tests; api-key tests 14/14; permissions 105/105;
+api-types 1773/1773; db build + 409/409; cli tsc 946→815 with zero regressions.
+Deferred to later gates: public-api variables spec (blocked by E15
+credentials.service.ee in the shared public-api router init) and the
+n8n-packages variable integration specs (blocked by E14 workflow.service.ee).

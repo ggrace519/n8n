@@ -98,7 +98,7 @@
       "id": "E2-variables",
       "phase": "E",
       "title": "Rebuild environments/variables (variables.service + variables.controller), fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rn \"environments.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
       "notes": "Clean-room: consumers + Variables entity/repository (@n8n/db) + surviving variables tests. Move out of environments.ee/ to a fair-code path."
     },

@@ -19,8 +19,8 @@ import {
 } from '@/credentials/validation';
 import { EventService } from '@/events/event.service';
 import { ExternalHooks } from '@/external-hooks';
-import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-secrets.config';
-import { SecretsProviderAccessCheckService } from '@/modules/external-secrets.ee/secret-provider-access-check.service.ee';
+import { ExternalSecretsConfig } from '@/modules/external-secrets/external-secrets.config';
+import { SecretsProviderAccessCheckService } from '@/modules/external-secrets/secret-provider-access-check.service';
 
 import { toPublicApiCredentialResponse } from './credentials.mapper';
 import type { IDependency, IJsonSchema } from '../../../types';

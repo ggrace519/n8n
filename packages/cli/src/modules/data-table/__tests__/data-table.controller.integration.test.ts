@@ -13,8 +13,8 @@ import { Container } from '@n8n/di';
 import { DateTime } from 'luxon';
 import type { DataTableRow } from 'n8n-workflow';
 
-import { SourceControlPreferencesService } from '@/modules/source-control.ee/source-control-preferences.service.ee';
-import type { SourceControlPreferences } from '@/modules/source-control.ee/types/source-control-preferences';
+import { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
+import type { SourceControlPreferences } from '@/modules/source-control/types/source-control-preferences';
 import { createDataTable } from '@test-integration/db/data-tables';
 import { createOwner, createMember, createAdmin } from '@test-integration/db/users';
 import type { SuperAgentTest } from '@test-integration/types';

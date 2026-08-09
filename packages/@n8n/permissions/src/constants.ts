@@ -123,15 +123,22 @@ export const RESOURCES = {
  * (e.g. `testRun:create`) that are managed differently in the UI RBAC catalog.
  */
 export const API_KEY_RESOURCES = {
-	credential: ['create', 'read', 'delete', 'move'],
+	credential: ['create', 'list', 'read', 'delete', 'move'],
+	eventBusDestination: ['create', 'read', 'update', 'delete', 'list', 'test'],
 	execution: ['delete', 'list', 'read'],
+	folder: ['create', 'read', 'update', 'delete', 'list'],
+	ldap: ['manage', 'sync'],
+	oidc: ['manage'],
+	otel: ['manage'],
 	testRun: ['list', 'read', 'create', 'cancel'],
 	project: ['create', 'delete', 'list', 'update'],
+	saml: ['manage'],
 	securityAudit: ['generate'],
+	securitySettings: ['manage'],
 	sourceControl: ['pull'],
 	tag: ['create', 'delete', 'list', 'read', 'update'],
 	user: ['changeRole', 'create', 'delete', 'list', 'read'],
-	variable: ['create', 'delete', 'list'],
+	variable: ['create', 'delete', 'list', 'update'],
 	workflow: ['activate', 'create', 'deactivate', 'delete', 'list', 'move', 'read', 'update'],
 	workflowTags: ['list', 'update'],
 } as const;

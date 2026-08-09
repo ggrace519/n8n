@@ -28,7 +28,7 @@ import {
 import { v4 as uuid } from 'uuid';
 
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
-import { VariablesService } from '@/environments.ee/variables/variables.service.ee';
+import { VariablesService } from '@/variables/variables.service';
 import { ExecutionPersistence } from '@/executions/execution-persistence';
 
 import { OwnershipService } from './services/ownership.service';

@@ -19,7 +19,9 @@ export const GLOBAL_ADMIN_SCOPES: Scope[] = [...ALL_SCOPES];
  */
 export const GLOBAL_MEMBER_SCOPES: Scope[] = [
 	...pick(['tag', 'annotationTag'], ['create', 'read', 'update', 'delete', 'list']),
-	...pick(['variable', 'projectVariable'], ['read', 'list']),
+	// Only GLOBAL variables: project-variable visibility comes from project
+	// roles, so members never see variables of projects they are not in.
+	...pick(['variable'], ['read', 'list']),
 	...pick(['user'], ['list']),
 	...pick(['chatHub'], ['message']),
 	...pick(['banner'], ['dismiss']),

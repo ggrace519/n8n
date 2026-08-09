@@ -1231,7 +1231,7 @@ import { UserError, UnexpectedError } from 'n8n-workflow';
 import type { CredentialsFinderService } from '@/credentials/credentials-finder.service';
 import type { DataTableRepository } from '@/modules/data-table/data-table.repository';
 import type { DataTableService } from '@/modules/data-table/data-table.service';
-import type { SourceControlPreferencesService } from '@/modules/source-control.ee/source-control-preferences.service.ee';
+import type { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 import { WorkflowSaveConflictError } from '../../../../../@n8n/instance-ai/src/errors/workflow-save-conflict.error';
 import type { WorkflowService } from '@/workflows/workflow.service';

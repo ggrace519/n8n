@@ -15,7 +15,7 @@ import { OperationalError, UserError } from 'n8n-workflow';
 
 import { CredentialsService } from '@/credentials/credentials.service';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
-import { SourceControlPreferencesService } from '@/modules/source-control.ee/source-control-preferences.service.ee';
+import { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
 
 import { AgentEvalsFlagGate } from './agent-evals-flag-gate';
 import { AgentConfigService } from '../agents/agent-config.service';

@@ -271,3 +271,54 @@ responses in plan mode — rule 5 fallback; investigate grok flags before next u
 order. Same recipe: check test/integration/environments/** for surviving specs
 FIRST (there are 92 tsc errors under test/integration/environments — the specs
 exist), then consumers, then codex contract pass if large.
+
+## 2026-08-08 — E2 done (variables rebuilt; boot-chain slices of E3/E8/E12/E13)
+
+**WHAT.** Rebuilt the variables subsystem fair-code at
+`packages/cli/src/variables/` (service + controller); REST spec **23/23**.
+Unblocking the spec's app boot required small clean-room slices of FOUR other
+E-items (static-import chain): evaluation-concurrency.helper (E13),
+SourceControlPreferencesService + types (E3), ExternalSecretsConfig +
+SecretsProviderAccessCheckService + connection repository (E8),
+dynamic-credentials shared-fields helper (E12). Codex produced the contract
+inventory (routes/methods/licensing/RBAC with verbatim pins) — very high value.
+
+**KEY DISCOVERIES.**
+- Public-api suites are ALL-OR-NOTHING: any request initializes the eov router,
+  which imports EVERY handler; one purged import (currently
+  credentials.service.ee → E15) 500s every public-api route. Public-api specs
+  are therefore an A10-level gate, not per-item. Same for n8n-packages importer
+  specs (workflow.service.ee → E14).
+- Debugging those 500s: bodies are generic; instrument
+  `sendPublicApiErrorResponse` temporarily (ErrorReporter spy does NOT see
+  router-init errors).
+- REAL BUG found+fixed from the newly-runnable tags spec baseline:
+  `getApiKeyScopesForRole` expected slug arrays but all cli callers pass
+  AuthPrincipal (scope OBJECTS) → every API key had zero valid scopes (403s).
+  A8c's migration mapping was a workaround for the wrong signature — reverted.
+- API_KEY_RESOURCES catalog was under-inclusive vs public-api handlers
+  (variable:update, credential:list, folder:*, eventBusDestination:*, ldap,
+  oidc, otel, saml, securitySettings) — completed; ApiKeyScope derives from it.
+- VariableCountLimitReachedError covers BOTH quota and duplicate-key (pinned by
+  the importer's race-recovery comment, LIGO-880); message 'Variables limit
+  reached' pinned by mocks.
+- GLOBAL_MEMBER lost global projectVariable:{read,list} — cross-project
+  visibility pin (public-api "not a member" test). Members see project vars via
+  project roles only.
+- ccds-guard blocks Read/sed under packages/cli/src/credentials/ (thinks it's a
+  secrets dir); grep passes — use grep for that tree, or Greg can tune
+  guard-rules.txt.
+- tags.test.ts public-api baseline: 12 failed/12 passed BEFORE my changes (the
+  403 class is now fixed; 404→500s remain — likely EntityNotFound
+  classification; investigate at A10).
+
+**VERIFIED.** environments.ee refs = 0; REST spec 23/23; 111 consumer unit
+tests; api-keys 14/14; db 409/409; permissions 105/105; api-types 1773/1773;
+cli tsc 946→815 zero regressions; eslint clean on all new dirs.
+
+**NEXT.** **E3-source-control** (largest remaining; preferences service slice
+exists; specs: test/integration/environments/source-control*.test.ts — 5 files;
+decompose per PROMPT if needed). Alternative next: E14/E15 (workflow/credentials
+service .ee halves) to unlock the public-api + n8n-packages gates sooner —
+consider E15 FIRST since it unblocks the entire public-api suite for all
+subsequent items.

@@ -3,7 +3,7 @@ import { createTeamProject, mockInstance } from '@n8n/backend-test-utils';
 import { GLOBAL_ADMIN_ROLE, GLOBAL_MEMBER_ROLE, GLOBAL_OWNER_ROLE, type User } from '@n8n/db';
 import { Container } from '@n8n/di';
 
-import { SourceControlPreferencesService } from '@/modules/source-control.ee/source-control-preferences.service.ee';
+import { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
 import { SourceControlStatusService } from '@/modules/source-control.ee/source-control-status.service.ee';
 import { SourceControlService } from '@/modules/source-control.ee/source-control.service.ee';
 import { Telemetry } from '@/telemetry';

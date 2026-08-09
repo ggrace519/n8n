@@ -2,7 +2,7 @@ import { Container } from '@n8n/di';
 import type { RequestHandler } from 'express';
 
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
-import { SourceControlPreferencesService } from '@/modules/source-control.ee/source-control-preferences.service.ee';
+import { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
 
 /**
  * Middleware that checks if the instance allows write operations.

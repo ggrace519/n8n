@@ -21,7 +21,7 @@ import { Container } from '@n8n/di';
 import { pickVariableForProject } from 'n8n-workflow';
 
 import { ActiveWorkflowManager } from '@/active-workflow-manager';
-import { VariablesService } from '@/environments.ee/variables/variables.service.ee';
+import { VariablesService } from '@/variables/variables.service';
 import { ConflictError } from '@/errors/response-errors/conflict.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { UnprocessableRequestError } from '@/errors/response-errors/unprocessable.error';

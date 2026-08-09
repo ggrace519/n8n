@@ -2,8 +2,8 @@ import { CreateVariableRequestDto, UpdateVariableRequestDto } from '@n8n/api-typ
 import type { AuthenticatedRequest } from '@n8n/db';
 import { Container } from '@n8n/di';
 
-import { VariablesController } from '@/environments.ee/variables/variables.controller.ee';
-import { VariablesService } from '@/environments.ee/variables/variables.service.ee';
+import { VariablesController } from '@/variables/variables.controller';
+import { VariablesService } from '@/variables/variables.service';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import type { VariablesRequest } from '@/requests';
 
@@ -31,9 +31,13 @@ const variablesHandlers: VariablesHandlers = {
 			if (payload.error) {
 				throw new BadRequestError(payload.error.errors[0]?.message ?? 'Invalid request body');
 			}
-			await Container.get(VariablesController).createVariable(req, res, payload.data);
+			const variable = await Container.get(VariablesController).createVariable(
+				req,
+				res,
+				payload.data,
+			);
 
-			return res.status(201).send();
+			return res.status(201).json(variable);
 		},
 	],
 	updateVariable: [

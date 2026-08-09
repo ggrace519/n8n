@@ -26,7 +26,7 @@ import {
 } from 'n8n-workflow';
 
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
-import { SourceControlPreferencesService } from '@/modules/source-control.ee/source-control-preferences.service.ee';
+import { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
 import { userHasScopes } from '@/permissions/check-access';
 import { OwnershipService } from '@/services/ownership.service';
 

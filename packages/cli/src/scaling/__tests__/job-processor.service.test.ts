@@ -30,7 +30,7 @@ import type { Mock, MockedClass, MockInstance } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
 import { CredentialsHelper } from '@/credentials-helper';
-import { VariablesService } from '@/environments.ee/variables/variables.service.ee';
+import { VariablesService } from '@/variables/variables.service';
 import { WebhookResponseTooLargeError } from '@/errors/webhook-response-too-large.error';
 import { ExternalHooks } from '@/external-hooks';
 import type { ExecutionPersistence } from '@/executions/execution-persistence';

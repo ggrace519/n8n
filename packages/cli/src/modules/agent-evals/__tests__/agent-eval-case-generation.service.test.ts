@@ -7,7 +7,7 @@ import { mock } from 'vitest-mock-extended';
 import type { CredentialsService } from '@/credentials/credentials.service';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
-import type { SourceControlPreferencesService } from '@/modules/source-control.ee/source-control-preferences.service.ee';
+import type { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
 
 import type { AgentConfigService } from '../../agents/agent-config.service';
 import type { DataTable } from '../../data-table/data-table.entity';

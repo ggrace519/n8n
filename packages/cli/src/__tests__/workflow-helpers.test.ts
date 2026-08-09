@@ -13,7 +13,7 @@ import type {
 	RelatedExecution,
 } from 'n8n-workflow';
 
-import { VariablesService } from '@/environments.ee/variables/variables.service.ee';
+import { VariablesService } from '@/variables/variables.service';
 import { ExecutionPersistence } from '@/executions/execution-persistence';
 import { OwnershipService } from '@/services/ownership.service';
 import {

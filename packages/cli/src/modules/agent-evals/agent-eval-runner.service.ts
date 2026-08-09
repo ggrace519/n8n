@@ -23,7 +23,7 @@ import { ConcurrencyControlService } from '@/concurrency/concurrency-control.ser
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
-import { resolveEvaluationConcurrencyLimit } from '@/evaluation.ee/evaluation-concurrency.helper';
+import { resolveEvaluationConcurrencyLimit } from '@/evaluation/evaluation-concurrency.helper';
 import { License } from '@/license';
 import { AgentRepository } from '@/modules/agents/repositories/agent.repository';
 import { DataTableService } from '@/modules/data-table/data-table.service';

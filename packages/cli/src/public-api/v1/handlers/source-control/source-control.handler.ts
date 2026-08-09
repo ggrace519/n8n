@@ -7,7 +7,7 @@ import {
 	getTrackingInformationFromPullResult,
 	isSourceControlLicensed,
 } from '@/modules/source-control.ee/source-control-helper.ee';
-import { SourceControlPreferencesService } from '@/modules/source-control.ee/source-control-preferences.service.ee';
+import { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
 import { SourceControlService } from '@/modules/source-control.ee/source-control.service.ee';
 
 import type { PublicAPIEndpoint } from '../../shared/handler.types';

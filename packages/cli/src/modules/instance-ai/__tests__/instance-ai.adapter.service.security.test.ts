@@ -52,7 +52,7 @@ import type { License } from '@/license';
 import type { LoadNodesAndCredentials } from '@/load-nodes-and-credentials';
 import type { DataTableRepository } from '@/modules/data-table/data-table.repository';
 import type { DataTableService } from '@/modules/data-table/data-table.service';
-import type { SourceControlPreferencesService } from '@/modules/source-control.ee/source-control-preferences.service.ee';
+import type { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
 import type { NodeTypes } from '@/node-types';
 import type { RoleService } from '@/services/role.service';
 import type { OutboundHttp, SsrfProtectionService } from '@n8n/backend-network';

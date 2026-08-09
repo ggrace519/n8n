@@ -15,7 +15,7 @@ import { NodeOperationError } from 'n8n-workflow';
 import type { MockInstance } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
-import type { SourceControlPreferencesService } from '@/modules/source-control.ee/source-control-preferences.service.ee';
+import type { SourceControlPreferencesService } from '@/modules/source-control/source-control-preferences.service';
 import * as checkAccess from '@/permissions/check-access';
 import type { OwnershipService } from '@/services/ownership.service';
 

@@ -21,8 +21,8 @@ import {
 
 import { CredentialsService } from '@/credentials/credentials.service';
 import { EventService } from '@/events/event.service';
-import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-secrets.config';
-import { SecretsProviderAccessCheckService } from '@/modules/external-secrets.ee/secret-provider-access-check.service.ee';
+import { ExternalSecretsConfig } from '@/modules/external-secrets/external-secrets.config';
+import { SecretsProviderAccessCheckService } from '@/modules/external-secrets/secret-provider-access-check.service';
 import * as checkAccess from '@/permissions/check-access';
 import type { IDependency } from '@/public-api/types';
 

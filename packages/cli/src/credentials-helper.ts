@@ -42,7 +42,7 @@ import {
 import { CredentialTypes } from '@/credential-types';
 import { CredentialsOverwrites } from '@/credentials-overwrites';
 import { DCR_MANAGED_CREDENTIAL_FIELDS } from '@/oauth/dcr-managed-fields';
-import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-secrets.config';
+import { ExternalSecretsConfig } from '@/modules/external-secrets/external-secrets.config';
 import { AiGatewayService } from '@/services/ai-gateway.service';
 
 import { RESPONSE_ERROR_MESSAGES } from './constants';
