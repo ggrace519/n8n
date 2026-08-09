@@ -15,9 +15,9 @@ import { Container } from '@n8n/di';
 import { Cipher } from 'n8n-core';
 import { mock } from 'vitest-mock-extended';
 
-import { ExternalSecretsManager } from '@/modules/external-secrets.ee/external-secrets-manager.ee';
-import { ExternalSecretsProviders } from '@/modules/external-secrets.ee/external-secrets-providers.ee';
-import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-secrets.config';
+import { ExternalSecretsManager } from '@/modules/external-secrets/external-secrets-manager';
+import { ExternalSecretsProviders } from '@/modules/external-secrets/external-secrets-providers';
+import { ExternalSecretsConfig } from '@/modules/external-secrets/external-secrets.config';
 import { mockCipher } from '@test/mocking';
 
 import { createDummyProvider, MockProviders } from '../../shared/external-secrets/utils';

@@ -149,9 +149,10 @@
       "id": "E8-external-secrets",
       "phase": "E",
       "title": "Rebuild external-secrets (secret-provider-access-check.service + external-secrets.config) fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -ran 'external-secrets\\.ee' packages/cli/src packages/cli/test --include='*.ts' | wc -l  # expect 0 (src is already 0; 10 spec files remain)",
-      "notes": "Clean-room: consumers + provider SDK docs (Vault/AWS/GCP/Azure) + surviving external-secrets tests. SCOPE CORRECTED 2026-08-09: packages/cli/src is already 0 (E2 rebuilt config + SecretsProviderAccessCheckService + connection repository); the remaining work is the module the 10 surviving spec files pin (providers, service, controller). Surviving spec noted at E15: test/integration/database/repositories/secrets-provider-connection.repository.test.ts."
+      "notes": "Clean-room: consumers + provider SDK docs (Vault/AWS/GCP/Azure) + surviving external-secrets tests. SCOPE CORRECTED 2026-08-09: packages/cli/src is already 0 (E2 rebuilt config + SecretsProviderAccessCheckService + connection repository); the remaining work is the module the 10 surviving spec files pin (providers, service, controller). Surviving spec noted at E15: test/integration/database/repositories/secrets-provider-connection.repository.test.ts.",
+      "verified": "2026-08-09: module rebuilt at modules/external-secrets (25 new files). grep -ran external-secrets.ee (src+test) = 0; external-secrets specs 154/154 across 9 files + secrets-provider-connection.repository 11/11 (165/165 combined); expression-access 2/2; regression credentials.api 80/80, sso+provisioning+dynamic-credentials 201/201, db 409/409; eslint clean; scoped tsc 0. CRITICAL SCOPING CAVEAT: the 154 passing tests imply ZERO real-provider coverage - every acceptance spec registers its own dummy provider. The 6 provider identities are pinned by the DTO enum; settings metadata is pinned only for Vault and AWS (and only via test fixtures). GCP has one projectId example; Azure/Infisical/1Password are identity-only with empty properties. All six ship metadata + the SecretsProvider interface and FAIL LOUDLY on connect rather than fabricating a vendor protocol - real SDK integrations are deliberately NOT built. Other under-pinned (labelled in DEFORK_CHANGELOG): polling design, N8N_EXTERNAL_SECRETS_MULTIPLE_CONNECTIONS env name, connection scope decorators, hasProvider gating on connected, getSecretNames cache-only, roleBasedAccess/systemRolesEnabled derivation. Two DTOs got no route (unpinned, not invented). Unlicensed-instance HTTP behavior and real polling-interval elapse untested."
     },
     {
       "id": "E9-log-streaming",
@@ -240,7 +241,10 @@
       "title": "Rebuild modules/workflow-reviews.ee (workflow review requests) fair-code",
       "passes": false,
       "verify": "grep -ran 'workflow-reviews\\.ee' packages/cli/src packages/cli/test --include='*.ts' | wc -l  # expect 0",
-      "notes": "Discovered 2026-08-09 by a corrected full-repo .ee audit; was never in the feature list. Currently 1 reference: test/integration/shared/utils/test-server.ts imports workflow-reviews.module. A8d deleted the orphaned @n8n/db workflow-review-request tests, so check what fair-code survives (api-types DTOs, WorkflowPublishHistory review states) before deciding rebuild vs remove-and-unwire."
+      "notes": "Discovered 2026-08-09 by a corrected full-repo .ee audit; was never in the feature list. Currently 1 reference: test/integration/shared/utils/test-server.ts imports workflow-reviews.module. A8d deleted the orphaned @n8n/db workflow-review-request tests, so check what fair-code survives (api-types DTOs, WorkflowPublishHistory review states) before deciding rebuild vs remove-and-unwire. ALSO OWNS issue #15: ownership-transfer.manifest.json still lists WorkflowReviewRequest -> workflow-review-request.ee.ts (purged), making ownership-transfer.manifest.test.ts fail 2/6 on master. Decide rebuild-vs-remove and fix the manifest accordingly.",
+      "closes_issues": [
+        "#15"
+      ]
     },
     {
       "id": "A10-cli-green",

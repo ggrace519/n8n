@@ -4,9 +4,9 @@ import { SecretsProviderConnectionRepository, SettingsRepository } from '@n8n/db
 import { Container } from '@n8n/di';
 import { Cipher } from 'n8n-core';
 
-import { ExternalSecretsProviders } from '@/modules/external-secrets.ee/external-secrets-providers.ee';
-import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-secrets.config';
-import { ExternalSecretsModule } from '@/modules/external-secrets.ee/external-secrets.module';
+import { ExternalSecretsProviders } from '@/modules/external-secrets/external-secrets-providers';
+import { ExternalSecretsConfig } from '@/modules/external-secrets/external-secrets.config';
+import { ExternalSecretsModule } from '@/modules/external-secrets/external-secrets.module';
 import { PubSubEventBus } from '@/scaling/pubsub/pubsub.eventbus';
 import { PubSubRegistry } from '@/scaling/pubsub/pubsub.registry';
 
