@@ -71,6 +71,18 @@ is not yet `"passes": true`.
   `tail -40 build.log`). A fast per-item proxy: the item's `grep` returns 0
   unresolved `.ee` imports AND the cli tsc output no longer references that
   subsystem's files.
+- **Grep discipline (a false green already slipped through twice).** Always
+  `grep -ran` — plain grep SILENTLY SKIPS a file it flags as binary (one NUL
+  byte is enough), so it will report 0 while references remain. Always scan
+  BOTH `packages/cli/src` and `packages/cli/test`, and never filter out
+  `.test.` files: a spec that imports a purged module is part of the item's
+  work, not noise. Rebuild those specs or delete them deliberately (A8d
+  precedent) — never leave them unrunnable and call the item done.
+- **Scope honestly.** "The build stopped complaining" is not "the subsystem is
+  rebuilt". Before flipping, list the surviving specs that pin the module and
+  state which of them RUN. If you rebuilt only the consumer surface that
+  unblocked a build, the item is NOT done — say so in `notes` and leave it
+  `false`.
 - After a dependency's types change, a package may show phantom cascade errors —
   `rm -rf dist *.tsbuildinfo .turbo` for it before trusting an isolated build.
 - Only when the evidence is real: set the item's `"passes": true`.

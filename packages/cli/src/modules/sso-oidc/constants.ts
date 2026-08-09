@@ -16,3 +16,15 @@ export const OIDC_ID_TOKEN_COOKIE_NAME = 'n8n-oidc-id-token';
  * sign-out degrades to a local (n8n-only) logout.
  */
 export const OIDC_ID_TOKEN_COOKIE_MAX_BYTES = 3800;
+
+/** Cookie holding the `state` value of an in-flight authorization request. */
+export const OIDC_STATE_COOKIE_NAME = 'n8n-oidc-state';
+
+/** Cookie holding the `nonce` value of an in-flight authorization request. */
+export const OIDC_NONCE_COOKIE_NAME = 'n8n-oidc-nonce';
+
+/** Cookie holding the PKCE code verifier of an in-flight authorization request. */
+export const OIDC_PKCE_COOKIE_NAME = 'n8n-oidc-pkce';
+
+/** How long the state/nonce/PKCE cookies of an authorization request stay valid. */
+export const OIDC_FLOW_COOKIE_MAX_AGE_MS = 15 * 60 * 1000;

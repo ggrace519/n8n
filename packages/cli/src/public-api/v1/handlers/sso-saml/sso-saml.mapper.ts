@@ -8,7 +8,7 @@ import { CREDENTIAL_BLANKING_VALUE } from 'n8n-workflow';
 import {
 	getServiceProviderEntityId,
 	getServiceProviderReturnUrl,
-} from '@/modules/sso-saml/service-provider.ee';
+} from '@/modules/sso-saml/service-provider';
 
 /**
  * Normalize preferences into the public API response shape.

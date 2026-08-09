@@ -723,3 +723,117 @@ flipped.
   service-side per-destination tracking designed around it, writer untouched.
 
 **NEXT.** E5/E6 (saml/oidc — last router-gating items) or E8/E10/E11/E17.
+
+## 2026-08-09 — E5/E6 built, NOT flipped: security review found 7 real defects
+
+**WHAT.** SAML + OIDC backends rebuilt in parallel (committed, specs green:
+SAML units 39/39 + public-api 16/16 + loader 2/2; OIDC units 35/35 +
+public-api 24/24). Codex adversarial security review (hostile-IdP threat
+model) returned REQUEST CHANGES: 5 HIGH + 2 MEDIUM. Hardening agents
+dispatched (SAML: #1,#2,#3,#4,#6 / OIDC: #2,#3,#5,#7).
+
+**THE DEFECTS (do not lose these — E5/E6 stay passes:false until fixed).**
+1. SAML: assertion not bound to this SP — no Audience/Recipient/Destination/
+   InResponseTo/SubjectConfirmationData-NotOnOrAfter checks; samlify 2.13.0
+   accepts response OR assertion signature when both requested (must enforce
+   each explicitly).
+2. BOTH: an IdP-asserted email auto-links to an existing privileged (owner/
+   admin) local account.
+3. BOTH: provisioning role-mapping policy (incl. block:access) never
+   evaluated — must fail closed BEFORE account mutation/session issuance.
+   Blocked saml.api.test.ts:978 pins denial-before-mutation.
+4. SAML: metadata endpoint URLs only type-checked as string — `javascript:`
+   scheme passes SamlValidator and reaches window.location.href (reviewer
+   VERIFIED this empirically). Restrict to https (localhost http exception).
+5. OIDC: email taken from UserInfo while email_verified falls back to the ID
+   token — a verified flag can attest a different address. Resolve the pair
+   atomically from one source.
+6. SAML: no replay protection — no request-ID/browser-flow binding, no
+   response/assertion ID cache.
+7. OIDC: identities keyed by bare `sub` without issuer.
+
+**SOUND per review:** OIDC state/nonce/PKCE genuinely validated; ID-token
+iss/aud/exp/alg enforced (no none/HS confusion); SAML XSW + comment-
+truncation not exploitable via samlify; connection-test tokens 128-bit
+single-use 5-min and never issue a session; secrets encrypted+redacted, not
+logged; discovery/metadata fetch via guarded outbound transport; route
+license/scope gates and auth-method mutual exclusion correct.
+
+**COVERAGE HOLES.** saml.api.test.ts (ACS/permissions/signing pins) and
+oidc.instance-settings-loader.test.ts are BLOCKED on the missing provisioning
+module — E11 must land and both must then be run. Hardening agents told to
+repoint to surviving `modules/provisioning/constants` where that works.
+
+**NEXT.** Verify hardening → re-review the auth-critical diff → flip E5/E6 →
+PR. Then E11 (unblocks 2 SSO specs + carries role provisioning), E8, E10,
+E17, A10.
+
+## 2026-08-09 — VERIFICATION FLAW FOUND: corrected a false green (E12) + audit
+
+**WHAT.** While hardening E6, a subagent hit a NUL byte that made `grep` treat
+a source file as binary and silently skip it. That is the SECOND such incident
+(E9 found the same in e2e.controller.ts). Since my per-item "0 `.ee`
+references" evidence is exactly this kind of grep, I re-ran every past claim
+with `grep -ran` over src AND test.
+
+**RESULT — one false green, one untracked item, one scope error.**
+- **E12 (dynamic-credentials) REOPENED (was passes:true).** Its grep excluded
+  `.test.` files and never scanned `packages/cli/test`. Only
+  `services/shared-fields.ts` was ever rebuilt (the single consumer that
+  blocked the build). 8 surviving spec files pin a whole module: the
+  DynamicCredentialEntry/UserEntry entities, three repositories, the *Storage
+  classes, DynamicCredentialsConfig, constants, credential-resolver
+  (N8NIdentifier).
+- **E18-workflow-reviews ADDED** — `workflow-reviews.ee` was never in the
+  feature list at all (1 ref: test-server.ts module import).
+- **E8 scope corrected** — src is already 0; the real remaining work is the
+  module its 10 surviving spec files pin.
+- CONFIRMED GENUINELY CLEAN across src+test with -a: evaluation, source-control,
+  log-streaming, permissions, environments, sso, ldap, project.service,
+  workflow.service, credentials.service, execution.service. Those flips stand.
+
+**FIX APPLIED TO THE LOOP ITSELF (not just the code).** PROMPT.md "Verify" now
+mandates `grep -ran`, scanning src AND test, never filtering `.test.` files,
+and honest scoping ("the build stopped complaining" != "the subsystem is
+rebuilt" — list which surviving specs actually RUN before flipping).
+feature_list.verify_notes carries the same rule.
+
+**LESSON.** Narrow verification scope is how a long-horizon loop lies to
+itself. The grep that proves an item done must cover every place the symbol
+can appear, in a form that cannot silently skip files.
+
+## 2026-08-09 — E5/E6 hardened (7 findings fixed) + 2 new defects found
+
+**WHAT.** Both hardening agents landed. SAML: units 39→84, integration 21/21.
+OIDC: units 35→60, integration 28/28 (also un-blocked the oidc loader spec by
+repointing to the surviving modules/provisioning/constants).
+
+**ALL 7 REVIEW FINDINGS FIXED.** SAML assertion binding (audience/recipient/
+destination/InResponseTo/both NotOnOrAfter, one bearer confirmation, ±60s
+skew) + explicit assertion-signature re-verification on a response-signature-
+stripped copy (samlify's redirectFlow verifies NO xml signature — real gap);
+one-time request/response/assertion ids + path-scoped flow cookie; https-only
+IdP endpoints enforced at validation AND URL generation; privileged-account
+auto-linking refused (both protocols); OIDC atomic (email, email_verified)
+from one document + subject/email disagreement rejection; OIDC identities
+keyed (issuer, sub) with in-place legacy upgrade gated on verified email +
+non-privileged.
+
+**2 NEW DEFECTS FOUND BY THE HARDENING PASS.**
+- FIXED: redirect-binding octet string included the Signature parameter, so
+  redirect-binding ACS could NEVER verify (SAML bindings 3.4.4.1).
+- NOT FIXED (KI-1): root package.json overrides node-rsa to 2.0.0 while
+  samlify declares ^1.1.1. I verified empirically: sign() returns Uint8Array
+  (isBuffer false) so samlify's .toString('base64') emits comma-separated
+  decimals, AND the default signingScheme changed to pss while SAML advertises
+  rsa-sha256 (pkcs1). node-rsa's MIGRATION.md claims Buffer-unchanged-on-Node
+  — WRONG for the installed build; only testing caught it.
+
+**GITHUB ISSUES ARE DISABLED on this fork** → created .defork/KNOWN_ISSUES.md
+as the tracker (KI-1 node-rsa, KI-2 tags RBAC, KI-3 provisioning loader key,
+KI-4 SSO denied while provisioning configured, KI-5 saml.api.test.ts blocked).
+Ask Greg whether to enable GitHub issues.
+
+**PROVISIONING DIVERGENCE RECONCILED.** Both agents independently chose
+fail-closed deny when provisioning is configured but unevaluable. E11's scope
+expanded in feature_list to own the engine + removing both deny branches.
