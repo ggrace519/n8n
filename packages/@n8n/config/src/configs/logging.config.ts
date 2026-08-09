@@ -6,6 +6,7 @@ import { Config, Env, Nested } from '../decorators';
 /** Scopes (areas of functionality) to filter logs by. */
 export const LOG_SCOPES = [
 	'concurrency',
+	'evaluation',
 	'external-secrets',
 	'ldap',
 	'instance-registry',

@@ -72,6 +72,18 @@ export class TestRunRepository extends BaseRepository<TestRun> {
 		return await this.update(id, { cancelRequested: true });
 	}
 
+	/** Whether a cancel was requested for this run (polled by the running loop). */
+	async isCancellationRequested(id: string): Promise<boolean> {
+		return await this.exists({ where: { id, cancelRequested: true } });
+	}
+
+	/** Runs that never settled — `new`/`running` rows found at boot are abandoned. */
+	async findIncompleteRuns(): Promise<TestRun[]> {
+		return await this.createQueryBuilder('testRun')
+			.where('testRun.status IN (:...statuses)', { statuses: ['new', 'running'] })
+			.getMany();
+	}
+
 	async setRunningInstance(id: string, runningInstanceId: string | null) {
 		return await this.update(id, { runningInstanceId });
 	}

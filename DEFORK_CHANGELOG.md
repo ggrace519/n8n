@@ -481,3 +481,41 @@ relation). No `.ee` source read.
 
 **Verification:** `pnpm --filter @n8n/db build` exit 0;
 `pnpm --filter @n8n/db test` 31 files / 409 tests pass.
+
+## 2026-08-09 — E13b: evaluation test-runner core (`packages/cli`)
+
+**Rebuilt (clean-room):** `src/evaluation/test-runner/test-runner.service.ts`
+(TestRunnerService: dataset prefetch via the trigger's `dataset.getRows`
+custom operation, per-row pinned `evaluation`-mode executions in a bounded
+pool owning the shared evaluation concurrency reservation, metric/input/
+output collection off the Evaluation nodes' task data, per-key mean
+aggregation, DB-flag + local-abort + pubsub `cancel-test-run` cancellation),
+`test-run-cleanup.service.ts` (boot-time interrupted-run settlement),
+`test-runs.controller.ts` (internal REST, workflow-finder-scoped 404s),
+`llm-judge-provider-registry.ts` (derives from `LLM_JUDGE_PROVIDERS` in
+api-types). Supporting: `evaluation` log scope in `@n8n/config`; TestRun/
+TestCaseExecution repository state-transition methods in `@n8n/db`. Rewired:
+server.ts, base-command.ts, public-api evaluations handler, test-server,
+both integration specs, instance-ai adapter registry import.
+
+**Clean-room sources:** the 511-line internal spec + 401-line public-api spec
+(codex-extracted contract inventory + own read); the fair-code Evaluation
+node classes (`getRows` custom operation, `_rowsLeft` iteration contract,
+setMetrics/setInputs/setOutputs operations); the surviving
+`agent-eval-runner.service.ts` (pool/cancel/settle/concurrency-slot
+patterns); `ActiveExecutions`' evaluation-mode reservation comments;
+`manual-execution.service.ts` + core `WorkflowExecute.run` (pinData +
+`forceCustomOperation` mechanics); `evaluation-concurrency.helper.ts`;
+api-types DTOs; pubsub event map. No `.ee` source read.
+
+**Verification:** internal `test-runs.api.test.ts` **28/28** (was
+load-blocked); command specs unblocked via base-command — ldap reset +
+license cmd **16/16** (were load-blocked since E7); cli tsc: **0 errors in
+src/evaluation/**; eslint clean; `@n8n/db` build exit 0.
+
+**Still open in E13:** evaluation-config service/controller +
+compileFromConfig compiler (E13c), collections + insights controllers
+(E13d). `startTestRun` rejects `compileFromConfig` with a UserError until
+E13c lands. Public-api evaluations spec remains gated by the shared router
+(source-control/saml/oidc/log-streaming handlers still import purged
+modules).
