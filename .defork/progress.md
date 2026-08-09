@@ -672,3 +672,30 @@ diff, then flip E3.
 team-admin role map in @n8n/permissions and drop the scoped service's
 explicit PROJECT_ADMIN union (touches role snapshots — do deliberately,
 with the permissions test suite as gate).
+
+## 2026-08-09 — E3 DONE (source-control fully rebuilt + hardened)
+
+**WHAT.** E3d (status/service/controller/module + rewires; 3 specs 26/20/16)
+landed; codex adversarial review produced 14 findings — 12 fixed by a
+dedicated hardening subagent (server-side push-selection derivation, symlink
+containment, credential-data merge on pull, pull completeness dispatch incl.
+scoped deletions + folders/data-tables, archived/active consistency via
+ActiveWorkflowManager, in-process operation mutex, fail-closed sync,
+owner-type checks, remote-owner authz, SSH quoting/perms, branch-name
+validation, license-gated key generation), 2 deferred (spec-pinned non-string
+leaves; existing-workflow ownership transfer). All 122/122 spec tests with
+ZERO assertion changes + 57 new unit tests. E3 flipped.
+
+**KEY FACTS.**
+- Import spec forces decrypt-merge-reencrypt for existing credentials (it
+  asserts data IS rewritten) — "preserve untouched" would fail the spec.
+- pullWorkfolder has NO integration coverage (specs say "pull: TBD") — pull
+  dispatch verified by unit/type/lint only. Re-verify at A10 via public-api
+  pull spec (blocked on E9 log-streaming handler).
+- E3d added a minimal provisioning module registration (main-only-modules
+  gate) — full provisioning surface still E11.
+- Public-api router now blocked ONLY by E9 (log-streaming) + E5/E6
+  (saml/oidc handlers/mappers) — E9 is highest leverage next.
+
+**NEXT.** E9 (log-streaming) → unlocks entire public-api suite → then E5/E6,
+E8, E10, E11, E17, A10 sweep.
