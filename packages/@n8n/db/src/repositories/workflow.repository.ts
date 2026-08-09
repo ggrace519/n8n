@@ -233,6 +233,15 @@ export class WorkflowRepository extends BaseRepository<WorkflowEntity> {
 		});
 	}
 
+	/** Workflows by id with their parent folder loaded, e.g. for the source-control export. */
+	async findByIdsWithParentFolder(workflowIds: string[]): Promise<WorkflowEntity[]> {
+		if (workflowIds.length === 0) return [];
+		return await this.find({
+			where: { id: In(workflowIds) },
+			relations: { parentFolder: true },
+		});
+	}
+
 	async findByIds(workflowIds: string[], { fields }: { fields?: string[] } = {}) {
 		if (workflowIds.length === 0) {
 			return [];
@@ -1500,14 +1509,14 @@ export class WorkflowRepository extends BaseRepository<WorkflowEntity> {
 	 */
 	async findIdsWithResolvableCredentials(workflowIds: string[]): Promise<string[]> {
 		if (workflowIds.length === 0) return [];
-		const rows = (await this.manager
+		const rows = await this.manager
 			.createQueryBuilder(WorkflowDependency, 'dep')
 			.select('DISTINCT dep.workflowId', 'workflowId')
 			.innerJoin(CredentialsEntity, 'credential', 'credential.id = dep.dependencyKey')
 			.where('dep.dependencyType = :depType', { depType: 'credentialId' })
 			.andWhere('dep.workflowId IN (:...workflowIds)', { workflowIds })
 			.andWhere('credential.isResolvable = :isResolvable', { isResolvable: true })
-			.getRawMany()) as Array<{ workflowId: string }>;
+			.getRawMany<{ workflowId: string }>();
 		return rows.map((row) => row.workflowId);
 	}
 

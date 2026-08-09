@@ -22,6 +22,11 @@ export class TagRepository extends BaseRepository<TagEntity> {
 		});
 	}
 
+	/** All tag definitions (id and name only), e.g. for the source-control tags export. */
+	async findAllTags(): Promise<Array<Pick<TagEntity, 'id' | 'name'>>> {
+		return await this.find({ select: ['id', 'name'] });
+	}
+
 	/** Exact (case-sensitive) name lookup; no input normalization. */
 	async findManyByName(names: string[]) {
 		return await this.find({

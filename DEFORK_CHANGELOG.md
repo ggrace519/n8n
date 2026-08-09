@@ -654,3 +654,37 @@ exit 0; standalone smoke harness against a real local bare git remote —
 helper counters, init/branch/stage/commit/push/fetch/diffLocal/hard-reset/
 ff-only-pull, SSH key materialization (mode 600, known_hosts, missing-key
 UserError) all green.
+
+## 2026-08-09 — E3b: source-control export service (`packages/cli`)
+
+Clean-room rebuild of `SourceControlExportService` at
+`packages/cli/src/modules/source-control/source-control-export.service.ts`
+(formerly `source-control.ee/source-control-export.service.ee.ts`), plus
+use-case-named repository methods in `@n8n/db`
+(`TagRepository.findAllTags`, `WorkflowTagMappingRepository.findAllMappings`
+/ `findMappingsForWorkflows`,
+`SharedWorkflowRepository.findWorkflowIdsOwnedByProjects`,
+`FolderRepository.findManyWithHomeProject`,
+`WorkflowRepository.findByIdsWithParentFolder`). The service serializes
+resources into `${n8nFolder}/git/`: per-resource JSON files for workflows,
+credential stubs (secrets stripped — strings blanked, non-string primitives
+kept, nesting preserved, `oauthTokenData` omitted; owner serialized as
+structured personal/team `ownedBy`), and data tables (schema only, columns
+sorted by index), plus aggregate `tags.json` and `folders.json` whose
+scoped exports merge with the existing file so out-of-scope entries are
+never erased. The spec's `.ee` import paths were repointed to the fair-code
+module.
+
+**Clean-room sources:** the E3 contract inventory §3 (export contract);
+`test/integration/environments/source-control-export.service.test.ts`
+(651-line spec, acceptance gate); the E3a fair-code foundation
+(constants, context factory, scoped service, `types/*`); existing fair-code
+repositories/entities in `@n8n/db` and the `data-table` module; `Cipher`
+(n8n-core, `decryptV2` read path as in `Credentials.getData`). No
+enterprise source or history was consulted.
+
+**Verification:** export spec 13/13 green (sqlite); cli
+`tsc -p tsconfig.build.json` — 0 errors mentioning `source-control-export`
+or `modules/source-control/` (remaining errors are pre-existing `.ee`
+imports in not-yet-rebuilt slices); `eslint src/modules/source-control`
+exit 0, no rule disables; `@n8n/db` build exit 0 and tests 409/409.
