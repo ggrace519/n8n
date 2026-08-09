@@ -99,12 +99,18 @@ async function executeGoogleSheets(this: IExecuteFunctions): Promise<NodeOutput>
 	}
 
 	const current = rows[currentIndex];
-	const currentRowNumber = current.json?.row_number as number;
+	const currentRowNumber = current.json?.row_number;
 
 	let rowsLeft: number;
 	if (limitRows) {
 		rowsLeft = rows.length - currentIndex - 1;
 	} else {
+		if (typeof currentRowNumber !== 'number') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'Could not determine the current row number from the dataset',
+			);
+		}
 		rowsLeft = await getRowsLeft.call(
 			this,
 			googleSheet,
