@@ -2,6 +2,7 @@ import { Logger } from '@n8n/backend-common';
 import { GlobalConfig } from '@n8n/config';
 import type { TestCaseExecution, TestRun, User } from '@n8n/db';
 import {
+	EvaluationConfigRepository,
 	TestCaseExecutionRepository,
 	TestRunErrorCode,
 	TestRunRepository,
@@ -25,12 +26,14 @@ import {
 	ManualExecutionCancelledError,
 	UserError,
 	deepCopy,
+	jsonParse,
 } from 'n8n-workflow';
 import pLimit from 'p-limit';
 
 import { ActiveExecutions } from '@/active-executions';
 import { ConcurrencyControlService } from '@/concurrency/concurrency-control.service';
 import { resolveEvaluationConcurrencyLimit } from '@/evaluation/evaluation-concurrency.helper';
+import { WorkflowCompilerService } from '@/evaluation/workflow-compiler.service';
 import { License } from '@/license';
 import { Publisher } from '@/scaling/pubsub/publisher.service';
 import { WorkflowRunner } from '@/workflow-runner';
@@ -72,6 +75,8 @@ export class TestRunnerService {
 		private readonly license: License,
 		private readonly errorReporter: ErrorReporter,
 		private readonly publisher: Publisher,
+		private readonly evaluationConfigRepository: EvaluationConfigRepository,
+		private readonly workflowCompilerService: WorkflowCompilerService,
 	) {
 		this.logger = this.logger.scoped('evaluation');
 	}
@@ -91,17 +96,49 @@ export class TestRunnerService {
 		const workflow = await this.workflowRepository.findById(workflowId);
 		if (!workflow) throw new UserError(`Workflow ${workflowId} not found`);
 
-		if (options?.compileFromConfig) {
-			// The config-compilation path (injecting trigger + metrics nodes from a
-			// saved evaluation config) ships with the evaluation-config service.
-			throw new UserError('Config-based compilation is not available on this instance yet.');
+		// Config resolution and compilation happen before the run row exists so
+		// a bad request fails the HTTP call instead of leaving an errored run.
+		let workflowToRun: IWorkflowBase = workflow;
+		let configSnapshot: IDataObject | undefined;
+		if (options?.evaluationConfigId) {
+			const config = await this.evaluationConfigRepository.findOneInWorkflow(
+				options.evaluationConfigId,
+				workflowId,
+			);
+			if (!config) {
+				throw new UserError(`Evaluation config ${options.evaluationConfigId} not found`);
+			}
+			// Freeze the config the run executes against — results must
+			// normalize on these metrics even after the live config changes.
+			// Serialized round-trip: a snapshot must not share references with
+			// the live entity.
+			configSnapshot = jsonParse<IDataObject>(
+				JSON.stringify({
+					id: config.id,
+					name: config.name,
+					datasetSource: config.datasetSource,
+					datasetRef: config.datasetRef,
+					startNodeName: config.startNodeName,
+					endNodeName: config.endNodeName,
+					metrics: config.metrics,
+				}),
+			);
+			if (options.compileFromConfig) {
+				workflowToRun = this.workflowCompilerService.compile(workflow, config);
+			}
 		}
 
 		const testRun = await this.testRunRepository.createTestRun(workflowId);
+		if (options?.evaluationConfigId) {
+			await this.testRunRepository.update(testRun.id, {
+				evaluationConfigId: options.evaluationConfigId,
+				evaluationConfigSnapshot: configSnapshot ?? null,
+			});
+		}
 
 		const finished = this.executeTestRun({
 			testRunId: testRun.id,
-			workflowData: workflow,
+			workflowData: workflowToRun,
 			user,
 			concurrency,
 			options,

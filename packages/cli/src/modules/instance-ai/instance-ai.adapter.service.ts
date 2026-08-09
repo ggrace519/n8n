@@ -131,7 +131,7 @@ import { ActiveExecutions } from '@/active-executions';
 import { ConflictError } from '@/errors/response-errors/conflict.error';
 import { CredentialsFinderService } from '@/credentials/credentials-finder.service';
 import { CredentialsService } from '@/credentials/credentials.service';
-import { EvaluationConfigService } from '@/evaluation.ee/evaluation-config.service';
+import { EvaluationConfigService } from '@/evaluation/evaluation-config.service';
 import { LlmJudgeProviderRegistry } from '@/evaluation/llm-judge-provider-registry';
 import { EventService } from '@/events/event.service';
 import { ExecutionPersistence } from '@/executions/execution-persistence';

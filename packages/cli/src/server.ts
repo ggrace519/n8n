@@ -62,7 +62,7 @@ import '@/executions/executions.controller';
 import '@/node-execution/ephemeral-node-executor';
 import '@/license/license.controller';
 import '@/evaluation/test-runs.controller';
-import '@/evaluation.ee/evaluation-config.controller';
+import '@/evaluation/evaluation-config.controller';
 import '@/evaluation.ee/evaluation-collections.controller.ee';
 import '@/evaluation.ee/insights/eval-insights.controller.ee';
 import '@/workflows/workflow-history/workflow-history.controller';

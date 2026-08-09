@@ -519,3 +519,34 @@ compileFromConfig compiler (E13c), collections + insights controllers
 E13c lands. Public-api evaluations spec remains gated by the shared router
 (source-control/saml/oidc/log-streaming handlers still import purged
 modules).
+
+## 2026-08-09 — E13c: evaluation-config service + workflow compiler (`packages/cli`, `@n8n/db`)
+
+**Rebuilt (clean-room):** `@n8n/db` `evaluation-config.repository.ts`
+(findManyByWorkflowId / findOneInWorkflow / existsByName);
+`src/evaluation/evaluation-config.service.ts` (list/get/create/update/delete
+pinned by the instance-ai adapter; validation raising `EvaluationConfigError`
+with the `EvaluationErrorCode` catalog: start/end node existence,
+end-reachable-from-start via `getChildNodes`, duplicate metric ids/names,
+whitespace-only metric inputs); `evaluation-config.controller.ts`
+(GET list route pinned by `@n8n/instance-ai` n8n-client; CRUD alongside;
+workflow-finder-based 404 authorization); `workflow-compiler.service.ts`
+(compiles a config onto a workflow: injects a reserved-prefix Evaluation
+Trigger wired to the config dataset + per-metric Set Metrics nodes after the
+end node, LLM-judge metrics get their chat-model node connected via
+ai_languageModel); `compileFromConfig`/`evaluationConfigId` threaded through
+TestRunnerService (config snapshot frozen onto the run row). Implementation
+of the config repo/service/controller delegated to an n8n:developer
+subagent against the codex contract inventory; verified independently.
+
+**Clean-room sources:** instance-ai adapter + its 179-test suite (service
+contract), `@n8n/instance-ai/evaluations/clients/n8n-client.ts` (route pin),
+api-types evaluation DTOs/schemas/error codes, the fair-code Evaluation node
+descriptions (metric values, parameter names, canned-prompt fallback),
+`n8n-workflow` graph utilities. No `.ee` source read. Dataset-row endpoints
+(`dataset-row.dto.ts`) deliberately NOT rebuilt — no fair-code consumer
+survives to pin their routes.
+
+**Verification:** cli tsc 0 errors in `src/evaluation/**` (125 pre-existing
+elsewhere); internal test-runs spec 28/28; instance-ai adapter suite
+**179/179** (was import-blocked); `@n8n/db` build exit 0; eslint clean.
