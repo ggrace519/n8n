@@ -26,6 +26,7 @@ import {
 	SOURCE_CONTROL_WORKFLOW_EXPORT_FOLDER,
 } from './constants';
 import type { SourceControlContext } from './source-control-context.factory';
+import { assertNotSymlink } from './source-control-helper';
 import type { ExportableCredential } from './types/exportable-credential';
 import type { ExportableDataTable } from './types/exportable-data-table';
 import type { ExportableFolder, FolderExportFile } from './types/exportable-folders';
@@ -131,6 +132,9 @@ export class SourceControlExportService {
 				ownersById.get(credential.id) ?? null,
 			);
 			const filePath = this.getCredentialsPath(credential.id);
+			// A repository-provided symlink at a managed path must never redirect
+			// the write outside the work folder.
+			await assertNotSymlink(filePath);
 			await writeFile(filePath, JSON.stringify(stub, null, 2));
 			files.push(filePath);
 		}
@@ -150,6 +154,7 @@ export class SourceControlExportService {
 
 		const filePath = this.getTagsPath();
 		const fileContent: TagsExportFile = { tags, mappings };
+		await assertNotSymlink(filePath);
 		await writeFile(filePath, JSON.stringify(fileContent, null, 2));
 
 		return { count: tags.length, files: [filePath], missingIds: [] };
@@ -177,6 +182,7 @@ export class SourceControlExportService {
 			}
 			const exportable = this.toExportableWorkflow(workflow, ownersById.get(workflow.id));
 			const filePath = this.getWorkflowPath(workflow.id);
+			await assertNotSymlink(filePath);
 			await writeFile(filePath, JSON.stringify(exportable, null, 2));
 			files.push(filePath);
 		}
@@ -209,6 +215,7 @@ export class SourceControlExportService {
 
 		const filePath = this.getFoldersPath();
 		const fileContent: FolderExportFile = { folders };
+		await assertNotSymlink(filePath);
 		await writeFile(filePath, JSON.stringify(fileContent, null, 2));
 
 		return { count: folders.length, files: [filePath], missingIds: [] };
@@ -243,6 +250,7 @@ export class SourceControlExportService {
 			}
 			const exportable = this.toExportableDataTable(dataTable, emailByProjectId);
 			const filePath = this.getDataTablePath(dataTable.id);
+			await assertNotSymlink(filePath);
 			await writeFile(filePath, JSON.stringify(exportable, null, 2));
 			files.push(filePath);
 		}
@@ -278,6 +286,7 @@ export class SourceControlExportService {
 	private async readTagsFile(): Promise<TagsExportFile> {
 		const fallback: TagsExportFile = { tags: [], mappings: [] };
 		try {
+			await assertNotSymlink(this.getTagsPath());
 			const content = await readFile(this.getTagsPath(), { encoding: 'utf8' });
 			return jsonParse<TagsExportFile>(content, { fallbackValue: fallback });
 		} catch {
@@ -288,6 +297,7 @@ export class SourceControlExportService {
 	private async readFoldersFile(): Promise<FolderExportFile> {
 		const fallback: FolderExportFile = { folders: [] };
 		try {
+			await assertNotSymlink(this.getFoldersPath());
 			const content = await readFile(this.getFoldersPath(), { encoding: 'utf8' });
 			return jsonParse<FolderExportFile>(content, { fallbackValue: fallback });
 		} catch {

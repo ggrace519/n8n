@@ -18,12 +18,13 @@ import glob from 'fast-glob';
 import isEqual from 'lodash/isEqual';
 import { ensureError } from '@n8n/utils/errors/ensure-error';
 import { Cipher, ErrorReporter, InstanceSettings } from 'n8n-core';
-import { jsonParse, UnexpectedError } from 'n8n-workflow';
+import { jsonParse, PROJECT_ROOT, UnexpectedError } from 'n8n-workflow';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
 	SOURCE_CONTROL_CREDENTIAL_EXPORT_FOLDER,
+	SOURCE_CONTROL_FOLDERS_EXPORT_FILE,
 	SOURCE_CONTROL_GIT_FOLDER,
 	SOURCE_CONTROL_TAGS_EXPORT_FILE,
 	SOURCE_CONTROL_WORKFLOW_EXPORT_FOLDER,
@@ -31,9 +32,15 @@ import {
 import type { SourceControlContext } from './source-control-context.factory';
 import { SourceControlContextFactory } from './source-control-context.factory';
 import type { TagsExportFile } from './source-control-export.service';
+import {
+	assertNotSymlink,
+	assertParentWithinFolder,
+	mergeCredentialData,
+} from './source-control-helper';
 import { SourceControlScopedService } from './source-control-scoped.service';
 import type { ExportableCredential } from './types/exportable-credential';
-import type { ExportableFolder } from './types/exportable-folders';
+import type { ExportableDataTable } from './types/exportable-data-table';
+import type { ExportableFolder, FolderExportFile } from './types/exportable-folders';
 import type { RemoteResourceOwner } from './types/resource-owner';
 
 import { ActiveWorkflowManager } from '@/active-workflow-manager';
@@ -82,6 +89,23 @@ export interface SourceControlCredentialListItem {
 }
 
 type RemoteWorkflowFile = Partial<IWorkflowToImport> & { updatedAt?: string };
+
+const DATA_TABLE_COLUMN_TYPES = ['string', 'number', 'boolean', 'date'] as const;
+type DataTableColumnType = (typeof DATA_TABLE_COLUMN_TYPES)[number];
+
+function isDataTableColumnType(value: unknown): value is DataTableColumnType {
+	return (
+		typeof value === 'string' && (DATA_TABLE_COLUMN_TYPES as readonly string[]).includes(value)
+	);
+}
+
+/** Narrow an already-validated column type for DTO construction. */
+function asDataTableColumnType(value: string): DataTableColumnType {
+	if (!isDataTableColumnType(value)) {
+		throw new UnexpectedError(`Invalid data table column type: ${value}`);
+	}
+	return value;
+}
 
 /**
  * Applies the source-control work folder to the local instance: discovery of
@@ -302,6 +326,8 @@ export class SourceControlImportService {
 	async importTagsFromWorkFolder(candidate: SourceControlledFile, user: User): Promise<unknown> {
 		const context = await this.sourceControlContextFactory.createContext(user);
 
+		await assertNotSymlink(candidate.file);
+		await assertParentWithinFolder(candidate.file, this.gitFolder);
 		const tagsFile = jsonParse<TagsExportFile>(
 			(await readFile(candidate.file, { encoding: 'utf8' })).toString(),
 			{ fallbackValue: { tags: [], mappings: [] } },
@@ -365,12 +391,28 @@ export class SourceControlImportService {
 
 		const imported: Array<{ id: string; name: string; type: string }> = [];
 		for (const candidate of candidates) {
+			await assertNotSymlink(candidate.file);
+			await assertParentWithinFolder(candidate.file, this.gitFolder);
 			const credential = jsonParse<ExportableCredential>(
 				(await readFile(candidate.file, { encoding: 'utf8' })).toString(),
 			);
 
 			const ownerProject = await this.findOrCreateOwnerProject(credential.ownedBy, importingUserId);
-			const encryptedData = await cipher.encryptV2(credential.data ?? {});
+
+			// Git only holds sanitized stubs. For an existing credential the local
+			// secrets are the source of truth: merge the stub over the decrypted
+			// local data so blank placeholders (and never-exported fields like
+			// `oauthTokenData`) keep their local values. Only a newly created
+			// credential stores the stub as-is.
+			const existing = await this.credentialsRepository.findOneBy({ id: credential.id });
+			const incomingData = credential.data ?? {};
+			const dataToStore = existing
+				? mergeCredentialData(
+						await this.decryptStoredCredentialData(cipher, existing.data),
+						incomingData,
+					)
+				: incomingData;
+			const encryptedData = await cipher.encryptV2(dataToStore);
 
 			await this.credentialsRepository.upsert(
 				{
@@ -420,6 +462,8 @@ export class SourceControlImportService {
 
 		const imported: Array<{ id: string; name: string }> = [];
 		for (const candidate of candidates) {
+			await assertNotSymlink(candidate.file);
+			await assertParentWithinFolder(candidate.file, this.gitFolder);
 			const workflow = jsonParse<IWorkflowToImport>(
 				(await readFile(candidate.file, { encoding: 'utf8' })).toString(),
 			);
@@ -440,7 +484,22 @@ export class SourceControlImportService {
 				? await this.folderRepository.findOneBy({ id: workflow.parentFolderId })
 				: null;
 
-			const clearActiveState = !existing || existing.isArchived;
+			// A workflow must never persist as archived-but-active, so the decision
+			// is based on the *resulting* archive state: clear when the incoming
+			// file is archived, when the existing row is (even if the incoming file
+			// un-archives it), or on creation.
+			const isArchived = workflow.isArchived ?? existing?.isArchived ?? false;
+			const clearActiveState = !existing || existing.isArchived || isArchived;
+			if (clearActiveState && existing?.active) {
+				// Keep runtime triggers/webhooks in sync with the persisted state.
+				try {
+					await this.activeWorkflowManager.remove(workflow.id);
+				} catch (error) {
+					this.logger.warn(`Failed to deactivate workflow ${workflow.id} during import`, {
+						error: ensureError(error),
+					});
+				}
+			}
 			await this.workflowRepository.save({
 				id: workflow.id,
 				name: workflow.name,
@@ -448,7 +507,7 @@ export class SourceControlImportService {
 				connections: workflow.connections,
 				settings: workflow.settings ?? {},
 				versionId,
-				isArchived: workflow.isArchived ?? existing?.isArchived ?? false,
+				isArchived,
 				nodeGroups: workflow.nodeGroups ?? existing?.nodeGroups ?? [],
 				parentFolder,
 				...(clearActiveState ? { active: false, activeVersionId: null } : {}),
@@ -464,6 +523,245 @@ export class SourceControlImportService {
 			imported.push({ id: workflow.id, name: workflow.name });
 		}
 		return imported;
+	}
+
+	/**
+	 * Applies the remote `folders.json` to the local instance: creates missing
+	 * in-scope folders (preserving their ids) and updates name/parent of
+	 * existing ones. Folders are processed parents-first so a child can attach
+	 * to its just-created parent; folders whose home project does not exist
+	 * locally are skipped (project creation is a resource-import concern).
+	 */
+	async importFoldersFromWorkFolder(user: User): Promise<ExportableFolder[]> {
+		const context = await this.sourceControlContextFactory.createContext(user);
+
+		const matches = await glob(SOURCE_CONTROL_FOLDERS_EXPORT_FILE, {
+			cwd: this.gitFolder,
+			absolute: true,
+		});
+		if (matches.length === 0) return [];
+		const parsed = await this.readJsonFile<FolderExportFile>(matches[0]);
+		const remoteFolders = (parsed?.folders ?? []).filter(
+			(folder) =>
+				Boolean(folder?.id) &&
+				Boolean(folder.homeProjectId) &&
+				context.hasAccessToProject(folder.homeProjectId),
+		);
+
+		const imported: ExportableFolder[] = [];
+		for (const folder of this.sortFoldersParentsFirst(remoteFolders)) {
+			try {
+				const project = await this.projectRepository.findById(folder.homeProjectId);
+				if (!project) {
+					this.logger.warn(
+						`Skipping folder ${folder.id}: home project ${folder.homeProjectId} does not exist locally`,
+					);
+					continue;
+				}
+
+				const [existingLocal] = await this.folderService.getFoldersByIds([folder.id]);
+				const parentExistsLocally = folder.parentFolderId
+					? (await this.folderService.getFoldersByIds([folder.parentFolderId])).length > 0
+					: false;
+
+				if (!existingLocal) {
+					await this.folderService.createFolder(
+						{
+							name: folder.name,
+							...(parentExistsLocally && folder.parentFolderId
+								? { parentFolderId: folder.parentFolderId }
+								: {}),
+						},
+						folder.homeProjectId,
+						folder.id,
+					);
+				} else {
+					await this.folderService.updateFolder(folder.id, existingLocal.homeProject.id, {
+						name: folder.name,
+						parentFolderId:
+							parentExistsLocally && folder.parentFolderId ? folder.parentFolderId : PROJECT_ROOT,
+					});
+				}
+				imported.push(folder);
+			} catch (error) {
+				this.logger.warn(`Failed to import folder ${folder.id}`, { error: ensureError(error) });
+			}
+		}
+		return imported;
+	}
+
+	/**
+	 * Applies remote data-table files: creates missing tables (preserving their
+	 * ids) and reconciles name and columns of existing ones. Columns are
+	 * matched by name; a type change is applied as remove-and-recreate. Import
+	 * is best-effort per table — one broken file must not abort the pull.
+	 */
+	async importDataTablesFromWorkFolder(
+		candidates: SourceControlledFile[],
+		importingUserId: string,
+	): Promise<Array<{ id: string; name: string }>> {
+		const imported: Array<{ id: string; name: string }> = [];
+		for (const candidate of candidates) {
+			try {
+				const parsed = await this.readJsonFile<ExportableDataTable>(candidate.file);
+				if (!parsed?.id || !parsed.name) continue;
+
+				const remoteColumns = (parsed.columns ?? []).filter(
+					(column) => Boolean(column?.name) && isDataTableColumnType(column.type),
+				);
+
+				const [existing] = await this.dataTableService.findDataTablesByIds([parsed.id]);
+				if (!existing) {
+					const ownerProject = await this.findOrCreateOwnerProject(
+						parsed.ownedBy ?? null,
+						importingUserId,
+					);
+					await this.dataTableService.createDataTable(
+						ownerProject.id,
+						{
+							name: parsed.name,
+							columns: [...remoteColumns]
+								.sort((a, b) => a.index - b.index)
+								.map(({ name, type, index }) => ({
+									name,
+									type: asDataTableColumnType(type),
+									index,
+								})),
+						},
+						parsed.id,
+					);
+				} else {
+					const projectId = existing.projectId;
+					if (existing.name !== parsed.name) {
+						await this.dataTableService.updateDataTable(parsed.id, projectId, {
+							name: parsed.name,
+						});
+					}
+					const localColumns = existing.columns ?? [];
+					const remoteByName = new Map(remoteColumns.map((column) => [column.name, column]));
+					for (const localColumn of localColumns) {
+						const remoteColumn = remoteByName.get(localColumn.name);
+						if (!remoteColumn) {
+							await this.dataTableService.deleteColumn(parsed.id, projectId, localColumn.id);
+						} else if (remoteColumn.type !== localColumn.type) {
+							await this.dataTableService.deleteColumn(parsed.id, projectId, localColumn.id);
+							await this.dataTableService.addColumn(parsed.id, projectId, {
+								name: remoteColumn.name,
+								type: asDataTableColumnType(remoteColumn.type),
+								index: remoteColumn.index,
+							});
+						}
+					}
+					for (const remoteColumn of remoteColumns) {
+						if (!localColumns.some((localColumn) => localColumn.name === remoteColumn.name)) {
+							await this.dataTableService.addColumn(parsed.id, projectId, {
+								name: remoteColumn.name,
+								type: asDataTableColumnType(remoteColumn.type),
+								index: remoteColumn.index,
+							});
+						}
+					}
+				}
+				imported.push({ id: parsed.id, name: parsed.name });
+			} catch (error) {
+				this.logger.warn(`Failed to import data table ${candidate.id}`, {
+					error: ensureError(error),
+				});
+			}
+		}
+		return imported;
+	}
+
+	/**
+	 * Deletes local workflows that a pull reported as removed from the remote.
+	 * Deletion runs through the workflow service so triggers are torn down and
+	 * lifecycle hooks fire; a failure (e.g. a still-published workflow) skips
+	 * that workflow instead of aborting the pull.
+	 */
+	async deleteWorkflowsRemovedFromRemote(
+		user: User,
+		candidates: SourceControlledFile[],
+	): Promise<void> {
+		for (const candidate of candidates) {
+			try {
+				await this.workflowService.delete(user, candidate.id, true);
+			} catch (error) {
+				this.logger.warn(`Failed to delete workflow ${candidate.id} during pull`, {
+					error: ensureError(error),
+				});
+			}
+		}
+	}
+
+	/** Deletes local credentials that a pull reported as removed from the remote. */
+	async deleteCredentialsRemovedFromRemote(
+		user: User,
+		candidates: SourceControlledFile[],
+	): Promise<void> {
+		for (const candidate of candidates) {
+			try {
+				await this.credentialsService.delete(user, candidate.id);
+			} catch (error) {
+				this.logger.warn(`Failed to delete credential ${candidate.id} during pull`, {
+					error: ensureError(error),
+				});
+			}
+		}
+	}
+
+	/** Deletes local folders that a pull reported as removed from the remote. */
+	async deleteFoldersRemovedFromRemote(
+		user: User,
+		candidates: SourceControlledFile[],
+	): Promise<void> {
+		for (const candidate of candidates) {
+			try {
+				const [folder] = await this.folderService.getFoldersByIds([candidate.id]);
+				if (!folder) continue;
+				await this.folderService.deleteFolder(user, folder.id, folder.homeProject.id, {});
+			} catch (error) {
+				this.logger.warn(`Failed to delete folder ${candidate.id} during pull`, {
+					error: ensureError(error),
+				});
+			}
+		}
+	}
+
+	/** Deletes local data tables that a pull reported as removed from the remote. */
+	async deleteDataTablesRemovedFromRemote(candidates: SourceControlledFile[]): Promise<void> {
+		for (const candidate of candidates) {
+			try {
+				const [existing] = await this.dataTableService.findDataTablesByIds([candidate.id]);
+				if (!existing) continue;
+				await this.dataTableService.deleteDataTable(existing.id, existing.projectId);
+			} catch (error) {
+				this.logger.warn(`Failed to delete data table ${candidate.id} during pull`, {
+					error: ensureError(error),
+				});
+			}
+		}
+	}
+
+	/** Orders folders so every parent precedes its children; cycles and unknown parents break to root level. */
+	private sortFoldersParentsFirst(folders: ExportableFolder[]): ExportableFolder[] {
+		const remaining = new Map(folders.map((folder) => [folder.id, folder]));
+		const sorted: ExportableFolder[] = [];
+		let progressed = true;
+		while (remaining.size > 0 && progressed) {
+			progressed = false;
+			for (const [id, folder] of remaining) {
+				const parentPending = folder.parentFolderId && remaining.has(folder.parentFolderId);
+				if (!parentPending) {
+					sorted.push(folder);
+					remaining.delete(id);
+					progressed = true;
+				}
+			}
+		}
+		// Any leftovers form a parent cycle; import them anyway (parent linking
+		// falls back to root when the parent is missing locally).
+		sorted.push(...remaining.values());
+		return sorted;
 	}
 
 	// ----------------------------------
@@ -597,7 +895,16 @@ export class SourceControlImportService {
 	): Promise<Project> {
 		if (owner && typeof owner === 'object' && owner.type === 'team') {
 			const existing = await this.projectRepository.findById(owner.teamId);
-			if (existing) return existing;
+			if (existing) {
+				// A serialized team id must only ever resolve to a team project. On
+				// an id collision with e.g. a personal project, fall back to the
+				// importing user instead of exposing the resource to that project.
+				if (existing.type === 'team') return existing;
+				this.logger.warn(
+					`Serialized team owner ${owner.teamId} collides with a local non-team project; falling back to the importing user`,
+				);
+				return await this.projectRepository.getPersonalProjectForUserOrFail(importingUserId);
+			}
 			return await this.projectRepository.save(
 				this.projectRepository.create({
 					id: owner.teamId,
@@ -634,8 +941,28 @@ export class SourceControlImportService {
 		};
 	}
 
+	/**
+	 * Decrypt a locally stored credential payload for merging. Any failure
+	 * (foreign encryption key, corrupted row) yields `{}` so the import falls
+	 * back to storing the incoming stub as-is.
+	 */
+	private async decryptStoredCredentialData(
+		cipher: Cipher,
+		encryptedData: string,
+	): Promise<Record<string, unknown>> {
+		try {
+			const decrypted = await cipher.decryptV2(encryptedData);
+			const parsed = jsonParse<Record<string, unknown> | null>(decrypted, { fallbackValue: null });
+			return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+		} catch {
+			return {};
+		}
+	}
+
 	private async readJsonFile<T>(filePath: string): Promise<T | null> {
 		try {
+			await assertNotSymlink(filePath);
+			await assertParentWithinFolder(filePath, this.gitFolder);
 			const content = (await readFile(filePath, { encoding: 'utf8' })).toString();
 			return jsonParse<T | null>(content, { fallbackValue: null });
 		} catch (e) {

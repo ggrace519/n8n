@@ -781,3 +781,97 @@ but 6/9 tests fail on a pre-existing repo-wide public-api breakage: the
 log-streaming handler still imports the not-yet-rebuilt `log-streaming.ee`
 module (E9), which breaks handler resolution for all public-api routes
 (untouched `tags.test.ts` fails identically).
+
+## 2026-08-09 — E3 hardening (adversarial review) (`packages/cli`)
+
+Hardened the rebuilt source-control subsystem against the 14-finding
+adversarial review, without changing any behavior the five environment specs
+pin.
+
+**Fixed (finding → change):**
+
+- **#1 Push trusted client payloads** — `pushWorkfolder` now treats the
+  request's `fileNames` as `{type,id}` *selections* only: it regenerates a
+  fresh scoped status server-side, maps each selection onto it, and rejects
+  (403) any selection absent from that status. All statuses, owners, and
+  filesystem paths come from the server-side entries; project files are
+  written at the canonical `projects/<id>.json` path with an id-charset guard.
+- **#2 Symlink traversal** — added `assertNotSymlink` (lstat) and
+  `assertParentWithinFolder` (realpath containment) guards on every managed
+  read/write: import candidate reads, discovery reads, export writes,
+  aggregate-file reads, and `remote-content` reads. Guards are tolerant of
+  missing files/dirs so they are inert under the specs' fs mocks.
+- **#3 Credential pull blanked secrets** — importing an *existing* credential
+  now decrypts the local data and merges the incoming stub over it
+  (`mergeCredentialData`): blank-string placeholders and never-exported keys
+  (`oauthTokenData`) keep their local values; non-blank strings, numbers, and
+  booleans are applied. Only newly created credentials store the stub as-is.
+- **#4 Pull completeness** — `pullWorkfolder` now dispatches on the full
+  status: imports folders (new `importFoldersFromWorkFolder`, id-preserving,
+  parents-first) and data tables (new `importDataTablesFromWorkFolder`,
+  id-preserving creation via `DataTableService`, name-keyed column
+  reconciliation), then applies remote deletions for workflows, credentials,
+  folders, and data tables through the respective services (new
+  `delete*RemovedFromRemote` methods, best-effort per resource). A `created`
+  tags entry (remote `tags.json` missing) is skipped instead of read.
+  409/force semantics unchanged.
+- **#5 Archived/active** — workflow import bases active-state clearing on the
+  *resulting* archive state (incoming `isArchived: true` now clears
+  `active`/`activeVersionId`) and routes deactivation of a previously active
+  workflow through the injected `ActiveWorkflowManager.remove()` so runtime
+  triggers stay in sync (failure is logged, not fatal).
+- **#6 Operation lock** — added an in-process promise-chain mutex in
+  `SourceControlService` serializing status-with-reset, push, pull, connect,
+  disconnect, and reset-workfolder. Cluster-wide (multi-main) locking remains
+  a documented follow-up.
+- **#7 Fail-closed sync** — pull now performs its own fetch + hard reset +
+  managed-path `git clean` and propagates failures (`OperationalError`)
+  instead of importing stale content; connect verifies the remote (fetch must
+  succeed, a configured branch must exist on a non-empty remote) before
+  persisting `connected: true`; reset-workfolder and the status-side reset
+  also clean untracked managed files (new `cleanManagedPaths`, scoped to
+  `SOURCE_CONTROL_MANAGED_PATHS`). Status computation itself stays tolerant of
+  offline remotes, as pinned.
+- **#9 Owner type check** — a serialized team owner resolving to an existing
+  *non-team* project by id collision now falls back to the importing user's
+  personal project instead of attaching to the colliding project.
+- **#11 Remote-content authz** — `getRemoteFileEntity` authorizes scoped
+  callers against the remote file's parsed-and-validated serialized owner
+  (team in caller's scope), with local ownership as an additional constraint
+  when the workflow exists locally; caller-controlled ids are restricted to a
+  safe path-segment charset.
+- **#12 GIT_SSH_COMMAND** — key and known_hosts paths are single-quoted with
+  embedded-quote escaping, `-o IdentitiesOnly=yes` added, and the key file is
+  explicitly `chmod 0600` even when it already existed.
+- **#13 Branch validation** — new `isValidGitBranchName` (rejects leading
+  `-`/`.`/`/`, `..`, `.lock` suffixes, trailing `/`/`.`, empty segments,
+  spaces/control chars; still allows nested `a/b`) used by the controller's
+  preference parsing and, as defense in depth, by `SourceControlGitService.setBranch`.
+- **#14 Preferences GET** — the manager read path only triggers lazy key-pair
+  generation when the feature is licensed; unlicensed reads return the stored
+  public key (if any) via the new side-effect-free `getStoredPublicKey`.
+
+**Deferred (documented, not implemented):**
+
+- **#8** numeric/boolean credential leaves are still exported verbatim — the
+  export spec explicitly pins preserving non-string leaves, so this stands as
+  a known limitation until the spec contract changes.
+- **#10** ownership transfer for *existing* workflows on import remains
+  non-destructive (owner is only assigned on creation) — contract open
+  question.
+- Cluster-wide/multi-main operation lock (in-process lock only this pass).
+
+**Clean-room sources:** the E3 review findings list, the E3 contract
+inventory, the five environment specs, and this repo's own fair-code
+(`WorkflowService.delete`, `CredentialsService.delete`, `FolderService`,
+`DataTableService` surfaces). No enterprise source or history was consulted.
+
+**Verification:** environment specs 122/122 (5 files, sqlite, zero assertion
+changes); `main-only-modules.test.ts` 6/6; new unit tests
+`__tests__/source-control-helper.test.ts` 53/53 (branch-name validation,
+path-segment ids, credential-data merge, symlink/containment guards on real
+tmpdirs) and `__tests__/source-control.service.push-selection.test.ts` 4/4
+(forged selection rejected, client paths/statuses replaced by server entries);
+cli `tsc -p tsconfig.build.json` — 0 errors mentioning source-control;
+`eslint src/modules/source-control src/public-api/v1/handlers/source-control
+--quiet` exit 0, no rule disables.

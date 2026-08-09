@@ -13,7 +13,11 @@ import {
 import { hasGlobalScope } from '@n8n/permissions';
 import type { Response } from 'express';
 
-import { getRepoType } from './source-control-helper';
+import {
+	getRepoType,
+	isSourceControlLicensed,
+	isValidGitBranchName,
+} from './source-control-helper';
 import { SourceControlPreferencesService } from './source-control-preferences.service';
 import { SourceControlScopedService } from './source-control-scoped.service';
 import type { SourceControlKeyGeneratorType } from './source-control.service';
@@ -23,9 +27,6 @@ import type { SourceControlPreferences } from './types/source-control-preference
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { EventService } from '@/events/event.service';
-
-/** Branch names may nest (`team/feature`) but must stay plain ref segments. */
-const BRANCH_NAME_REGEX = /^[A-Za-z0-9._\-/]+$/;
 
 type PreferencesRequestBody = Partial<
 	Pick<
@@ -60,8 +61,14 @@ export class SourceControlController {
 		const preferences = this.sourceControlPreferencesService.getPreferences();
 
 		if (hasGlobalScope(req.user, 'sourceControl:manage')) {
-			const publicKey = await this.sourceControlService.getPublicKey();
-			return { ...preferences, publicKey };
+			// Reads must stay side-effect-free on unlicensed instances: only a
+			// licensed manager may trigger the lazy key-pair generation.
+			if (isSourceControlLicensed()) {
+				const publicKey = await this.sourceControlService.getPublicKey();
+				return { ...preferences, publicKey };
+			}
+			const storedPublicKey = await this.sourceControlService.getStoredPublicKey();
+			return { ...preferences, ...(storedPublicKey ? { publicKey: storedPublicKey } : {}) };
 		}
 
 		const projectIds = await this.sourceControlScopedService.getAuthorizedTeamProjectIds(req.user);
@@ -267,7 +274,7 @@ export class SourceControlController {
 			parsed.repositoryUrl = raw.repositoryUrl;
 		}
 		if (raw.branchName !== undefined) {
-			if (typeof raw.branchName !== 'string' || !BRANCH_NAME_REGEX.test(raw.branchName)) {
+			if (typeof raw.branchName !== 'string' || !isValidGitBranchName(raw.branchName)) {
 				throw new BadRequestError('branchName must be a valid git branch name');
 			}
 			parsed.branchName = raw.branchName;

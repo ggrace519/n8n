@@ -25,11 +25,28 @@ export const SOURCE_CONTROL_CREDENTIAL_EXPORT_FOLDER = 'credential_stubs';
 
 export const SOURCE_CONTROL_DATATABLES_EXPORT_FOLDER = 'datatables';
 
+export const SOURCE_CONTROL_PROJECT_EXPORT_FOLDER = 'projects';
+
 export const SOURCE_CONTROL_VARIABLES_EXPORT_FILE = 'variable_stubs.json';
 
 export const SOURCE_CONTROL_FOLDERS_EXPORT_FILE = 'folders.json';
 
 export const SOURCE_CONTROL_TAGS_EXPORT_FILE = 'tags.json';
+
+/**
+ * Every path inside the work folder that source control manages — the scope
+ * for cleaning untracked leftovers without touching foreign files a user may
+ * have placed next to them.
+ */
+export const SOURCE_CONTROL_MANAGED_PATHS: readonly string[] = [
+	SOURCE_CONTROL_WORKFLOW_EXPORT_FOLDER,
+	SOURCE_CONTROL_CREDENTIAL_EXPORT_FOLDER,
+	SOURCE_CONTROL_DATATABLES_EXPORT_FOLDER,
+	SOURCE_CONTROL_PROJECT_EXPORT_FOLDER,
+	SOURCE_CONTROL_VARIABLES_EXPORT_FILE,
+	SOURCE_CONTROL_FOLDERS_EXPORT_FILE,
+	SOURCE_CONTROL_TAGS_EXPORT_FILE,
+];
 
 export const SOURCE_CONTROL_DEFAULT_BRANCH = 'main';
 

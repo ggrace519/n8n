@@ -13,6 +13,8 @@ import {
 	SOURCE_CONTROL_DATATABLES_EXPORT_FOLDER,
 	SOURCE_CONTROL_FOLDERS_EXPORT_FILE,
 	SOURCE_CONTROL_GIT_FOLDER,
+	SOURCE_CONTROL_MANAGED_PATHS,
+	SOURCE_CONTROL_PROJECT_EXPORT_FOLDER,
 	SOURCE_CONTROL_TAGS_EXPORT_FILE,
 	SOURCE_CONTROL_WORKFLOW_EXPORT_FOLDER,
 } from './constants';
@@ -56,9 +58,6 @@ interface RemoteWorkflowStatusItem {
 	updatedAt?: string;
 	owner?: RemoteResourceOwner;
 }
-
-/** Folder name inside the work folder holding one JSON file per team project. */
-const SOURCE_CONTROL_PROJECT_EXPORT_FOLDER = 'projects';
 
 /**
  * Computes the difference between the local instance and the source-control
@@ -133,6 +132,9 @@ export class SourceControlStatusService {
 
 	private async resetWorkfolder(): Promise<void> {
 		await this.gitService.resetBranch({ hard: true });
+		// `reset --hard` leaves untracked files (e.g. from an aborted export)
+		// behind; they would show up as phantom remote resources.
+		await this.gitService.cleanManagedPaths([...SOURCE_CONTROL_MANAGED_PATHS]);
 	}
 
 	// ----------------------------------

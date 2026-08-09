@@ -5,7 +5,7 @@ import { Service } from '@n8n/di';
 import { ensureError } from '@n8n/utils/errors/ensure-error';
 import { Cipher } from 'n8n-core';
 import { jsonParse, OperationalError, UnexpectedError, UserError } from 'n8n-workflow';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
 	CommitResult,
@@ -24,7 +24,13 @@ import {
 	SOURCE_CONTROL_SSH_KEY_NAME,
 	SOURCE_CONTROL_SSH_KEYS_DB_KEY,
 } from './constants';
+import { isValidGitBranchName } from './source-control-helper';
 import type { SourceControlPreferences } from './types/source-control-preferences';
+
+/** Quote a path for use inside the shell-parsed `GIT_SSH_COMMAND`. */
+function shellQuote(value: string): string {
+	return `'${value.replaceAll("'", "'\\''")}'`;
+}
 
 interface StoredKeyPair {
 	encryptedPrivateKey: string;
@@ -108,7 +114,10 @@ export class SourceControlGitService {
 		const knownHostsPath = path.join(sshFolder, 'known_hosts');
 		await writeFile(knownHostsPath, '', { encoding: 'utf8', flag: 'a' });
 
-		const sshCommand = `ssh -o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=accept-new -i ${privateKeyPath}`;
+		// Paths are shell-quoted (GIT_SSH_COMMAND is parsed by a shell) and
+		// IdentitiesOnly pins authentication to the instance key so agent keys
+		// can neither be exhausted nor substituted.
+		const sshCommand = `ssh -o UserKnownHostsFile=${shellQuote(knownHostsPath)} -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -i ${shellQuote(privateKeyPath)}`;
 
 		this.getGit().env({ ...process.env, GIT_SSH_COMMAND: sshCommand });
 	}
@@ -127,8 +136,10 @@ export class SourceControlGitService {
 
 		const privateKey = this.cipher.decryptWithInstanceKey(keyPair.encryptedPrivateKey);
 		const privateKeyPath = path.join(sshFolder, SOURCE_CONTROL_SSH_KEY_NAME);
-		// OpenSSH refuses group/world-readable identity files.
+		// OpenSSH refuses group/world-readable identity files. The `mode` option
+		// only applies on creation, so re-tighten an existing file explicitly.
 		await writeFile(privateKeyPath, privateKey, { encoding: 'utf8', mode: 0o600 });
+		await chmod(privateKeyPath, 0o600);
 		return privateKeyPath;
 	}
 
@@ -191,6 +202,11 @@ export class SourceControlGitService {
 
 	/** Check out `branch` (creating a local tracking branch as needed). */
 	async setBranch(branch: string): Promise<{ branches: string[]; currentBranch: string }> {
+		// Defense in depth: the controller validates user input, but nothing that
+		// is not a plain branch name may ever reach `git checkout`.
+		if (!isValidGitBranchName(branch)) {
+			throw new UserError(`Invalid branch name: ${JSON.stringify(branch)}`);
+		}
 		const git = this.getGit();
 		try {
 			await git.checkout(branch);
@@ -289,5 +305,18 @@ export class SourceControlGitService {
 		const git = this.getGit();
 		const target = options.target ?? (await this.getCurrentBranch()).remote;
 		await git.raw(['reset', options.hard === false ? '--soft' : '--hard', target]);
+	}
+
+	/**
+	 * Remove untracked files/directories under the given managed paths —
+	 * leftovers of failed or aborted exports that `reset --hard` cannot touch.
+	 */
+	async cleanManagedPaths(paths: string[]): Promise<void> {
+		if (paths.length === 0) return;
+		try {
+			await this.getGit().raw(['clean', '-f', '-d', '--', ...paths]);
+		} catch (error) {
+			throw new OperationalError(`Failed to clean work folder: ${ensureError(error).message}`);
+		}
 	}
 }
