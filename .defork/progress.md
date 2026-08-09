@@ -852,3 +852,55 @@ fixing PR. feature_list carries `closes_issues` on E11 (#9,#10,#11) and A10
 AGENTS.md's two "**This is a public repository**" claims were false for this
 fork and are corrected — the hygiene practices are kept (upstream is public
 and this fork may be opened later), but the factual claim now matches reality.
+
+## 2026-08-09 — E11 DONE (provisioning + role-mapping engine); 3 issues closed
+
+**WHAT.** Full module: ProvisioningService (init + provisioningConfig), the
+role-mapping evaluation engine, controller, role-mapping-rule service +
+controller, real module registration replacing E3d's placeholder. Both SSO
+deny branches replaced with real evaluation before account mutation.
+
+**HEADLINE.** `saml.api.test.ts` RUNS and passes **69/69** — 0 collected since
+the purge. Getting the last 5 needed two fixes I made myself after the agent
+proved them pre-existing:
+1. `outboundHttp.requests()`/`transport()` default SSRF protection ON,
+   overriding the instance setting (which is OPT-IN by design and whose
+   docstring names discovery endpoints). SAML metadata + OIDC discovery now
+   use `ssrf: config.enabled ? service : 'disabled'` (workflows.controller
+   precedent). NOTE: the OIDC discovery spec passes `ssrf:'disabled'` in its
+   OWN harness, so it never covered the production path — the defect was
+   invisible.
+2. ACS required SAML *enabled*, but a connection test happens BEFORE
+   enabling. New `samlLicensedAndEnabledOrConnectionTestMiddleware` admits
+   licensed + connection-test RelayState (single-use token, never issues a
+   session).
+
+**ENGINE SECURITY.** Expressions run in an isolated V8 (@n8n/expression-runtime
+ExpressionEvaluator + IsolatedVmBridge + ThisSanitizer/PrototypeSanitizer/
+DollarSignValidator), 500ms/16MB (vs 5s/128MB workflow defaults), pool 1,
+lazy + @OnShutdown disposal. Exposed: structuredClone($claims), $provider,
+$oidc.{idToken,userInfo}. Claims JSON-size-capped 128KB, depth 16, BEFORE the
+clone. Boolean result required. Timeout/memory/syntax/security/non-boolean/
+oversized all -> ProvisioningExpressionError(ruleId, class) -> login denied.
+Logs carry rule id + failure class only; a test asserts a secret claim value
+appears in neither message nor serialized error.
+
+**AGENT-FOUND REAL BUGS (fixed).** Project claims split at LAST colon dropped
+every entry (role slugs contain colons) -> first-colon split + unit test.
+buildScopes() read GlobalConfig while policy read the persisted document, so
+enabling a role claim via PATCH never requested its scope -> both read the
+persisted policy.
+
+**ISSUES CLOSED:** #9 (settings key - 3 stale test literals fixed, production
+key proven authoritative), #10 (SSO deny branches removed), #11 (saml.api
+spec runs+passes).
+
+**STILL OPEN:** #7 node-rsa override, #8 tags RBAC (A10).
+
+**NOT VERIFIED (documented).** applyLoginProvisioning isn't one cross-table
+transaction (project relations are atomic; revocations precede grants so an
+interruption can only reduce access). Multi-main pubsub reload only via local
+handler. SQLite only — the staged-negative-range reorder exists for Postgres'
+per-row UNIQUE(type, order) but is unobserved there.
+
+**NEXT.** E12 (my false green - reopened), then E8, E10, E17, E18, A10.
