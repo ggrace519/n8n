@@ -19,7 +19,7 @@ import { STORES } from '@n8n/stores';
 import { useUsersStore } from '@n8n/stores/users.store';
 import { getResourcePermissions } from '@n8n/permissions';
 import type { CreateProjectDto, UpdateProjectDto, SecretProviderConnection } from '@n8n/api-types';
-import { useSourceControlStore } from '@/features/integrations/sourceControl.ee/sourceControl.store';
+import { useSourceControlStore } from '@/features/integrations/sourceControl/sourceControl.store';
 import { hasRole } from '@/app/utils/rbac/checks';
 import { useFavoritesStore } from '@/app/stores/favorites.store';
 
