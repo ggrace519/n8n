@@ -47,7 +47,7 @@ describe('ProvisioningInstanceSettingsLoader', () => {
 
 		expect(settingsRepository.upsert).toHaveBeenCalledWith(
 			{
-				key: 'features.provisioning',
+				key: 'sso.provisioning.config',
 				value: JSON.stringify({
 					scopesProvisionInstanceRole: false,
 					scopesProvisionProjectRoles: false,
@@ -69,7 +69,7 @@ describe('ProvisioningInstanceSettingsLoader', () => {
 
 		expect(settingsRepository.upsert).toHaveBeenCalledWith(
 			{
-				key: 'features.provisioning',
+				key: 'sso.provisioning.config',
 				value: JSON.stringify({
 					scopesProvisionInstanceRole: true,
 					scopesProvisionProjectRoles: false,
@@ -91,7 +91,7 @@ describe('ProvisioningInstanceSettingsLoader', () => {
 
 		expect(settingsRepository.upsert).toHaveBeenCalledWith(
 			{
-				key: 'features.provisioning',
+				key: 'sso.provisioning.config',
 				value: JSON.stringify({
 					scopesProvisionInstanceRole: true,
 					scopesProvisionProjectRoles: true,

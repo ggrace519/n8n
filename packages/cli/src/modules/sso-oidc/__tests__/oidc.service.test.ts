@@ -154,6 +154,17 @@ describe('OidcService', () => {
 		);
 
 		provisioningService.getProvisioningConfig.mockResolvedValue(disabledProvisioningConfig);
+		provisioningService.resolveLoginProvisioning.mockResolvedValue({
+			outcome: 'allow',
+			provider: 'oidc',
+			projectRoles: [],
+			managedProjectIds: [],
+		});
+		provisioningService.applyLoginProvisioning.mockResolvedValue({
+			instanceRoleChanged: false,
+			projectsAdded: 0,
+			projectsRemoved: 0,
+		});
 
 		settingsRepository.findByKey.mockResolvedValue(storedRow(validStoredConfig));
 		cipher.decryptV2.mockResolvedValue('plain-secret');
@@ -351,12 +362,26 @@ describe('OidcService', () => {
 			expect(parsed.searchParams.get('acr_values')).toBe('mfa phrh');
 		});
 
+		// The scope must follow the persisted provisioning policy, the same source
+		// login-time evaluation reads — otherwise enabling a role claim through the
+		// config endpoint would never request the scope that carries it.
 		it('requests the provisioning scope when claim provisioning is enabled', async () => {
-			globalConfig.sso.provisioning.scopesProvisionInstanceRole = true;
+			provisioningService.getProvisioningConfig.mockResolvedValue({
+				...disabledProvisioningConfig,
+				scopesProvisionInstanceRole: true,
+			});
 
 			const url = await service.createAuthorizationUrl(mock<Response>());
 
 			expect(new URL(url).searchParams.get('scope')).toBe('openid profile email n8n');
+		});
+
+		it('does not request the provisioning scope from stale instance config', async () => {
+			globalConfig.sso.provisioning.scopesProvisionInstanceRole = true;
+
+			const url = await service.createAuthorizationUrl(mock<Response>());
+
+			expect(new URL(url).searchParams.get('scope')).toBe('openid profile email');
 		});
 
 		it('rejects when OIDC is not configured', async () => {
@@ -872,14 +897,12 @@ describe('OidcService', () => {
 
 		describe('provisioning policy', () => {
 			it.each([
-				['instance-role claims', { scopesProvisionInstanceRole: true }],
-				['project-role claims', { scopesProvisionProjectRoles: true }],
-				['expression mapping', { scopesUseExpressionMapping: true }],
-				['a default condition', { defaultInstanceRole: 'block:access' }],
-			])('refuses the login while %s is configured', async (_label, overrides) => {
-				provisioningService.getProvisioningConfig.mockResolvedValue({
-					...disabledProvisioningConfig,
-					...overrides,
+				['access is blocked by the policy', 'block-access' as const],
+				['the policy cannot be evaluated', 'evaluation-failed' as const],
+			])('refuses the login when %s', async (_label, reason) => {
+				provisioningService.resolveLoginProvisioning.mockResolvedValue({
+					outcome: 'deny',
+					reason,
 				});
 				mockTokens();
 				mockUserResolution();
@@ -890,9 +913,9 @@ describe('OidcService', () => {
 			});
 
 			it('decides before any account lookup or mutation', async () => {
-				provisioningService.getProvisioningConfig.mockResolvedValue({
-					...disabledProvisioningConfig,
-					scopesUseExpressionMapping: true,
+				provisioningService.resolveLoginProvisioning.mockResolvedValue({
+					outcome: 'deny',
+					reason: 'block-access',
 				});
 				mockTokens();
 
@@ -904,6 +927,34 @@ describe('OidcService', () => {
 				expect(userRepository.findOne).not.toHaveBeenCalled();
 				expect(userRepository.save).not.toHaveBeenCalled();
 				expect(userRepository.createUserWithProject).not.toHaveBeenCalled();
+			});
+
+			it('evaluates the policy against both claims documents', async () => {
+				mockTokens();
+				const user = resolvedUser('user-1');
+				mockIssuerScopedIdentity(user);
+
+				await service.runLoginCallback(callbackRequest(), mock<Response>());
+
+				expect(provisioningService.resolveLoginProvisioning).toHaveBeenCalledWith(
+					expect.objectContaining({
+						provider: 'oidc',
+						providerContext: expect.objectContaining({ provider: 'oidc' }),
+					}),
+				);
+			});
+
+			it('applies the decision to the account the login resolved to', async () => {
+				mockTokens();
+				const user = resolvedUser('user-1');
+				mockIssuerScopedIdentity(user);
+
+				await service.runLoginCallback(callbackRequest(), mock<Response>());
+
+				expect(provisioningService.applyLoginProvisioning).toHaveBeenCalledWith(
+					expect.objectContaining({ id: 'user-1' }),
+					expect.objectContaining({ outcome: 'allow' }),
+				);
 			});
 
 			it('admits the login when no provisioning is configured', async () => {

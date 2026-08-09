@@ -57,6 +57,14 @@ export class UserRepository extends Repository<User> {
 		return await super.update(...args);
 	}
 
+	/**
+	 * Set a user's global role. Used by SSO provisioning, which resolves the
+	 * role from mapping rules rather than from a request payload.
+	 */
+	async updateGlobalRole(userId: string, roleSlug: string): Promise<void> {
+		await super.update({ id: userId }, { role: { slug: roleSlug } });
+	}
+
 	async deleteAllExcept(user: User) {
 		await this.delete({ id: Not(user.id) });
 	}

@@ -9,7 +9,7 @@ import { ALL_ROLES } from '@n8n/permissions';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { License } from '@/license';
-import { ProvisioningRoleDeletionChecker } from '@/modules/provisioning.ee/role-deletion-checker.ee';
+import { ProvisioningRoleDeletionChecker } from '@/modules/provisioning/role-deletion-checker';
 import { ProjectService } from '@/services/project.service';
 import { RoleDeletionCheckProxy } from '@/services/role-deletion-check-proxy.service';
 import { RoleService } from '@/services/role.service';

@@ -1,4 +1,4 @@
-import { createTeamProject, testDb } from '@n8n/backend-test-utils';
+import { createTeamProject, getPersonalProject, testDb } from '@n8n/backend-test-utils';
 import { RoleMappingRuleRepository } from '@n8n/db';
 import type { User } from '@n8n/db';
 import { Container } from '@n8n/di';
@@ -842,5 +842,111 @@ describe('DELETE /role-mapping-rule/:id', () => {
 		const repo = Container.get(RoleMappingRuleRepository);
 		const stored = await repo.findOne({ where: { id: ruleId } });
 		expect(stored).toBeNull();
+	});
+});
+
+// Fields that the pinned cases above never patch: changing the target role must
+// only move the foreign key, and changing the type must leave both order spaces
+// compact. Project rules may only target shared projects.
+describe('role/type/project changes', () => {
+	const instancePayload = {
+		expression: 'claims.group === "admins"',
+		role: 'global:member',
+		type: 'instance' as const,
+		order: 0,
+	};
+
+	const ordersOf = async (type: 'instance' | 'project') => {
+		const rules = await Container.get(RoleMappingRuleRepository).find({
+			where: { type },
+			order: { order: 'ASC' },
+		});
+		return rules.map((rule) => rule.order);
+	};
+
+	it('should repoint a rule at another role without altering the role table', async () => {
+		const created = await ownerAgent.post('/role-mapping-rule').send(instancePayload).expect(200);
+
+		const response = await ownerAgent
+			.patch(`/role-mapping-rule/${created.body.data.id}`)
+			.send({ role: 'global:admin' })
+			.expect(200);
+
+		expect(response.body.data.role).toBe('global:admin');
+
+		const stored = await Container.get(RoleMappingRuleRepository).findOne({
+			where: { id: created.body.data.id },
+			relations: ['role'],
+		});
+		expect(stored?.role.slug).toBe('global:admin');
+
+		const roles = await ownerAgent.get('/roles').expect(200);
+		expect(roles.body.data.global.map((role: { slug: string }) => role.slug)).toEqual(
+			expect.arrayContaining(['global:member', 'global:admin']),
+		);
+	});
+
+	it('should compact both order spaces when a rule changes type', async () => {
+		const teamProject = await createTeamProject(undefined, owner);
+
+		await ownerAgent.post('/role-mapping-rule').send(instancePayload).expect(200);
+		const moving = await ownerAgent
+			.post('/role-mapping-rule')
+			.send({ ...instancePayload, expression: 'claims.b', order: 1 })
+			.expect(200);
+		await ownerAgent
+			.post('/role-mapping-rule')
+			.send({ ...instancePayload, expression: 'claims.c', order: 2 })
+			.expect(200);
+		await ownerAgent
+			.post('/role-mapping-rule')
+			.send({
+				expression: 'claims.existing-project',
+				role: 'project:editor',
+				type: 'project',
+				order: 0,
+				projectIds: [teamProject.id],
+			})
+			.expect(200);
+
+		const response = await ownerAgent
+			.patch(`/role-mapping-rule/${moving.body.data.id}`)
+			.send({ type: 'project', role: 'project:viewer', projectIds: [teamProject.id] })
+			.expect(200);
+
+		expect(response.body.data).toMatchObject({ type: 'project', role: 'project:viewer', order: 1 });
+		expect(response.body.data.projectIds).toEqual([teamProject.id]);
+		expect(await ordersOf('instance')).toEqual([0, 1]);
+		expect(await ordersOf('project')).toEqual([0, 1]);
+	});
+
+	it('should reject a project rule that targets a personal project', async () => {
+		const personalProject = await getPersonalProject(owner);
+
+		const response = await ownerAgent
+			.post('/role-mapping-rule')
+			.send({
+				expression: 'claims.project',
+				role: 'project:editor',
+				type: 'project',
+				order: 0,
+				projectIds: [personalProject.id],
+			})
+			.expect(400);
+
+		expect(response.body.message).toContain('projectIds');
+	});
+
+	it('should reject a project rule that targets an unknown project', async () => {
+		await ownerAgent
+			.post('/role-mapping-rule')
+			.send({
+				expression: 'claims.project',
+				role: 'project:editor',
+				type: 'project',
+				order: 0,
+				projectIds: ['does-not-exist'],
+			})
+			.expect(400);
 	});
 });

@@ -29,7 +29,7 @@ import { v4 as uuid } from 'uuid';
 import { RESPONSE_ERROR_MESSAGES } from '@/constants';
 import { UsersController } from '@/controllers/users.controller';
 import { ExecutionService } from '@/executions/execution.service';
-import { ProvisioningService } from '@/modules/provisioning.ee/provisioning.service.ee';
+import { ProvisioningService } from '@/modules/provisioning/provisioning.service';
 import { OwnershipService } from '@/services/ownership.service';
 import { Telemetry } from '@/telemetry';
 import { createFolder } from '@test-integration/db/folders';
@@ -1740,7 +1740,7 @@ describe('PATCH /users/:id/role', () => {
 
 		beforeEach(async () => {
 			provisioningService = Container.get(ProvisioningService);
-			await provisioningService.getConfig();
+			await provisioningService.getProvisioningConfig();
 			// @ts-expect-error - provisioningConfig is private
 			savedConfig = { ...provisioningService.provisioningConfig };
 		});
