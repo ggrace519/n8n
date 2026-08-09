@@ -466,4 +466,66 @@ describe('saml-validator', () => {
 			expect(result).toBe(false);
 		});
 	});
+
+	describe('single sign-on endpoint scheme', () => {
+		const metadataWithEndpoints = (redirectLocation: string, postLocation?: string) => `<?xml version="1.0" encoding="utf-8"?>
+			<EntityDescriptor ID="_1069c6df-0612-4058-ae4e-1987ca45431b"
+					entityID="https://sts.windows.net/random-issuer/"
+					xmlns="urn:oasis:names:tc:SAML:2.0:metadata">
+					<IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+							<KeyDescriptor use="signing">
+									<KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
+											<X509Data>
+													<X509Certificate>${VALID_CERTIFICATE}</X509Certificate>
+											</X509Data>
+									</KeyInfo>
+							</KeyDescriptor>
+							<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+									Location="${redirectLocation}" />
+							${
+								postLocation
+									? `<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+									Location="${postLocation}" />`
+									: ''
+							}
+					</IDPSSODescriptor>
+			</EntityDescriptor>`;
+
+		test('accepts an https redirect endpoint', async () => {
+			await expect(
+				validator.validateMetadata(metadataWithEndpoints('https://idp.example.com/sso')),
+			).resolves.toBe(true);
+		});
+
+		test('accepts a plain http redirect endpoint on localhost', async () => {
+			await expect(
+				validator.validateMetadata(metadataWithEndpoints('http://localhost:9943/sso')),
+			).resolves.toBe(true);
+		});
+
+		test('rejects a plain http redirect endpoint on a non-loopback host', async () => {
+			await expect(
+				validator.validateMetadata(metadataWithEndpoints('http://idp.example.com/sso')),
+			).rejects.toThrow('must be an https URL');
+		});
+
+		test.each([
+			['javascript:globalThis.x=1//'],
+			['data:text/html,x'],
+			['file:///etc/passwd'],
+			['/relative/sso'],
+		])('rejects a redirect endpoint declared as <%s>', async (location) => {
+			await expect(validator.validateMetadata(metadataWithEndpoints(location))).rejects.toThrow(
+				'must be an https URL',
+			);
+		});
+
+		test('rejects an unsupported scheme on the POST endpoint', async () => {
+			await expect(
+				validator.validateMetadata(
+					metadataWithEndpoints('https://idp.example.com/sso', 'javascript:globalThis.x=1//'),
+				),
+			).rejects.toThrow('must be an https URL');
+		});
+	});
 });

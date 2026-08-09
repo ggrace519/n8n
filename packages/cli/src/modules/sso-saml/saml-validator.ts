@@ -4,6 +4,7 @@ import type { IdentityProviderInstance } from 'samlify';
 import type { XMLFileInfo, XMLLintOptions, XMLValidationResult } from 'xmllint-wasm';
 
 import { InvalidSamlMetadataError } from './errors/invalid-saml-metadata.error';
+import { assertSupportedSamlEndpointUrl } from './saml-endpoint-url';
 
 @Service()
 export class SamlValidator {
@@ -35,6 +36,16 @@ export class SamlValidator {
 		);
 		if (typeof binding !== 'string') {
 			throw new InvalidSamlMetadataError('only SAML redirect binding is supported.');
+		}
+		assertSupportedSamlEndpointUrl(binding, 'single sign-on redirect');
+
+		// The POST endpoint is optional; when the metadata omits it samlify
+		// returns the raw service map instead of a URL string.
+		const postBinding = idp.entityMeta.getSingleSignOnService(
+			this.samlify.Constants.wording.binding.post,
+		);
+		if (typeof postBinding === 'string') {
+			assertSupportedSamlEndpointUrl(postBinding, 'single sign-on POST');
 		}
 	}
 

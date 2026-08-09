@@ -4,12 +4,20 @@ import { Logger } from '@n8n/backend-common';
 import { OutboundHttp } from '@n8n/backend-network';
 import { GlobalConfig } from '@n8n/config';
 import type { User } from '@n8n/db';
-import { AuthIdentity, AuthIdentityRepository, SettingsRepository, UserRepository } from '@n8n/db';
+import {
+	AuthIdentity,
+	AuthIdentityRepository,
+	GLOBAL_ADMIN_ROLE,
+	GLOBAL_OWNER_ROLE,
+	SettingsRepository,
+	UserRepository,
+} from '@n8n/db';
 import { Service } from '@n8n/di';
 import { isEmail } from 'class-validator';
 import type { CookieOptions, Response } from 'express';
 import { Cipher } from 'n8n-core';
 import { randomString } from 'n8n-workflow';
+import { createHash } from 'node:crypto';
 import type * as oidcClient from 'openid-client';
 import { z } from 'zod';
 
@@ -17,6 +25,7 @@ import { AuthService } from '@/auth/auth.service';
 import { AuthError } from '@/errors/response-errors/auth.error';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
+import { ProvisioningService } from '@/modules/provisioning/provisioning.service';
 import type { AuthlessRequest } from '@/requests';
 import { PasswordUtility } from '@/services/password.utility';
 import { UrlService } from '@/services/url.service';
@@ -78,6 +87,39 @@ const storedConfigSchema = z.object({
 
 type StoredOidcConfig = z.infer<typeof storedConfigSchema>;
 
+/**
+ * Global roles that administer the instance. An external identity is never
+ * attached to an account holding one of these by matching its email alone.
+ */
+const PRIVILEGED_GLOBAL_ROLE_SLUGS: ReadonlySet<string> = new Set([
+	GLOBAL_OWNER_ROLE.slug,
+	GLOBAL_ADMIN_ROLE.slug,
+]);
+
+/**
+ * Single message for every login refusal that depends on which account the
+ * provider named, so the response carries nothing about that account. The
+ * reason is recorded in the log instead.
+ */
+const GENERIC_LOGIN_FAILURE = 'OIDC login failed';
+
+/** Version tag of the `AuthIdentity.providerId` encoding produced below. */
+const OIDC_PROVIDER_ID_PREFIX = 'oidc:v1:';
+
+/**
+ * Identity attributes taken from a single claims document, together with the
+ * document they came from.
+ */
+type ResolvedOidcIdentity = {
+	sub: string;
+	issuer: string;
+	email: string;
+	emailVerified: boolean;
+	firstName?: string;
+	lastName?: string;
+	claimSource: 'userinfo' | 'id_token';
+};
+
 @Service()
 export class OidcService {
 	/**
@@ -103,6 +145,7 @@ export class OidcService {
 		private readonly urlService: UrlService,
 		private readonly authService: AuthService,
 		private readonly passwordUtility: PasswordUtility,
+		private readonly provisioningService: ProvisioningService,
 	) {}
 
 	async init(): Promise<void> {
@@ -544,58 +587,149 @@ export class OidcService {
 	// ----------------------------------
 
 	/**
-	 * Maps the provider identity to an n8n user: by OIDC identity (`sub`) first,
-	 * then by email (attaching the identity), then just-in-time creation.
+	 * Reads the identity attributes that decide which account a login resolves
+	 * to. `email` and `email_verified` always come from the same claims
+	 * document: UserInfo when it carries an email, the ID token otherwise. A
+	 * verification flag is never combined with an email from the other
+	 * document, and the two documents must agree wherever both speak.
 	 */
-	private async resolveSignInUser(
+	private resolveIdentityClaims(
 		claims: oidcClient.IDToken,
 		userInfo: oidcClient.UserInfoResponse,
-	): Promise<User> {
-		const config = await this.loadConfig();
+	): ResolvedOidcIdentity {
+		const issuer = this.pickString(claims.iss);
+		if (!issuer) {
+			throw new AuthError('Invalid OIDC callback: the ID token has no issuer');
+		}
 
-		// UserInfo is the canonical attribute source; the ID token is the fallback.
-		const email = this.pickString(userInfo.email) ?? this.pickString(claims.email);
+		// `client.fetchUserInfo` is called with the ID token's subject as its
+		// expected subject and rejects a mismatch, so this repeats the library's
+		// own guarantee rather than replacing it.
+		const userInfoSub = this.pickString(userInfo.sub);
+		if (userInfoSub && userInfoSub !== claims.sub) {
+			throw new AuthError('OIDC login failed: the provider returned conflicting subjects');
+		}
+
+		const userInfoEmail = this.pickString(userInfo.email);
+		const idTokenEmail = this.pickString(claims.email);
+		if (
+			userInfoEmail &&
+			idTokenEmail &&
+			userInfoEmail.toLowerCase() !== idTokenEmail.toLowerCase()
+		) {
+			throw new AuthError('OIDC login failed: the provider returned conflicting email addresses');
+		}
+
+		const claimSource = userInfoEmail ? 'userinfo' : 'id_token';
+		const email = userInfoEmail ?? idTokenEmail;
 		if (!email) {
 			throw new AuthError('OIDC login failed: the provider did not return an email address');
 		}
 		if (!isEmail(email)) {
 			throw new BadRequestError('Invalid email format');
 		}
-		if (config.emailVerifiedRequired) {
-			const emailVerified = userInfo.email_verified ?? claims.email_verified;
-			if (emailVerified !== true) {
-				throw new ForbiddenError(
-					'OIDC login rejected: the provider did not report the email address as verified',
-				);
-			}
+
+		const verifiedFlag =
+			claimSource === 'userinfo' ? userInfo.email_verified : claims.email_verified;
+
+		return {
+			sub: claims.sub,
+			issuer,
+			email,
+			emailVerified: verifiedFlag === true,
+			// Display names are not identity-deciding, so the usual preference applies.
+			firstName: this.pickString(userInfo.given_name) ?? this.pickString(claims.given_name),
+			lastName: this.pickString(userInfo.family_name) ?? this.pickString(claims.family_name),
+			claimSource,
+		};
+	}
+
+	/**
+	 * Stable `AuthIdentity.providerId` for an OIDC subject. Subjects are unique
+	 * only within their issuer, so both values are folded into one digest: the
+	 * column holds a single string, and a digest keeps the value inside its
+	 * 255-character limit and free of delimiter ambiguity for any issuer or
+	 * subject length. The subject itself stays readable in provider logs.
+	 */
+	private oidcProviderId(issuer: string, sub: string): string {
+		// The issuer digest is fixed-length, so concatenating it with the
+		// subject is unambiguous without a separator character.
+		const issuerDigest = createHash('sha256').update(issuer).digest('hex');
+		const digest = createHash('sha256')
+			.update(issuerDigest + sub)
+			.digest('base64url');
+		return `${OIDC_PROVIDER_ID_PREFIX}${digest}`;
+	}
+
+	/**
+	 * Refuses the login while role provisioning is configured. Rule evaluation
+	 * (ordered mapping rules, `block:access`, default condition, project
+	 * reconciliation) is not part of this build, and a configured policy that
+	 * cannot be evaluated must not be treated as "no policy". Runs before any
+	 * account lookup, so no mutation can precede the decision.
+	 */
+	private async assertProvisioningPolicyIsEvaluable(): Promise<void> {
+		const provisioning = await this.provisioningService.getProvisioningConfig();
+		const isConfigured =
+			provisioning.scopesProvisionInstanceRole ||
+			provisioning.scopesProvisionProjectRoles ||
+			provisioning.scopesUseExpressionMapping ||
+			provisioning.defaultInstanceRole !== undefined;
+		if (!isConfigured) return;
+
+		this.logger.warn(
+			'OIDC login refused: role provisioning is configured but rule evaluation is unavailable',
+		);
+		throw new AuthError(GENERIC_LOGIN_FAILURE);
+	}
+
+	/**
+	 * Maps the provider identity to an n8n user: by issuer-scoped OIDC identity
+	 * first, then by a legacy subject-only identity, then by email, then
+	 * just-in-time creation.
+	 */
+	private async resolveSignInUser(
+		claims: oidcClient.IDToken,
+		userInfo: oidcClient.UserInfoResponse,
+	): Promise<User> {
+		await this.assertProvisioningPolicyIsEvaluable();
+
+		const config = await this.loadConfig();
+		const identity = this.resolveIdentityClaims(claims, userInfo);
+
+		if (config.emailVerifiedRequired && !identity.emailVerified) {
+			throw new ForbiddenError(
+				'OIDC login rejected: the provider did not report the email address as verified',
+			);
 		}
 
-		const firstName = this.pickString(userInfo.given_name) ?? this.pickString(claims.given_name);
-		const lastName = this.pickString(userInfo.family_name) ?? this.pickString(claims.family_name);
-		const sub = claims.sub;
-
-		const identity = await this.authIdentityRepository.findOne({
-			where: { providerId: sub, providerType: 'oidc' },
+		const providerId = this.oidcProviderId(identity.issuer, identity.sub);
+		const known = await this.authIdentityRepository.findOne({
+			where: { providerId, providerType: 'oidc' },
 			relations: { user: { role: true } },
 		});
-		if (identity?.user) {
-			return await this.updateUserNames(identity.user, firstName, lastName);
+		if (known?.user) {
+			return await this.updateUserNames(known.user, identity);
 		}
 
+		const adopted = await this.adoptLegacyIdentity(providerId, identity);
+		if (adopted) return await this.updateUserNames(adopted, identity);
+
 		const existingUser = await this.userRepository.findOne({
-			where: { email: email.toLowerCase() },
+			where: { email: identity.email.toLowerCase() },
 			relations: ['role', 'authIdentities'],
 		});
 		if (existingUser) {
+			this.assertAccountMayBeLinked(existingUser, identity);
 			await this.authIdentityRepository.save(
 				this.authIdentityRepository.create({
-					providerId: sub,
+					providerId,
 					providerType: 'oidc',
 					userId: existingUser.id,
 				}),
 				{ transaction: false },
 			);
-			return await this.updateUserNames(existingUser, firstName, lastName);
+			return await this.updateUserNames(existingUser, identity);
 		}
 
 		if (!this.globalConfig.sso.justInTimeProvisioning) {
@@ -603,13 +737,94 @@ export class OidcService {
 				'OIDC login failed: no account exists for this identity and just-in-time provisioning is disabled',
 			);
 		}
-		return await this.createUser({ email, firstName, lastName, sub });
+		return await this.createUser(providerId, identity);
+	}
+
+	/**
+	 * Identities provisioned before subjects were issuer-scoped are stored under
+	 * the bare subject. Such a row is re-keyed to the issuer-scoped value on the
+	 * next login that also presents the account's stored email — the pair the
+	 * row was created from. A row whose email no longer matches is left
+	 * untouched and resolution continues along the email path, so a subject
+	 * collision at a different issuer cannot inherit it.
+	 *
+	 * A subject-only row records no issuer, so the stored email is the only
+	 * thing tying it to this provider. It therefore carries the same conditions
+	 * as an email match: the address must be reported as verified, and an
+	 * account with a privileged global role is not resolved this way.
+	 */
+	private async adoptLegacyIdentity(
+		providerId: string,
+		identity: ResolvedOidcIdentity,
+	): Promise<User | undefined> {
+		const legacy = await this.authIdentityRepository.findOne({
+			where: { providerId: identity.sub, providerType: 'oidc' },
+			relations: { user: { role: true } },
+		});
+		if (!legacy?.user) return undefined;
+
+		if (legacy.user.email?.toLowerCase() !== identity.email.toLowerCase()) {
+			this.logger.warn(
+				'OIDC login did not re-key a subject-only identity: the stored account email differs',
+				{ userId: legacy.user.id },
+			);
+			return undefined;
+		}
+
+		if (!identity.emailVerified) {
+			this.logger.warn(
+				'OIDC login refused: a subject-only identity needs a verified email address to be re-keyed',
+				{ userId: legacy.user.id, claimSource: identity.claimSource },
+			);
+			throw new AuthError(GENERIC_LOGIN_FAILURE);
+		}
+
+		if (PRIVILEGED_GLOBAL_ROLE_SLUGS.has(legacy.user.role?.slug)) {
+			this.logger.warn(
+				'OIDC login refused: a subject-only identity cannot be re-keyed onto an account with a privileged global role',
+				{ userId: legacy.user.id, role: legacy.user.role.slug },
+			);
+			throw new AuthError(GENERIC_LOGIN_FAILURE);
+		}
+
+		await this.authIdentityRepository.update(
+			{ providerId: identity.sub, providerType: 'oidc' },
+			{ providerId },
+		);
+		return legacy.user;
+	}
+
+	/**
+	 * Guards the email-matching path. An address is only trusted to name an
+	 * existing account when the provider reports it as verified, independently
+	 * of `emailVerifiedRequired`, and an account that administers the instance
+	 * is never given a first external identity this way.
+	 */
+	private assertAccountMayBeLinked(existingUser: User, identity: ResolvedOidcIdentity): void {
+		// Verification is checked first, so an unverified address targeting a
+		// privileged account is logged under the unverified reason.
+		if (!identity.emailVerified) {
+			this.logger.warn(
+				'OIDC login refused: an unverified email address cannot resolve to an existing account',
+				{ userId: existingUser.id, claimSource: identity.claimSource },
+			);
+			throw new AuthError(GENERIC_LOGIN_FAILURE);
+		}
+
+		const hasOidcIdentity =
+			existingUser.authIdentities?.some((row) => row.providerType === 'oidc') ?? false;
+		if (!hasOidcIdentity && PRIVILEGED_GLOBAL_ROLE_SLUGS.has(existingUser.role?.slug)) {
+			this.logger.warn(
+				'OIDC login refused: an account with a privileged global role has no OIDC identity to match',
+				{ userId: existingUser.id, role: existingUser.role.slug },
+			);
+			throw new AuthError(GENERIC_LOGIN_FAILURE);
+		}
 	}
 
 	private async updateUserNames(
 		user: User,
-		firstName: string | undefined,
-		lastName: string | undefined,
+		{ firstName, lastName }: Pick<ResolvedOidcIdentity, 'firstName' | 'lastName'>,
 	): Promise<User> {
 		if ((!firstName || user.firstName === firstName) && (!lastName || user.lastName === lastName)) {
 			return user;
@@ -627,17 +842,10 @@ export class OidcService {
 		return userWithRole;
 	}
 
-	private async createUser({
-		email,
-		firstName,
-		lastName,
-		sub,
-	}: {
-		email: string;
-		firstName?: string;
-		lastName?: string;
-		sub: string;
-	}): Promise<User> {
+	private async createUser(
+		providerId: string,
+		{ email, firstName, lastName }: ResolvedOidcIdentity,
+	): Promise<User> {
 		// A password that is not used or known to the user.
 		const randomPassword = randomString(18);
 		return await this.userRepository.manager.transaction(async (trx) => {
@@ -654,7 +862,7 @@ export class OidcService {
 
 			await trx.save(
 				trx.create(AuthIdentity, {
-					providerId: sub,
+					providerId,
 					providerType: 'oidc',
 					userId: user.id,
 				}),

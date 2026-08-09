@@ -83,9 +83,9 @@ export class SamlController {
 
 	/** Login initiation: IdP redirect URL, or a self-submitting form for the POST binding. */
 	@Get('/initsso', { skipAuth: true, middlewares: [samlLicensedAndEnabledMiddleware] })
-	async initSsoGet(req: AuthlessRequest<{}, {}, {}, { redirect?: string }>) {
+	async initSsoGet(req: AuthlessRequest<{}, {}, {}, { redirect?: string }>, res: express.Response) {
 		const redirect = typeof req.query.redirect === 'string' ? req.query.redirect : '';
-		return await this.samlService.getLoginRequest(this.toSafeLocalPath(redirect));
+		return await this.samlService.getLoginRequest(this.toSafeLocalPath(redirect), res);
 	}
 
 	@Get('/acs', {
@@ -108,6 +108,8 @@ export class SamlController {
 
 	private async handleAcs(req: AuthlessRequest, res: express.Response, binding: SamlLoginBinding) {
 		const relayState = this.getRelayState(req, binding);
+		// the login flow ends here either way, so the flow cookie is spent
+		this.samlService.clearFlowCookie(res);
 
 		// A connection test always renders a result page with HTTP 200, even on failure.
 		if (isConnectionTestRequest({ RelayState: relayState })) {

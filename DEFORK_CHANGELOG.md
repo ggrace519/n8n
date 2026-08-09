@@ -16,6 +16,245 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-09 — E5 hardening: SAML assertion binding, flow state and provisioning policy
+
+Review follow-up on the rebuilt SAML backend
+(`packages/cli/src/modules/sso-saml/`). Behavioural changes only; no schema or
+migration.
+
+**Added — an authenticated response is now checked against this service
+provider.** After `parseLoginResponse`, `saml-response-validation.ts` reads the
+assertion that the signature verification authenticated and requires: exactly
+one `SubjectConfirmation`, using the bearer method, carrying confirmation data;
+an `Audience` equal to our entity ID; a `Recipient` equal to our assertion
+consumer service URL (and a response `Destination` equal to it when present); a
+`Conditions/NotOnOrAfter` and a `SubjectConfirmationData/NotOnOrAfter` that are
+both present and still open; and an `InResponseTo` present on both the response
+and the confirmation data and identical in both. Every value is taken from the
+authenticated assertion, never from the surrounding response, and all
+comparisons allow ±60 s of clock drift. Previously nothing beyond samlify's own
+issuer/signature checks was verified, and `Conditions` were only checked when
+present. Because the request identifier is required, identity-provider-initiated
+logins (no `InResponseTo`) are not accepted.
+
+**Added — `wantAssertionsSigned` is enforced on the assertion itself.** samlify
+accepts a response as soon as *either* the response-level or the
+assertion-level signature verifies, so the assertion requirement — the one our
+service-provider metadata advertises — is now checked on its own: the assertion
+signature is re-verified against the identity provider certificate on a copy of
+the document with the response-level `<Signature>` removed (the assertion's own
+signature covers only the assertion subtree, so removing a sibling leaves it
+verifiable). This closes a gap specific to the redirect binding, where samlify
+verifies no XML signature at all. Behaviour change: with the default
+`wantAssertionsSigned: true`, an identity provider that signs only the response
+is now rejected — either have it sign the assertion (the setting n8n publishes
+in its metadata) or turn the requirement off.
+
+`wantMessageSigned` is treated as satisfied by any identity provider signature
+covering the values acted on: a response-level `<Signature>` element, the
+detached query signature on the redirect binding, or an assertion signature that
+verified independently. samlify's `metadata-sp` never advertises
+`WantMessageSigned`, so an identity provider has no way to learn about it, and
+several common providers (assertion-only signing) would otherwise be locked out
+by a default-on requirement. This is safe because every response-level value
+used — `Destination`, `InResponseTo`, the response ID — is cross-checked against
+its counterpart inside the independently verified assertion. Known limitation:
+when both signature elements are present, the response-level one is not
+separately re-verified; samlify exposes no way to scope verification to a single
+element.
+
+**Added — login requests are retained and consumed once.**
+`saml-flow-state.ts` keeps the `AuthnRequest` IDs this instance issued (15-minute
+TTL) and the response/assertion IDs already consumed (until their validity
+window ends, capped at 30 minutes). A response is accepted only when its
+`InResponseTo` matches a retained request, which is then dropped, and a response
+or assertion ID seen before is refused. `GET /rest/sso/saml/initsso` also sets a
+short-lived `n8n-saml-flow` cookie (HttpOnly, `Secure` per
+`N8N_SECURE_COOKIE`, `SameSite=None` when secure so the cross-site POST binding
+still carries it and `Lax` otherwise, scoped to `/<rest>/sso/saml`) and binds it
+to the issued request; the assertion consumer service clears it. If the browser
+presents the cookie it must match the request's, and if it presents none the
+request identifier alone binds the response, so plain-HTTP deployments using the
+POST binding keep working. Connection tests register their request the same way
+but without a cookie. The store is per process: in a multi-main deployment each
+main only knows the flows it started, so one-time consumption holds
+instance-wide only with a single main or sticky sessions.
+
+**Added — identity provider endpoints must use a supported scheme.** Every
+single sign-on endpoint read from metadata (redirect and, when declared, POST)
+must parse as an absolute `https:` URL, or `http:` on `localhost`, `127.0.0.1`
+or `::1`. The check runs in `SamlValidator.validateIdentityProvider`, so invalid
+metadata is refused by `POST /rest/sso/saml/config`, the metadata-URL fetch and
+the connection test, and never persists; the generated login URL is re-checked
+before it is returned to the browser. XML Schema `anyURI` accepts values such as
+`javascript:`, which previously passed validation and were handed to the
+frontend for navigation.
+
+**Changed — an existing privileged account is not linked by email alone.** When
+the asserted email matches an account holding `global:owner` or `global:admin`
+that has no SAML identity yet, the login is refused with the generic
+`SAML login failed` message (the controller still answers 401 `SAML
+Authentication failed`) and a `logger.warn` recording the role and a truncated
+SHA-256 digest of the address, never the address itself. Accounts that already
+have a linked SAML identity, and non-privileged accounts, continue to match by
+email as before.
+
+**Changed — a configured role provisioning policy denies login until it can be
+applied.** `handleSamlLogin` evaluates the policy immediately after email
+validation and before any account lookup, creation or update. Rule evaluation
+lives in the provisioning module, which is not rebuilt yet, so a login is denied
+with `ForbiddenError` whenever provisioning is configured at all: expression
+mapping enabled, instance-role or project-role provisioning enabled, a default
+condition of `block:access`, or any `role_mapping_rule` row present. Previously
+those settings were read for claim names only and the login proceeded with
+default roles. Operational consequence: **an instance that has enabled SSO role
+provisioning will have all SAML logins denied** until the provisioning rebuild
+lands; disable provisioning to restore logins. The provisioning rebuild must
+replace this gate with real evaluation that still runs before any account
+mutation — the pins in `test/integration/saml/saml.api.test.ts` (matching rule
+assigns `global:admin` / `project:editor`; a `block:access` default condition
+rejects with `ForbiddenError`, creates no account and leaves an existing account
+untouched) describe the target behaviour.
+
+**Fixed — redirect-binding responses now verify.** The signed material for the
+redirect binding is the query string *without* the `Signature` parameter (SAML
+bindings §3.4.4.1); the whole query string including it was being passed, so
+every redirect-binding delivery failed with
+`ERR_FAILED_MESSAGE_SIGNATURE_VERIFICATION`. Reverting only this change makes
+the three new redirect-binding tests fail, which is how it was confirmed.
+
+**Known dependency defect (not fixed here):** the repository-wide pnpm override
+pins `node-rsa` to `2.0.0` while samlify 2.13.0 declares `^1.1.1`. node-rsa 2
+returns a `Uint8Array` from `sign()`, so samlify's `constructMessageSignature`
+calls `.toString('base64')` on it and produces a comma-separated decimal string
+instead of base64. Outbound redirect-binding signing is therefore malformed,
+which affects signed `AuthnRequest`s (`N8N_ENV_FEAT_SIGNED_SAML_REQUESTS`) and
+any redirect-binding message this instance signs. Inbound verification is
+unaffected. Fixing it means changing the override, patching samlify or replacing
+its node-rsa use, all of which reach beyond this module — recorded here so it is
+picked up deliberately.
+
+**Clean-room sources:** the SAML 2.0 core/bindings/profiles standards, samlify
+2.13.0's installed public API (`SamlLib`, `Extractor`, binding builders) read
+from `node_modules`, this repo's own fair-code (`sso-oidc` flow-cookie pattern,
+`@n8n/db` role constants and `RoleMappingRuleRepository`, `@n8n/api-types`
+provisioning DTO), and the pins in `test/integration/saml/saml.api.test.ts`. No
+`.ee` source read.
+
+**Verification:** unit `src/modules/sso-saml` **84/84** (was 39) — 45 new tests:
+26 in the new `saml-login-response.test.ts` (real identity-provider-signed
+fixtures over both bindings covering audience, recipient, destination, subject
+confirmation, validity windows, request binding, replay and both signature
+requirements, including the default requirement pairing against an
+assertion-only signature), 8 endpoint-scheme tests in `saml-validator.test.ts`,
+and 11 in `saml.service.test.ts` for privileged-account linking and the
+provisioning gate (asserting no repository write happens on refusal).
+Integration `public-api/sso-saml.test.ts` **16/16**, `saml/saml-helpers.test.ts`
+1/1, `saml/saml.instance-settings-loader.test.ts` **2/2** — unchanged from
+baseline — plus a new `saml/saml-initsso.test.ts` 2/2 driving
+`GET /rest/sso/saml/initsso` through the real route to pin the login URL and the
+per-login flow cookie;
+`saml/saml.api.test.ts` still collects zero tests because it imports the missing
+`modules/provisioning.ee/provisioning.service.ee`, and repointing it is not
+possible while the surviving `ProvisioningService` lacks the `init()` and
+`provisioningConfig` surface it drives. `tsc -p tsconfig.build.json` → 0 errors
+mentioning sso-saml; `eslint src/modules/sso-saml --quiet` exit 0, no rule
+disables. `@n8n/db` untouched.
+
+### 2026-08-09 — E6 hardening: OIDC identity resolution and provisioning policy
+
+Review follow-up on the rebuilt OIDC backend
+(`packages/cli/src/modules/sso-oidc/`). Behavioural changes only; no schema or
+migration.
+
+**Changed — identity claims are read from one document.** `email` and
+`email_verified` are now resolved together from a single claims source:
+UserInfo when it carries an email, otherwise the ID token. A verification flag
+is never combined with an email from the other document. A login is refused
+when the two documents disagree on the subject or (case-insensitively) on the
+email address, and when the ID token carries no issuer. Previously the email
+preferred UserInfo while the verification flag fell back independently to the
+ID-token claim, so `emailVerifiedRequired` could be satisfied by a flag that
+described a different address.
+
+**Changed — email matching to an existing account is narrower.** An asserted
+address only resolves to an existing account when the provider reports it as
+verified, independently of the `emailVerifiedRequired` setting, and an account
+holding a privileged global role (`global:owner`, `global:admin`) is never
+given its *first* OIDC identity by an email match. Both refusals return the
+same generic `OIDC login failed` message (the controller still answers 401
+`OIDC Authentication failed`) and are recorded with `logger.warn` carrying the
+user id only — never the asserted address. Just-in-time creation of a *new*
+account from an unverified address is unchanged and still governed by
+`emailVerifiedRequired` and `N8N_SSO_JUST_IN_TIME_PROVISIONING`.
+
+**Changed — identities are keyed by issuer and subject.** `AuthIdentity.
+providerId` for `providerType: 'oidc'` is now
+`oidc:v1:<base64url(sha256(sha256hex(issuer) + sub))>` (51 characters, always
+within the column's 255-character limit; the fixed-length issuer digest makes
+the concatenation unambiguous). Subjects are unique only within their issuer,
+so a bare subject could previously resolve to another provider's user. Rows
+written before this change hold the bare subject; such a row is re-keyed in
+place on the next login that also presents the account's stored email — the
+pair the row was created from. A row whose stored email no longer matches is
+left untouched and resolution continues down the email path, so a subject
+collision at a different issuer cannot inherit it. Because a subject-only row
+records no issuer, re-keying carries the same conditions as an email match: the
+address must be reported as verified, and an account with a privileged global
+role is not resolved this way. `providerId` is not
+surfaced in the UI or the public API; the subject remains readable in provider
+logs. No migration: the value is derived at read time from the issuer that
+authenticated the login, which a migration cannot know.
+
+**Changed — configured role provisioning now fails closed.** OIDC login is
+refused, before any account lookup or mutation and before any session is
+issued, whenever the stored provisioning configuration enables instance-role
+claims, project-role claims, expression mapping, or sets a default condition.
+Rule evaluation does not exist in the surviving fair-code (only
+`ProvisioningService`'s config read survives; there is no rule-evaluation
+engine, controller, or expression evaluator, and `RoleMappingRuleRepository` is
+a bare repository), and a configured policy that cannot be evaluated must not
+be treated as no policy. Previously such a login was admitted with default
+roles.
+
+**Deferred to the provisioning rebuild** (the OIDC service will call it once it
+exists): fetching `RoleMappingRule` rows ordered by `order` and filtered by
+`type`; evaluating each `expression` against
+`{ $claims, $oidc: { idToken, userInfo }, $provider: 'oidc' }`; honouring a
+`block:access` outcome and the `defaultInstanceRole` fallback; and
+transactional instance-role/project-membership reconciliation with the
+`sso-user-instance-role-updated`, `sso-user-project-access-updated` and
+`expression-mapping-roles-resolved` events. Until then the fail-closed refusal
+above stands.
+
+**Fixed — coverage hole:** `test/integration/oidc/oidc.instance-settings-
+loader.test.ts` imported the removed `modules/provisioning.ee/constants`;
+repointed to the surviving `modules/provisioning/constants` (import path only).
+The file now executes.
+
+**Clean-room sources:** the surviving OIDC fair-code and its consumers, the
+`.defork/e5e6-contract.md` inventory, `ProvisioningConfigDto` /
+`RoleMappingRule` / `AuthIdentity` in `@n8n/db` and `@n8n/api-types`, the
+OpenID Connect Core specification (`sub` uniqueness is per-issuer;
+`email_verified` describes the `email` claim in the same document), and
+openid-client 6.8.4's public API. No `.ee` source or history was consulted.
+
+**Verification:** unit `src/modules/sso-oidc` **60/60** (was 35; 57 in
+`oidc.service.test.ts`, 3 in `oidc-test-result.test.ts`) — 25 new tests
+covering claim-source atomicity and both disagreement refusals, missing
+issuer, privileged-account link refusal, unverified-email match refusal,
+issuer-scoped resolution, legacy re-keying and its email-mismatch,
+unverified-email and privileged-account refusals, and
+the fail-closed provisioning branches including "no lookup or mutation
+precedes the decision". Integration: public-api `sso-oidc.test.ts` **24/24**,
+public-api `log-streaming.test.ts` **44/44**, `oidc-discovery-http` 2/2,
+`oidc.instance-settings-loader` **1/1** (was a load failure), and a new
+`oidc-legacy-identity.test.ts` 1/1 exercising the in-place re-key of a
+primary-key column against the SQLite integration database (`DB_TYPE=sqlite`,
+the suite default); the same write on Postgres was not exercised. `tsc -p tsconfig.build.json` → 0
+errors mentioning sso-oidc; `eslint src/modules/sso-oidc --quiet` exit 0, no
+rule disables. `@n8n/db` untouched.
+
 ### 2026-08-09 — E5: SAML backend rebuilt fair-code
 
 **Added (clean-room rebuild of purged `sso-saml/*.ee` files):**

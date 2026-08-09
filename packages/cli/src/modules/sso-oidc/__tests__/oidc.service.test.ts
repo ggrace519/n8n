@@ -1,7 +1,9 @@
+import type { ProvisioningConfigDto } from '@n8n/api-types';
 import type { Logger } from '@n8n/backend-common';
 import type { OutboundHttp } from '@n8n/backend-network';
 import type { GlobalConfig } from '@n8n/config';
 import type {
+	AuthIdentity,
 	AuthIdentityRepository,
 	Settings,
 	SettingsRepository,
@@ -10,6 +12,7 @@ import type {
 } from '@n8n/db';
 import type { Response } from 'express';
 import type { Cipher } from 'n8n-core';
+import { createHash } from 'node:crypto';
 import * as client from 'openid-client';
 import { mock } from 'vitest-mock-extended';
 
@@ -17,6 +20,7 @@ import type { AuthService } from '@/auth/auth.service';
 import { AuthError } from '@/errors/response-errors/auth.error';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
+import type { ProvisioningService } from '@/modules/provisioning/provisioning.service';
 import type { AuthlessRequest } from '@/requests';
 import type { PasswordUtility } from '@/services/password.utility';
 import type { UrlService } from '@/services/url.service';
@@ -58,6 +62,25 @@ const storedRow = (config: Record<string, unknown>): Settings =>
 		loadOnStartup: true,
 	}) as Settings;
 
+const TEST_ISSUER = 'https://idp.example.com';
+
+/** Mirrors the service's issuer-scoped `AuthIdentity.providerId` encoding. */
+const providerIdFor = (issuer: string, sub: string) => {
+	const issuerDigest = createHash('sha256').update(issuer).digest('hex');
+	return `oidc:v1:${createHash('sha256')
+		.update(issuerDigest + sub)
+		.digest('base64url')}`;
+};
+
+const disabledProvisioningConfig: ProvisioningConfigDto = {
+	scopesProvisionInstanceRole: false,
+	scopesProvisionProjectRoles: false,
+	scopesUseExpressionMapping: false,
+	scopesName: 'n8n',
+	scopesInstanceRoleClaimName: 'n8n_instance_role',
+	scopesProjectsRolesClaimName: 'n8n_project_roles',
+};
+
 const validStoredConfig = {
 	clientId: 'client-id',
 	clientSecret: 'encrypted-secret',
@@ -80,6 +103,9 @@ describe('OidcService', () => {
 	const urlService = mock<UrlService>();
 	const authService = mock<AuthService>({ jwtExpiration: 3600 });
 	const passwordUtility = mock<PasswordUtility>();
+	const provisioningService = mock<ProvisioningService>();
+
+	const trxManager = { save: vi.fn(), create: vi.fn() };
 
 	let globalConfig: GlobalConfig;
 	let service: OidcService;
@@ -124,7 +150,10 @@ describe('OidcService', () => {
 			urlService,
 			authService,
 			passwordUtility,
+			provisioningService,
 		);
+
+		provisioningService.getProvisioningConfig.mockResolvedValue(disabledProvisioningConfig);
 
 		settingsRepository.findByKey.mockResolvedValue(storedRow(validStoredConfig));
 		cipher.decryptV2.mockResolvedValue('plain-secret');
@@ -150,6 +179,16 @@ describe('OidcService', () => {
 		vi.mocked(ssoHelpers.assertAuthenticationMethodCanBeEnabled).mockImplementation(() => {});
 		authIdentityRepository.findOne.mockResolvedValue(null);
 		userRepository.findOne.mockResolvedValue(null);
+
+		// `createUser` runs inside a transaction; run the unit of work inline.
+		trxManager.save.mockResolvedValue(undefined);
+		trxManager.create.mockImplementation((_entity: unknown, data: unknown) => data);
+		Object.assign(userRepository, {
+			manager: {
+				transaction: async (run: (trx: typeof trxManager) => Promise<unknown>) =>
+					await run(trxManager),
+			},
+		});
 	});
 
 	describe('loadConfig', () => {
@@ -345,8 +384,9 @@ describe('OidcService', () => {
 
 	describe('callback token exchange', () => {
 		const idTokenClaims = {
+			iss: TEST_ISSUER,
 			sub: 'subject-1',
-			email: 'claims@example.com',
+			email: 'userinfo@example.com',
 			given_name: 'Claims',
 			family_name: 'Person',
 		};
@@ -370,12 +410,26 @@ describe('OidcService', () => {
 			);
 		};
 
+		/** A user whose stored names already match the provider's, so no name write occurs. */
+		const resolvedUser = (id: string, email?: string) =>
+			mock<User>({ id, email, firstName: 'User', lastName: 'Info' });
+
 		const mockUserResolution = () => {
 			const user = mock<User>({ id: 'user-1', firstName: 'User', lastName: 'Info' });
 			authIdentityRepository.findOne.mockResolvedValue(
 				mock<Awaited<ReturnType<AuthIdentityRepository['findOne']>>>({ user }),
 			);
 			return user;
+		};
+
+		/** Resolves the issuer-scoped identity only; every other lookup misses. */
+		const mockIssuerScopedIdentity = (user: User, issuer = TEST_ISSUER, sub = 'subject-1') => {
+			const providerId = providerIdFor(issuer, sub);
+			authIdentityRepository.findOne.mockImplementation(async (options) => {
+				const where = (options as { where?: { providerId?: string } }).where;
+				return where?.providerId === providerId ? mock<AuthIdentity>({ user, providerId }) : null;
+			});
+			return providerId;
 		};
 
 		it('rejects when the flow cookies are missing', async () => {
@@ -464,21 +518,22 @@ describe('OidcService', () => {
 		});
 
 		describe('claim mapping', () => {
-			it('prefers the userinfo email over the ID-token claim', async () => {
+			it('resolves the identity by the issuer-scoped subject', async () => {
 				mockTokens();
-				const user = mockUserResolution();
+				const user = resolvedUser('user-1');
+				const providerId = mockIssuerScopedIdentity(user);
 
 				const result = await service.runLoginCallback(callbackRequest(), mock<Response>());
 
 				expect(result.user.id).toBe(user.id);
 				expect(authIdentityRepository.findOne).toHaveBeenCalledWith({
-					where: { providerId: 'subject-1', providerType: 'oidc' },
+					where: { providerId, providerType: 'oidc' },
 					relations: { user: { role: true } },
 				});
 			});
 
 			it('falls back to the ID-token email when userinfo has none', async () => {
-				mockTokens();
+				mockTokens({ claims: { ...idTokenClaims, email: 'claims@example.com' } });
 				vi.mocked(client.fetchUserInfo).mockResolvedValue({
 					sub: 'subject-1',
 				} as unknown as client.UserInfoResponse);
@@ -497,7 +552,7 @@ describe('OidcService', () => {
 			});
 
 			it('rejects when no email claim is present at all', async () => {
-				mockTokens({ claims: { sub: 'subject-1' } });
+				mockTokens({ claims: { iss: TEST_ISSUER, sub: 'subject-1' } });
 				vi.mocked(client.fetchUserInfo).mockResolvedValue({
 					sub: 'subject-1',
 				} as unknown as client.UserInfoResponse);
@@ -505,6 +560,14 @@ describe('OidcService', () => {
 				await expect(
 					service.runLoginCallback(callbackRequest(), mock<Response>()),
 				).rejects.toThrowError('did not return an email address');
+			});
+
+			it('rejects when the ID token has no issuer', async () => {
+				mockTokens({ claims: { sub: 'subject-1', email: 'userinfo@example.com' } });
+
+				await expect(
+					service.runLoginCallback(callbackRequest(), mock<Response>()),
+				).rejects.toThrowError('the ID token has no issuer');
 			});
 
 			it('rejects unverified emails when emailVerifiedRequired is set', async () => {
@@ -528,11 +591,329 @@ describe('OidcService', () => {
 					storedRow({ ...validStoredConfig, emailVerifiedRequired: true }),
 				);
 				mockTokens();
-				const user = mockUserResolution();
+				const user = resolvedUser('user-1');
+				mockIssuerScopedIdentity(user);
 
 				const result = await service.runLoginCallback(callbackRequest(), mock<Response>());
 
 				expect(result.user.id).toBe(user.id);
+			});
+		});
+
+		describe('claim source atomicity', () => {
+			it('reads the verification flag from the document the email came from', async () => {
+				settingsRepository.findByKey.mockResolvedValue(
+					storedRow({ ...validStoredConfig, emailVerifiedRequired: true }),
+				);
+				// The ID token reports a verified address; userinfo supplies the
+				// email but no flag. The flag must not carry across documents.
+				mockTokens({
+					claims: { ...idTokenClaims, email_verified: true },
+				});
+				vi.mocked(client.fetchUserInfo).mockResolvedValue({
+					sub: 'subject-1',
+					email: 'userinfo@example.com',
+				} as unknown as client.UserInfoResponse);
+
+				await expect(
+					service.runLoginCallback(callbackRequest(), mock<Response>()),
+				).rejects.toThrowError(ForbiddenError);
+			});
+
+			it('uses the ID-token verification flag when the email comes from the ID token', async () => {
+				settingsRepository.findByKey.mockResolvedValue(
+					storedRow({ ...validStoredConfig, emailVerifiedRequired: true }),
+				);
+				mockTokens({ claims: { ...idTokenClaims, email_verified: true } });
+				vi.mocked(client.fetchUserInfo).mockResolvedValue({
+					sub: 'subject-1',
+				} as unknown as client.UserInfoResponse);
+				// Only the ID token carries names here, so the account already holds them.
+				const user = mock<User>({ id: 'user-1', firstName: 'Claims', lastName: 'Person' });
+				mockIssuerScopedIdentity(user);
+
+				const result = await service.runLoginCallback(callbackRequest(), mock<Response>());
+
+				expect(result.user.id).toBe(user.id);
+			});
+
+			it('rejects a login whose documents name different email addresses', async () => {
+				mockTokens({ claims: { ...idTokenClaims, email: 'claims@example.com' } });
+
+				await expect(
+					service.runLoginCallback(callbackRequest(), mock<Response>()),
+				).rejects.toThrowError('conflicting email addresses');
+				expect(userRepository.findOne).not.toHaveBeenCalled();
+			});
+
+			it('accepts email addresses that differ only in case', async () => {
+				mockTokens({ claims: { ...idTokenClaims, email: 'UserInfo@Example.com' } });
+				const user = resolvedUser('user-1');
+				mockIssuerScopedIdentity(user);
+
+				const result = await service.runLoginCallback(callbackRequest(), mock<Response>());
+
+				expect(result.user.id).toBe(user.id);
+			});
+
+			it('rejects a login whose documents name different subjects', async () => {
+				mockTokens();
+				vi.mocked(client.fetchUserInfo).mockResolvedValue({
+					sub: 'other-subject',
+					email: 'userinfo@example.com',
+					email_verified: true,
+				} as unknown as client.UserInfoResponse);
+
+				await expect(
+					service.runLoginCallback(callbackRequest(), mock<Response>()),
+				).rejects.toThrowError('conflicting subjects');
+				expect(userRepository.findOne).not.toHaveBeenCalled();
+			});
+		});
+
+		describe('account matching by email', () => {
+			const existingAccount = (overrides: Partial<User> = {}) =>
+				mock<User>({
+					...resolvedUser('existing-1', 'userinfo@example.com'),
+					role: { slug: 'global:member' },
+					authIdentities: [],
+					...overrides,
+				});
+
+			it('attaches the identity to a matching account with a verified email', async () => {
+				mockTokens();
+				const user = existingAccount();
+				userRepository.findOne.mockResolvedValue(user);
+
+				await service.runLoginCallback(callbackRequest(), mock<Response>());
+
+				expect(authIdentityRepository.create).toHaveBeenCalledWith(
+					expect.objectContaining({
+						providerId: providerIdFor(TEST_ISSUER, 'subject-1'),
+						providerType: 'oidc',
+						userId: 'existing-1',
+					}),
+				);
+			});
+
+			it('refuses to match an existing account on an unverified email', async () => {
+				mockTokens();
+				vi.mocked(client.fetchUserInfo).mockResolvedValue({
+					sub: 'subject-1',
+					email: 'userinfo@example.com',
+				} as unknown as client.UserInfoResponse);
+				userRepository.findOne.mockResolvedValue(existingAccount());
+
+				await expect(
+					service.runLoginCallback(callbackRequest(), mock<Response>()),
+				).rejects.toThrowError(AuthError);
+				expect(authIdentityRepository.save).not.toHaveBeenCalled();
+			});
+
+			it.each(['global:owner', 'global:admin'])(
+				'refuses to attach a first identity to a %s account',
+				async (slug) => {
+					mockTokens();
+					userRepository.findOne.mockResolvedValue(existingAccount({ role: { slug } as never }));
+
+					await expect(
+						service.runLoginCallback(callbackRequest(), mock<Response>()),
+					).rejects.toThrowError(AuthError);
+					expect(authIdentityRepository.save).not.toHaveBeenCalled();
+					expect(userRepository.save).not.toHaveBeenCalled();
+				},
+			);
+
+			it('keeps the refusal message free of the asserted address', async () => {
+				mockTokens();
+				userRepository.findOne.mockResolvedValue(
+					existingAccount({ role: { slug: 'global:owner' } as never }),
+				);
+
+				await expect(
+					service.runLoginCallback(callbackRequest(), mock<Response>()),
+				).rejects.toThrowError(/^OIDC login failed$/);
+				const warned = logger.warn.mock.calls.map((call) => JSON.stringify(call)).join(' ');
+				expect(warned).not.toContain('userinfo@example.com');
+			});
+
+			it('still attaches to a privileged account that already has an OIDC identity', async () => {
+				mockTokens();
+				userRepository.findOne.mockResolvedValue(
+					existingAccount({
+						role: { slug: 'global:admin' } as never,
+						authIdentities: [mock<AuthIdentity>({ providerType: 'oidc' })],
+					}),
+				);
+
+				await service.runLoginCallback(callbackRequest(), mock<Response>());
+
+				expect(authIdentityRepository.save).toHaveBeenCalled();
+			});
+
+			it('creates a new account for an unverified email when verification is not required', async () => {
+				mockTokens();
+				vi.mocked(client.fetchUserInfo).mockResolvedValue({
+					sub: 'subject-1',
+					email: 'userinfo@example.com',
+				} as unknown as client.UserInfoResponse);
+				userRepository.findOne.mockResolvedValue(null);
+				userRepository.createUserWithProject.mockResolvedValue({
+					user: mock<User>({ id: 'created-1' }),
+				} as never);
+
+				const result = await service.runLoginCallback(callbackRequest(), mock<Response>());
+
+				expect(result.user.id).toBe('created-1');
+				expect(trxManager.create).toHaveBeenCalledWith(
+					expect.anything(),
+					expect.objectContaining({
+						providerId: providerIdFor(TEST_ISSUER, 'subject-1'),
+						providerType: 'oidc',
+						userId: 'created-1',
+					}),
+				);
+			});
+		});
+
+		describe('legacy subject-only identities', () => {
+			const legacyRow = (user: User) => mock<AuthIdentity>({ providerId: 'subject-1', user });
+
+			/** Only the pre-issuer-scoping row exists. */
+			const mockLegacyOnly = (user: User) => {
+				authIdentityRepository.findOne.mockImplementation(async (options) => {
+					const where = (options as { where?: { providerId?: string } }).where;
+					return where?.providerId === 'subject-1' ? legacyRow(user) : null;
+				});
+			};
+
+			it('re-keys a subject-only row to the issuer-scoped value', async () => {
+				mockTokens();
+				const user = resolvedUser('legacy-1', 'userinfo@example.com');
+				mockLegacyOnly(user);
+
+				const result = await service.runLoginCallback(callbackRequest(), mock<Response>());
+
+				expect(result.user.id).toBe('legacy-1');
+				expect(authIdentityRepository.update).toHaveBeenCalledWith(
+					{ providerId: 'subject-1', providerType: 'oidc' },
+					{ providerId: providerIdFor(TEST_ISSUER, 'subject-1') },
+				);
+			});
+
+			it('re-keys only under the issuer that authenticated the login', async () => {
+				mockTokens({ claims: { ...idTokenClaims, iss: 'https://other-idp.example.com' } });
+				const user = resolvedUser('legacy-1', 'userinfo@example.com');
+				mockLegacyOnly(user);
+
+				await service.runLoginCallback(callbackRequest(), mock<Response>());
+
+				expect(authIdentityRepository.update).toHaveBeenCalledWith(
+					{ providerId: 'subject-1', providerType: 'oidc' },
+					{ providerId: providerIdFor('https://other-idp.example.com', 'subject-1') },
+				);
+			});
+
+			it('refuses to re-key a subject-only row onto a privileged account', async () => {
+				mockTokens();
+				const user = mock<User>({
+					id: 'legacy-owner',
+					email: 'userinfo@example.com',
+					firstName: 'User',
+					lastName: 'Info',
+					role: { slug: 'global:owner' } as never,
+				});
+				mockLegacyOnly(user);
+
+				await expect(
+					service.runLoginCallback(callbackRequest(), mock<Response>()),
+				).rejects.toThrowError(/^OIDC login failed$/);
+				expect(authIdentityRepository.update).not.toHaveBeenCalled();
+			});
+
+			it('refuses to re-key a subject-only row on an unverified email', async () => {
+				mockTokens();
+				vi.mocked(client.fetchUserInfo).mockResolvedValue({
+					sub: 'subject-1',
+					email: 'userinfo@example.com',
+				} as unknown as client.UserInfoResponse);
+				mockLegacyOnly(resolvedUser('legacy-1', 'userinfo@example.com'));
+
+				await expect(
+					service.runLoginCallback(callbackRequest(), mock<Response>()),
+				).rejects.toThrowError(/^OIDC login failed$/);
+				expect(authIdentityRepository.update).not.toHaveBeenCalled();
+			});
+
+			it('leaves a subject-only row alone when the stored account email differs', async () => {
+				mockTokens();
+				const user = resolvedUser('legacy-1', 'someone-else@example.com');
+				mockLegacyOnly(user);
+				userRepository.findOne.mockResolvedValue(null);
+				globalConfig.sso.justInTimeProvisioning = false;
+
+				await expect(
+					service.runLoginCallback(callbackRequest(), mock<Response>()),
+				).rejects.toThrowError('just-in-time provisioning is disabled');
+				expect(authIdentityRepository.update).not.toHaveBeenCalled();
+			});
+
+			it('prefers the issuer-scoped row over a subject-only row', async () => {
+				mockTokens();
+				const scoped = resolvedUser('scoped-1');
+				mockIssuerScopedIdentity(scoped);
+
+				const result = await service.runLoginCallback(callbackRequest(), mock<Response>());
+
+				expect(result.user.id).toBe('scoped-1');
+				expect(authIdentityRepository.update).not.toHaveBeenCalled();
+			});
+		});
+
+		describe('provisioning policy', () => {
+			it.each([
+				['instance-role claims', { scopesProvisionInstanceRole: true }],
+				['project-role claims', { scopesProvisionProjectRoles: true }],
+				['expression mapping', { scopesUseExpressionMapping: true }],
+				['a default condition', { defaultInstanceRole: 'block:access' }],
+			])('refuses the login while %s is configured', async (_label, overrides) => {
+				provisioningService.getProvisioningConfig.mockResolvedValue({
+					...disabledProvisioningConfig,
+					...overrides,
+				});
+				mockTokens();
+				mockUserResolution();
+
+				await expect(
+					service.runLoginCallback(callbackRequest(), mock<Response>()),
+				).rejects.toThrowError(AuthError);
+			});
+
+			it('decides before any account lookup or mutation', async () => {
+				provisioningService.getProvisioningConfig.mockResolvedValue({
+					...disabledProvisioningConfig,
+					scopesUseExpressionMapping: true,
+				});
+				mockTokens();
+
+				await expect(
+					service.runLoginCallback(callbackRequest(), mock<Response>()),
+				).rejects.toThrowError(AuthError);
+				expect(authIdentityRepository.findOne).not.toHaveBeenCalled();
+				expect(authIdentityRepository.save).not.toHaveBeenCalled();
+				expect(userRepository.findOne).not.toHaveBeenCalled();
+				expect(userRepository.save).not.toHaveBeenCalled();
+				expect(userRepository.createUserWithProject).not.toHaveBeenCalled();
+			});
+
+			it('admits the login when no provisioning is configured', async () => {
+				mockTokens();
+				const user = resolvedUser('user-1');
+				mockIssuerScopedIdentity(user);
+
+				const result = await service.runLoginCallback(callbackRequest(), mock<Response>());
+
+				expect(result.user.id).toBe('user-1');
 			});
 		});
 	});

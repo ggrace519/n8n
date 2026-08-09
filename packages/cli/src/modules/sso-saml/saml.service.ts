@@ -1,24 +1,35 @@
-import type { SamlPreferences } from '@n8n/api-types';
+import { BLOCK_ACCESS_ASSIGNMENT, type SamlPreferences } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
 import { OutboundHttp } from '@n8n/backend-network';
 import { GlobalConfig } from '@n8n/config';
 import type { User } from '@n8n/db';
-import { SettingsRepository, UserRepository } from '@n8n/db';
+import {
+	GLOBAL_ADMIN_ROLE,
+	GLOBAL_OWNER_ROLE,
+	RoleMappingRuleRepository,
+	SettingsRepository,
+	UserRepository,
+} from '@n8n/db';
 import { Service } from '@n8n/di';
 import type express from 'express';
+import type { CookieOptions } from 'express';
 import { Cipher } from 'n8n-core';
 import { CREDENTIAL_BLANKING_VALUE, jsonParse, UnexpectedError } from 'n8n-workflow';
-import { createPrivateKey, randomBytes, X509Certificate } from 'node:crypto';
+import { createHash, createPrivateKey, randomBytes, X509Certificate } from 'node:crypto';
 import type { IdentityProviderInstance, ServiceProviderInstance } from 'samlify';
 import type * as Samlify from 'samlify';
 import type { ESamlHttpRequest } from 'samlify/types/src/entity';
+import type { FlowResult } from 'samlify/types/src/flow';
 
 import { AuthError } from '@/errors/response-errors/auth.error';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
+import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { ProvisioningService } from '@/modules/provisioning/provisioning.service';
 import { isSamlLoginEnabled } from '@/sso/sso-helpers';
 
-import { SAML_PREFERENCES_DB_KEY } from './constants';
+import { SAML_FLOW_COOKIE_NAME, SAML_PREFERENCES_DB_KEY } from './constants';
+import { assertSupportedSamlEndpointUrl } from './saml-endpoint-url';
+import { SAML_AUTHN_REQUEST_TTL_MS, SamlFlowState } from './saml-flow-state';
 import {
 	createUserFromSamlAttributes,
 	getMappedSamlAttributesFromFlowResult,
@@ -26,10 +37,13 @@ import {
 	setSamlLoginLabel,
 	updateUserFromSamlAttributes,
 } from './saml-helpers';
+import { validateSamlLoginResponse } from './saml-response-validation';
 import { SamlValidator } from './saml-validator';
 import {
 	createServiceProviderInstance,
 	getServiceProviderConfigTestReturnUrl,
+	getServiceProviderEntityId,
+	getServiceProviderReturnUrl,
 } from './service-provider';
 import type { SamlLoginBinding, SamlUserAttributes } from './types';
 import { getInitSSOFormView } from './views/init-sso-post';
@@ -108,8 +122,14 @@ function toEsamlHttpRequest(req: express.Request): ESamlHttpRequest {
 			if (typeof value === 'string') body[key] = value;
 		}
 	}
-	// samlify's redirect binding verifies the signature over the raw query string
-	const octetString = typeof req.url === 'string' ? (req.url.split('?')[1] ?? '') : '';
+	// The redirect binding signs the query string without the `Signature`
+	// parameter itself, so it is removed while the remaining raw (still
+	// percent-encoded) parameters keep their order.
+	const rawQueryString = typeof req.url === 'string' ? (req.url.split('?')[1] ?? '') : '';
+	const octetString = rawQueryString
+		.split('&')
+		.filter((parameter) => !parameter.startsWith('Signature='))
+		.join('&');
 	return { query, body, octetString };
 }
 
@@ -144,6 +164,8 @@ export class SamlService {
 		private readonly cipher: Cipher,
 		private readonly outboundHttp: OutboundHttp,
 		private readonly provisioningService: ProvisioningService,
+		private readonly flowState: SamlFlowState,
+		private readonly roleMappingRuleRepository: RoleMappingRuleRepository,
 	) {}
 
 	get samlPreferences(): SamlPreferences {
@@ -245,6 +267,7 @@ export class SamlService {
 		this._samlPreferences = defaultSamlPreferences();
 		this.identityProviderInstance = undefined;
 		this.pendingTestConfigs.clear();
+		this.flowState.clear();
 		await this.settingsRepository.deleteByKey(SAML_PREFERENCES_DB_KEY);
 	}
 
@@ -262,10 +285,24 @@ export class SamlService {
 	/**
 	 * Build the login initiation value for the configured binding: the IdP
 	 * redirect URL (redirect binding) or a self-submitting form (POST binding).
+	 * The AuthnRequest ID is retained so only a response answering it is
+	 * accepted, tied to the browser flow when a response object is available.
 	 */
-	async getLoginRequest(relayState = ''): Promise<string> {
+	async getLoginRequest(relayState = '', res?: express.Response): Promise<string> {
 		const idp = await this.getIdentityProviderInstance();
-		return await this.createLoginRequest(idp, this._samlPreferences, relayState);
+		const flowId = res ? this.issueFlowCookie(res) : undefined;
+		const { requestId, value } = await this.createLoginRequest(
+			idp,
+			this._samlPreferences,
+			relayState,
+		);
+		this.flowState.registerAuthnRequest(requestId, flowId);
+		return value;
+	}
+
+	/** Drop the browser-flow cookie once the assertion has been delivered. */
+	clearFlowCookie(res: express.Response): void {
+		res.clearCookie(SAML_FLOW_COOKIE_NAME, this.flowCookieOptions());
 	}
 
 	/**
@@ -298,7 +335,11 @@ export class SamlService {
 		});
 
 		const relayState = `${getServiceProviderConfigTestReturnUrl()}?t=${testId}`;
-		return await this.createLoginRequest(idp, testPreferences, relayState);
+		const { requestId, value } = await this.createLoginRequest(idp, testPreferences, relayState);
+		// the test callback arrives without a browser-flow cookie, so the request
+		// ID alone binds the response to this connection test
+		this.flowState.registerAuthnRequest(requestId);
+		return value;
 	}
 
 	/** Single-use lookup of a retained connection-test configuration. */
@@ -359,12 +400,16 @@ export class SamlService {
 			throw new BadRequestError('Invalid email format');
 		}
 
+		// the role policy decides before anything about the account is written
+		await this.assertProvisioningPolicyCanBeApplied();
+
 		const user = await this.userRepository.findOne({
 			where: { email: lowerCasedEmail },
 			relations: ['authIdentities', 'role'],
 		});
 
 		if (user) {
+			this.assertUserMayBeLinkedBySamlEmail(user, lowerCasedEmail);
 			return {
 				authenticatedUser: await updateUserFromSamlAttributes(user, mapped),
 				attributes: mapped,
@@ -381,6 +426,52 @@ export class SamlService {
 			authenticatedUser: await createUserFromSamlAttributes(mapped),
 			attributes: mapped,
 		};
+	}
+
+	/**
+	 * An account that already holds a privileged instance role is only signed
+	 * in through SAML once a SAML identity has been linked to it deliberately;
+	 * matching on the asserted email alone is not enough.
+	 */
+	private assertUserMayBeLinkedBySamlEmail(user: User, email: string): void {
+		const hasSamlIdentity = (user.authIdentities ?? []).some(
+			(identity) => identity.providerType === 'saml',
+		);
+		if (hasSamlIdentity) return;
+
+		const roleSlug = user.role?.slug;
+		if (roleSlug !== GLOBAL_OWNER_ROLE.slug && roleSlug !== GLOBAL_ADMIN_ROLE.slug) return;
+
+		const emailDigest = createHash('sha256').update(email).digest('hex').slice(0, 16);
+		this.logger.warn(
+			`SAML login refused: no SAML identity is linked to the privileged account ${emailDigest} (${roleSlug})`,
+		);
+		throw new AuthError('SAML login failed');
+	}
+
+	/**
+	 * SSO role provisioning is configured through the provisioning module, whose
+	 * rule evaluation is not available in this build. Any configured policy —
+	 * mapping rules, claim-based provisioning, or a default condition that
+	 * denies access — therefore denies the login instead of admitting the user
+	 * with unevaluated roles.
+	 */
+	private async assertProvisioningPolicyCanBeApplied(): Promise<void> {
+		const config = await this.provisioningService.getProvisioningConfig();
+		const ruleCount = await this.roleMappingRuleRepository.count();
+
+		const policyConfigured =
+			config.scopesUseExpressionMapping ||
+			config.scopesProvisionInstanceRole ||
+			config.scopesProvisionProjectRoles ||
+			config.defaultInstanceRole === BLOCK_ACCESS_ASSIGNMENT ||
+			ruleCount > 0;
+		if (!policyConfigured) return;
+
+		this.logger.warn(
+			'SAML login denied: SSO role provisioning is configured but its rule evaluation is unavailable in this build',
+		);
+		throw new ForbiddenError('SAML login failed: the role provisioning policy cannot be applied');
 	}
 
 	private async saveSamlPreferencesToDb(): Promise<void> {
@@ -415,16 +506,100 @@ export class SamlService {
 		idp: IdentityProviderInstance,
 		prefs: SamlPreferences,
 		relayState: string,
-	): Promise<string> {
+	): Promise<{ requestId: string; value: string }> {
 		const sp = await this.createServiceProvider(prefs);
 		const binding = prefs.loginBinding === 'post' ? 'post' : 'redirect';
 		// RelayState is request-scoped; it must be passed per request, never stored on the entity
 		const context = sp.createLoginRequest(idp, binding, relayState ? { relayState } : {});
+		if (typeof context.id !== 'string' || context.id === '') {
+			throw new UnexpectedError('Failed to create SAML login request');
+		}
 		if (binding === 'post') {
-			if ('entityEndpoint' in context) return getInitSSOFormView(context);
+			if ('entityEndpoint' in context) {
+				// second line of defence: the endpoint reached the browser from metadata
+				assertSupportedSamlEndpointUrl(context.entityEndpoint, 'single sign-on POST');
+				return { requestId: context.id, value: getInitSSOFormView(context) };
+			}
 			throw new UnexpectedError('Failed to create SAML POST binding login request');
 		}
-		return context.context;
+		assertSupportedSamlEndpointUrl(context.context, 'single sign-on redirect');
+		return { requestId: context.id, value: context.context };
+	}
+
+	private flowCookieOptions(): CookieOptions {
+		const { secure } = this.globalConfig.auth.cookie;
+		return {
+			httpOnly: true,
+			secure,
+			// the IdP delivers the response with a cross-site request; the POST
+			// binding only carries the cookie when it is not restricted to same-site
+			sameSite: secure ? 'none' : 'lax',
+			path: `/${this.globalConfig.endpoints.rest}/sso/saml`,
+		};
+	}
+
+	private issueFlowCookie(res: express.Response): string {
+		const flowId = randomBytes(16).toString('hex');
+		res.cookie(SAML_FLOW_COOKIE_NAME, flowId, {
+			...this.flowCookieOptions(),
+			maxAge: SAML_AUTHN_REQUEST_TTL_MS,
+		});
+		return flowId;
+	}
+
+	private readFlowCookie(req: express.Request): string | undefined {
+		const cookies: unknown = req.cookies;
+		if (typeof cookies !== 'object' || cookies === null) return undefined;
+		const value: unknown = (cookies as Record<string, unknown>)[SAML_FLOW_COOKIE_NAME];
+		return typeof value === 'string' && value !== '' ? value : undefined;
+	}
+
+	/**
+	 * Confirm that an authenticated response answers a login this instance
+	 * started, was issued for this service provider, and has not been seen
+	 * before.
+	 */
+	private assertResponseIsForThisFlow(
+		samlify: SamlifyModule,
+		idp: IdentityProviderInstance,
+		flowResult: FlowResult,
+		binding: SamlLoginBinding,
+		prefs: SamlPreferences,
+		req: express.Request,
+	): void {
+		const validated = validateSamlLoginResponse({
+			samlify,
+			idp,
+			flowResult,
+			binding,
+			expectedAudience: getServiceProviderEntityId(),
+			expectedAcsUrl: getServiceProviderReturnUrl(),
+			wantAssertionsSigned: prefs.wantAssertionsSigned,
+			wantMessageSigned: prefs.wantMessageSigned,
+		});
+
+		// an identity provider may reuse one value for both IDs, so consume the set
+		const messageIds = new Set(
+			[validated.responseId, validated.assertionId].filter((id) => id !== undefined),
+		);
+		for (const id of messageIds) {
+			if (!this.flowState.consumeMessageId(id, validated.validUntil)) {
+				throw new AuthError('SAML login failed: the response has already been used');
+			}
+		}
+
+		const consumption = this.flowState.consumeAuthnRequest(
+			validated.requestId,
+			this.readFlowCookie(req),
+		);
+		if (consumption.outcome === 'unknown-request') {
+			throw new AuthError(
+				'SAML login failed: the response does not answer a pending login request',
+			);
+		}
+		if (consumption.outcome === 'flow-mismatch') {
+			throw new AuthError('SAML login failed: the response belongs to a different login flow');
+		}
 	}
 
 	private async extractAttributes(
@@ -433,8 +608,10 @@ export class SamlService {
 		prefs: SamlPreferences,
 		idp: IdentityProviderInstance,
 	): Promise<MappedAttributesResult> {
+		const samlify = await this.ensureLibs();
 		const sp = await this.createServiceProvider(prefs);
 		const flowResult = await sp.parseLoginResponse(idp, binding, toEsamlHttpRequest(req));
+		this.assertResponseIsForThisFlow(samlify, idp, flowResult, binding, prefs, req);
 
 		const provisioningConfig = await this.provisioningService.getProvisioningConfig();
 		const jitClaimNames = {
