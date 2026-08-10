@@ -12,7 +12,9 @@ import { RouterLink } from 'vue-router';
 import type { RouteLocationRaw } from 'vue-router';
 
 type RoleAction = { label: string; value: string; disabled?: boolean; tooltip?: string };
-type RoleRow = Role & { id: string };
+// `id` + an index signature make the row assignable to the design-system
+// `DatatableRow` contract (an interface like `Role` has no implicit index signature).
+type RoleRow = Role & { id: string; [key: string]: unknown };
 
 const props = defineProps<{
 	roles: Role[];

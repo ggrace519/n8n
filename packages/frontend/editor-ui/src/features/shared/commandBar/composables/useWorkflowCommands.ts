@@ -7,7 +7,7 @@ import { getResourcePermissions } from '@n8n/permissions';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { useTagsStore } from '@/features/shared/tags/tags.store';
 import { useUIStore } from '@/app/stores/ui.store';
-import { useSourceControlStore } from '@/features/integrations/sourceControl.ee/sourceControl.store';
+import { useSourceControlStore } from '@/features/integrations/sourceControl/sourceControl.store';
 import { useCollaborationStore } from '@/features/collaboration/collaboration/collaboration.store';
 import { useTelemetry } from '@n8n/composables/useTelemetry';
 import { useRunWorkflow } from '@/app/composables/useRunWorkflow';
@@ -71,7 +71,7 @@ export function useWorkflowCommands(): CommandGroup {
 	const isArchived = computed(() => workflowDocumentStore.value.isArchived);
 
 	const workflowPermissions = computed(
-		() => getResourcePermissions(workflowDocumentStore.value.scopes).workflow,
+		() => getResourcePermissions([...workflowDocumentStore.value.scopes]).workflow,
 	);
 
 	const hasPermission = (permission: keyof typeof workflowPermissions.value) =>

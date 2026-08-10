@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import type {
+	DecideWorkflowReviewRequestDto,
 	ListWorkflowReviewInboxResponse,
 	WorkflowReviewRequestDetail,
 	WorkflowReviewRequestState,
@@ -209,7 +210,14 @@ export const useReviewInboxStore = defineStore('workflowReviewInbox', () => {
 	 * Returns the response so callers can surface the auto-publish outcome.
 	 */
 	async function decideOnReview(id: string, decision: WorkflowReviewDecisionInput) {
-		const summary = await decideWorkflowReviewRequest(rootStore.restApiContext, id, { decision });
+		// Bind the decision to the workflow version the reviewer saw, when known, so a
+		// racing edit is rejected (409) instead of silently deciding a stale version.
+		// Omit when unknown/null — the server matches against IsNull() in that case.
+		const expectedVersionId =
+			detail.value?.id === id ? (detail.value.workflowVersionId ?? undefined) : undefined;
+		const payload: DecideWorkflowReviewRequestDto =
+			expectedVersionId !== undefined ? { decision, expectedVersionId } : { decision };
+		const summary = await decideWorkflowReviewRequest(rootStore.restApiContext, id, payload);
 
 		const item = items.value.find((candidate) => candidate.id === id);
 		if (item) {

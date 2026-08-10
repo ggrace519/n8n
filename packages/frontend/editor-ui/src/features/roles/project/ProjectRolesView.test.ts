@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { within } from '@testing-library/vue';
 import { MODAL_CONFIRM } from '@/app/constants';
 import { useRolesStore } from '@n8n/stores/roles.store';
+import type { RoleObject } from '@n8n/permissions';
 import { mockedStore, type MockedStore } from '@/__tests__/utils';
 import ProjectRolesView from './ProjectRolesView.vue';
 import { useSettingsStore } from '@n8n/stores/settings.store';
@@ -53,7 +54,7 @@ const renderComponent = createComponentRenderer(ProjectRolesView, {
 });
 
 // Mock data for testing
-const mockSystemRoles = [
+const mockSystemRoles: RoleObject[] = [
 	{
 		displayName: 'Project Admin',
 		slug: 'project:admin',
@@ -74,7 +75,7 @@ const mockSystemRoles = [
 	},
 ];
 
-const mockCustomRoles = [
+const mockCustomRoles: RoleObject[] = [
 	{
 		displayName: 'Custom Role 1',
 		slug: 'custom-role-1',

@@ -22,7 +22,7 @@ import { SCOPE_TYPES, SCOPES, normalizeCoupledScopes } from './projectRoleScopes
 import RoleEditorLayout, { type RoleEditorLabels } from '../components/RoleEditorLayout.vue';
 import RoleAssignmentsTab from './RoleAssignmentsTab.vue';
 import { useRoleEditorForm } from '../composables/useRoleEditorForm';
-import { PROJECT_CUSTOM_ROLE_SCOPES } from '@n8n/permissions';
+import { PROJECT_CUSTOM_ROLE_SCOPES, scopeSchema, type Scope } from '@n8n/permissions';
 
 const rolesStore = useRolesStore();
 const route = useRoute();
@@ -91,7 +91,13 @@ const scopeTypes = computed(() => {
 });
 const scopes = SCOPES;
 
-function toggleScope(scope: string) {
+// Narrow a derived scope string (built via string replacement) back to a known
+// Scope against the catalog, so coupled scopes stay strongly typed without casts.
+function isScope(value: string): value is Scope {
+	return scopeSchema.safeParse(value).success;
+}
+
+function toggleScope(scope: Scope) {
 	const index = form.value.scopes.indexOf(scope);
 	const isBeingAdded = index === -1;
 
@@ -102,12 +108,14 @@ function toggleScope(scope: string) {
 	}
 
 	if (scope.startsWith('dataTable:') && scope.endsWith(':read')) {
-		toggleScope(scope.replace(':read', ':listProject'));
+		const listProjectScope = scope.replace(':read', ':listProject');
+		if (isScope(listProjectScope)) toggleScope(listProjectScope);
 		return;
 	}
 
 	if (scope.endsWith(':read')) {
-		toggleScope(scope.replace(':read', ':list'));
+		const listScope = scope.replace(':read', ':list');
+		if (isScope(listScope)) toggleScope(listScope);
 	}
 
 	// Dependency: workflow:execute requires workflow:read

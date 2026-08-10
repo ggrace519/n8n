@@ -41,12 +41,12 @@ import {
 import { SYSTEM_RESOLVER_ID } from '@n8n/api-types';
 import { useSettingsStore } from '@n8n/stores/settings.store';
 import { useRootStore } from '@n8n/stores/useRootStore';
-import { useWorkflowsEEStore } from '@/app/stores/workflows.ee.store';
+import { useWorkflowSharingStore } from '@/app/stores/workflowsSharing.store';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { useWorkflowsListStore } from '@/app/stores/workflowsList.store';
 import { createEventBus } from '@n8n/utils/event-bus';
 import { useExternalHooks } from '@/app/composables/useExternalHooks';
-import { useSourceControlStore } from '@/features/integrations/sourceControl.ee/sourceControl.store';
+import { useSourceControlStore } from '@/features/integrations/sourceControl/sourceControl.store';
 import { useCollaborationStore } from '@/features/collaboration/collaboration/collaboration.store';
 import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
 import { ProjectTypes } from '@/features/collaboration/projects/projects.types';
@@ -99,7 +99,7 @@ const workflowsStore = useWorkflowsStore();
 const workflowsListStore = useWorkflowsListStore();
 const projectsStore = useProjectsStore();
 const workflowDocumentStore = injectWorkflowDocumentStore();
-const workflowsEEStore = useWorkflowsEEStore();
+const workflowSharingStore = useWorkflowSharingStore();
 const nodeCreatorStore = useNodeCreatorStore();
 const posthogStore = usePostHog();
 const isLoading = ref(true);
@@ -232,7 +232,7 @@ const isSharingEnabled = computed(
 const workflowOwnerName = computed(() => {
 	const fallback = i18n.baseText('workflowSettings.callerPolicy.options.workflowsFromSameProject');
 
-	return workflowsEEStore.getWorkflowOwnerName(`${workflowId.value}`, fallback);
+	return workflowSharingStore.getWorkflowOwnerName(`${workflowId.value}`, fallback);
 });
 const workflowPermissions = computed(() => getResourcePermissions(workflow.value?.scopes).workflow);
 

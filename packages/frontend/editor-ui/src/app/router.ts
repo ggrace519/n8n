@@ -61,7 +61,7 @@ const SettingsCommunityNodesView = async () =>
 const SettingsApiView = async () =>
 	await import('@/features/settings/apiKeys/views/SettingsApiView.vue');
 const SettingsLogStreamingView = async () =>
-	await import('@/features/integrations/logStreaming.ee/views/SettingsLogStreamingView.vue');
+	await import('@/features/integrations/logStreaming/views/SettingsLogStreamingView.vue');
 const SetupView = async () => await import('@/features/core/auth/views/SetupView.vue');
 const SigninView = async () => await import('@/features/core/auth/views/SigninView.vue');
 const SignupView = async () => await import('@/features/core/auth/views/SignupView.vue');
@@ -81,34 +81,32 @@ const SettingsEncryptionKeys = async () =>
 const SignoutView = async () => await import('@/features/core/auth/views/SignoutView.vue');
 const SamlOnboarding = async () => await import('@/features/settings/sso/views/SamlOnboarding.vue');
 const SettingsSourceControl = async () =>
-	await import('@/features/integrations/sourceControl.ee/views/SettingsSourceControl.vue');
+	await import('@/features/integrations/sourceControl/views/SettingsSourceControl.vue');
 const SettingsExternalSecrets = async () => {
 	const settingsStore = useSettingsStore();
 	const moduleConfig = settingsStore.moduleSettings['external-secrets'];
 
 	if (moduleConfig?.multipleConnections || moduleConfig?.forProjects) {
 		return await import(
-			'@/features/integrations/secretsProviders.ee/views/SettingsSecretsProviders.ee.vue'
+			'@/features/integrations/secretsProviders/views/SettingsSecretsProviders.vue'
 		);
 	}
 
-	return await import(
-		'@/features/integrations/externalSecrets.ee/views/SettingsExternalSecrets.vue'
-	);
+	return await import('@/features/integrations/externalSecrets/views/SettingsExternalSecrets.vue');
 };
 const WorkerView = async () =>
-	await import('@/features/settings/orchestration.ee/views/WorkerView.vue');
+	await import('@/features/settings/orchestration/views/WorkerView.vue');
 const WorkflowHistory = async () =>
 	await import('@/features/workflows/workflowHistory/views/WorkflowHistory.vue');
 const WorkflowOnboardingView = async () => await import('@/app/views/WorkflowOnboardingView.vue');
 const EvaluationsListSwitcher = async () =>
-	await import('@/features/ai/evaluation.ee/views/EvaluationsListSwitcher.vue');
+	await import('@/features/ai/evaluation/views/EvaluationsListSwitcher.vue');
 const TestRunDetailView = async () =>
-	await import('@/features/ai/evaluation.ee/views/TestRunDetailView.vue');
+	await import('@/features/ai/evaluation/views/TestRunDetailView.vue');
 const CompareCollectionView = async () =>
-	await import('@/features/ai/evaluation.ee/views/CompareCollectionView.vue');
+	await import('@/features/ai/evaluation/views/CompareCollectionView.vue');
 const EvaluationRootView = async () =>
-	await import('@/features/ai/evaluation.ee/views/EvaluationsRootView.vue');
+	await import('@/features/ai/evaluation/views/EvaluationsRootView.vue');
 const SettingsAIView = async () => await import('@/features/ai/assistant/views/SettingsAIView.vue');
 const SettingsAiGatewayView = async () =>
 	await import('@/features/ai/gateway/views/SettingsAiGatewayView.vue');

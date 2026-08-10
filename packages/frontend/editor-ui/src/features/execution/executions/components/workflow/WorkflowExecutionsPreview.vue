@@ -1,6 +1,6 @@
 <script lang="ts" setup>
-import WorkflowExecutionAnnotationPanel from './WorkflowExecutionAnnotationPanel.ee.vue';
-import WorkflowExecutionAnnotationTags from './WorkflowExecutionAnnotationTags.ee.vue';
+import WorkflowExecutionAnnotationPanel from './WorkflowExecutionAnnotationPanel.vue';
+import WorkflowExecutionAnnotationTags from './WorkflowExecutionAnnotationTags.vue';
 import ExecutionPreviewHost from './ExecutionPreviewHost.vue';
 import { useExecutionDebugging } from '../../composables/useExecutionDebugging';
 import type { IExecutionUIData } from '../../composables/useExecutionHelpers';
@@ -20,9 +20,9 @@ import type { AnnotationVote, ExecutionSummary } from 'n8n-workflow';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useExecutionsStore } from '../../executions.store';
-import { useEvaluationsWizardSidepanelStore } from '@/features/ai/evaluation.ee/wizardSidepanel.store';
+import { useEvaluationsWizardSidepanelStore } from '@/features/ai/evaluation/wizardSidepanel.store';
 import { useWorkflowHistoryStore } from '@/features/workflows/workflowHistory/workflowHistory.store';
-import { useAddExecutionToDataset } from '@/features/ai/evaluation.ee/composables/useAddExecutionToDataset';
+import { useAddExecutionToDataset } from '@/features/ai/evaluation/composables/useAddExecutionToDataset';
 
 import { ElDropdown, ElDropdownItem, ElDropdownMenu } from 'element-plus';
 import { N8nButton, N8nIconButton, N8nSpinner, N8nText, N8nTooltip } from '@n8n/design-system';

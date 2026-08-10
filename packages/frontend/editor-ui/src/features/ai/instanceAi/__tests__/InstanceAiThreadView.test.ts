@@ -69,7 +69,7 @@ const testAgentOfferState = vi.hoisted(() => ({
 	capabilitySummary: null as unknown,
 }));
 
-vi.mock('@/features/ai/evaluation.ee/composables/useAgentEvalsFlag', () => ({
+vi.mock('@/features/ai/evaluation/composables/useAgentEvalsFlag', () => ({
 	useAgentEvalsFlag: () => ({
 		get value() {
 			return testAgentOfferState.evalsFlagEnabled;

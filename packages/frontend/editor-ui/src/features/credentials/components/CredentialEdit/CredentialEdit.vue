@@ -17,7 +17,7 @@ import CredentialIcon from '../CredentialIcon.vue';
 
 import CredentialConfig from './CredentialConfig.vue';
 import CredentialInfo from './CredentialInfo.vue';
-import CredentialSharing from './CredentialSharing.ee.vue';
+import CredentialSharing from './CredentialSharing.vue';
 import Modal from '@/app/components/Modal.vue';
 import SaveButton from '@/app/components/SaveButton.vue';
 import { useMessage } from '@/app/composables/useMessage';
@@ -44,7 +44,7 @@ import { createEventBus } from '@n8n/utils/event-bus';
 import { useExternalHooks } from '@/app/composables/useExternalHooks';
 import { useTelemetry } from '@n8n/composables/useTelemetry';
 import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
-import { useExternalSecretsStore } from '@/features/integrations/externalSecrets.ee/externalSecrets.ee.store';
+import { useExternalSecretsStore } from '@/features/integrations/externalSecrets/externalSecrets.store';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { sendUserEvent, type DynamicNotification } from '@n8n/rest-api-client/api/cloudPlans';
 import {
@@ -257,6 +257,14 @@ const {
 	initialize,
 	getChangedSharedFields,
 } = form;
+
+// CredentialSharing needs the sharing-capable shape (homeProject / sharedWithProjects /
+// scopes), which only the encrypted response carries. `isManaged` is present on that
+// shape and absent from the decrypted one, so it narrows the union cleanly.
+const sharingCredential = computed<ICredentialsResponse | null>(() => {
+	const cred = currentCredential.value;
+	return cred && 'isManaged' in cred ? cred : null;
+});
 
 const hideAskAssistant = computed<boolean>(() => {
 	const modalState = uiStore.modalStateById[CREDENTIAL_EDIT_MODAL_KEY];
@@ -1438,7 +1446,7 @@ const { width } = useElementSize(credNameRef);
 					</div>
 					<div v-else-if="showSharingContent" :class="$style.mainContent">
 						<CredentialSharing
-							:credential="currentCredential"
+							:credential="sharingCredential"
 							:credential-data="credentialData"
 							:credential-id="credentialId"
 							:credential-permissions="credentialPermissions"

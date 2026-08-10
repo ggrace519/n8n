@@ -21,7 +21,7 @@ import type {
 	IUsedCredential,
 } from '@/features/credentials/credentials.types';
 import { getResourcePermissions } from '@n8n/permissions';
-import EnterpriseEdition from '@/app/components/EnterpriseEdition.ee.vue';
+import EnterpriseEdition from '@/app/components/EnterpriseEdition.vue';
 import Modal from '@/app/components/Modal.vue';
 import MoveToFolderDropdown from './MoveToFolderDropdown.vue';
 import ProjectMoveResourceModalCredentialsList from '@/features/collaboration/projects/components/ProjectMoveResourceModalCredentialsList.vue';

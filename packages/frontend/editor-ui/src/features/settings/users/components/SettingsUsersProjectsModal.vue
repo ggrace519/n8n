@@ -32,7 +32,8 @@ const i18n = useI18n();
 const rolesStore = useRolesStore();
 
 const roleDisplayNameMap = computed(
-	() => new Map(rolesStore.roles.project.map((role) => [role.slug, role.displayName])),
+	() =>
+		new Map<string, string>(rolesStore.roles.project.map((role) => [role.slug, role.displayName])),
 );
 
 function getRoleDisplayName(slug: string): string {

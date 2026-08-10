@@ -1,7 +1,7 @@
 import { useToast } from '@n8n/composables/useToast';
 import { useRolesStore } from '@n8n/stores/roles.store';
 import { useI18n, type BaseTextKey } from '@n8n/i18n';
-import type { Role } from '@n8n/permissions';
+import type { Role, Scope } from '@n8n/permissions';
 import { useAsyncState } from '@vueuse/core';
 import isEqual from 'lodash/isEqual';
 import sortBy from 'lodash/sortBy';
@@ -13,7 +13,7 @@ const DISPLAY_NAME_MIN_LENGTH = 2;
 export type RoleEditorForm = {
 	displayName: string;
 	description: string | null | undefined;
-	scopes: string[];
+	scopes: Scope[];
 };
 
 export interface UseRoleEditorFormOptions {
@@ -22,13 +22,13 @@ export interface UseRoleEditorFormOptions {
 	/** Route name that renders the editor in read-only mode (the "view" route). */
 	viewRoute: string;
 	/** Returns the default scopes for a brand-new (not-yet-saved) role. */
-	defaultScopes?: () => string[];
+	defaultScopes?: () => Scope[];
 	/**
 	 * Filter applied to every scope set entering the form (default seed, fetched role,
 	 * reset). Keeps the editor — and anything it saves — limited to scopes it exposes,
 	 * so a role loaded with non-assignable scopes is sanitized rather than forwarded.
 	 */
-	filterScopes?: (scopes: string[]) => string[];
+	filterScopes?: (scopes: Scope[]) => Scope[];
 	/** Error message shown when the initial role fetch fails. */
 	fetchError: string;
 }
@@ -57,7 +57,7 @@ export function useRoleEditorForm({
 		{ label: i18n.baseText('projectRoles.tab.assignments'), value: 'assignments' },
 	]);
 
-	const sanitizeScopes = (scopes: string[]): string[] =>
+	const sanitizeScopes = (scopes: Scope[]): Scope[] =>
 		filterScopes ? filterScopes(scopes) : scopes;
 
 	const defaultForm = (): RoleEditorForm => ({

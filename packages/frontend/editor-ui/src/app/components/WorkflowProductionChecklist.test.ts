@@ -9,15 +9,15 @@ import {
 	createWorkflowDocumentId,
 } from '@/app/stores/workflowDocument.store';
 import { WorkflowDocumentStoreKey } from '@/app/constants/injectionKeys';
-import { useEvaluationStore } from '@/features/ai/evaluation.ee/evaluation.store';
+import { useEvaluationStore } from '@/features/ai/evaluation/evaluation.store';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { useWorkflowSettingsCache } from '@/app/composables/useWorkflowsCache';
 import { useUIStore } from '@/app/stores/ui.store';
 import { useTelemetry } from '@n8n/composables/useTelemetry';
-import { useSourceControlStore } from '@/features/integrations/sourceControl.ee/sourceControl.store';
+import { useSourceControlStore } from '@/features/integrations/sourceControl/sourceControl.store';
 import { useRouter } from 'vue-router';
 import type { IWorkflowDb } from '@/Interface';
-import type { SourceControlPreferences } from '@/features/integrations/sourceControl.ee/sourceControl.types';
+import type { SourceControlPreferences } from '@/features/integrations/sourceControl/sourceControl.types';
 import {
 	WORKFLOW_SETTINGS_MODAL_KEY,
 	WORKFLOW_ACTIVE_MODAL_KEY,
@@ -52,7 +52,7 @@ vi.mock('@n8n/composables/useTelemetry', () => ({
 vi.mock('@/features/ai/mcpAccess/composables/useMcp', () => ({}));
 
 const mockEvaluationSetOutputsNodeExist = ref(false);
-vi.mock('@/features/ai/evaluation.ee/composables/useWorkflowEvaluationState', () => ({
+vi.mock('@/features/ai/evaluation/composables/useWorkflowEvaluationState', () => ({
 	useWorkflowEvaluationState: () => ({
 		evaluationTriggerExists: ref(false),
 		evaluationSetMetricsNodeExist: ref(false),

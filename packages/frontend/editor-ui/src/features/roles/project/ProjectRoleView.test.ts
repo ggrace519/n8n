@@ -5,6 +5,7 @@ import { waitFor, type RenderResult } from '@testing-library/vue';
 import { VIEWS } from '@/app/constants';
 import { useRolesStore } from '@n8n/stores/roles.store';
 import { useSettingsStore } from '@n8n/stores/settings.store';
+import type { RoleObject, Scope } from '@n8n/permissions';
 import { mockedStore, type MockedStore } from '@/__tests__/utils';
 import ProjectRoleView from './ProjectRoleView.vue';
 
@@ -40,7 +41,7 @@ vi.mock('vue-router', async () => {
 
 const renderComponent = createComponentRenderer(ProjectRoleView);
 
-const defaultScopes = [
+const defaultScopes: Scope[] = [
 	'project:read',
 	'project:list',
 	'folder:read',
@@ -52,17 +53,17 @@ const defaultScopes = [
 ];
 
 // Mock role data
-const mockExistingRole = {
+const mockExistingRole: RoleObject = {
 	displayName: 'Test Role',
 	slug: 'test-role',
 	description: 'A test role for testing',
 	scopes: ['workflow:read', 'workflow:create', 'credential:read'],
 	licensed: true,
 	systemRole: false,
-	roleType: 'project' as const,
+	roleType: 'project',
 };
 
-const mockSystemRoles = [
+const mockSystemRoles: RoleObject[] = [
 	{
 		displayName: 'Project Admin',
 		slug: 'project:admin',
@@ -720,7 +721,7 @@ describe('ProjectRoleView', () => {
 		// Scopes that are valid but never assignable to a project role (e.g. cross-type
 		// global scopes). The editor must not forward them into a custom role, because the
 		// backend whitelist rejects them.
-		const NON_ASSIGNABLE_SCOPES = ['user:create', 'role:manage'];
+		const NON_ASSIGNABLE_SCOPES: Scope[] = ['user:create', 'role:manage'];
 
 		beforeEach(() => {
 			rolesStore.processedProjectRoles = mockSystemRoles.map((role) =>

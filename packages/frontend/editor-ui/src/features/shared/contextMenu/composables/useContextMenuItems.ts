@@ -5,7 +5,7 @@ import {
 	PRODUCTION_ONLY_TRIGGER_NODE_TYPES,
 } from '@/app/constants';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
-import { useSourceControlStore } from '@/features/integrations/sourceControl.ee/sourceControl.store';
+import { useSourceControlStore } from '@/features/integrations/sourceControl/sourceControl.store';
 import { useUIStore } from '@/app/stores/ui.store';
 import { useCollaborationStore } from '@/features/collaboration/collaboration/collaboration.store';
 import { useFocusedNodesStore } from '@/features/ai/assistant/focusedNodes.store';
@@ -95,7 +95,7 @@ export function useContextMenuItems(
 	const { aiAssistant, aiBuilder, instanceAi } = useEditorContext();
 
 	const workflowPermissions = computed(
-		() => getResourcePermissions(workflowDocumentStore?.value?.scopes).workflow,
+		() => getResourcePermissions([...(workflowDocumentStore?.value?.scopes ?? [])]).workflow,
 	);
 
 	const isReadOnly = computed(

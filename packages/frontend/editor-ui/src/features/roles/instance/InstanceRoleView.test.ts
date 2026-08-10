@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { waitFor } from '@testing-library/vue';
 import { VIEWS } from '@/app/constants';
 import { useRolesStore } from '@n8n/stores/roles.store';
+import type { RoleObject } from '@n8n/permissions';
 import { mockedStore, type MockedStore } from '@/__tests__/utils';
 import InstanceRoleView from './InstanceRoleView.vue';
 
@@ -38,24 +39,24 @@ vi.mock('vue-router', async () => {
 
 const renderComponent = createComponentRenderer(InstanceRoleView);
 
-const mockCustomRole = {
+const mockCustomRole: RoleObject = {
 	displayName: 'Support',
 	slug: 'support',
 	description: 'A custom instance role',
 	scopes: ['user:read', 'user:list'],
 	licensed: true,
 	systemRole: false,
-	roleType: 'global' as const,
+	roleType: 'global',
 };
 
-const mockSystemRole = {
+const mockSystemRole: RoleObject = {
 	displayName: 'Admin',
 	slug: 'global:admin',
 	description: 'System admin role',
 	scopes: ['tag:read', 'tag:list', 'tag:create', 'tag:update', 'tag:delete'],
 	licensed: true,
 	systemRole: true,
-	roleType: 'global' as const,
+	roleType: 'global',
 };
 
 let rolesStore: MockedStore<typeof useRolesStore>;

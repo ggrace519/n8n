@@ -7,7 +7,11 @@
  * only valid resource:operation combinations can be specified.
  */
 
-import { COUPLED_HIDDEN_SCOPES, PROJECT_CUSTOM_ROLE_OPERATIONS } from '@n8n/permissions';
+import {
+	COUPLED_HIDDEN_SCOPES,
+	PROJECT_CUSTOM_ROLE_OPERATIONS,
+	type Scope,
+} from '@n8n/permissions';
 
 type ProjectResource = keyof typeof PROJECT_CUSTOM_ROLE_OPERATIONS;
 
@@ -40,7 +44,7 @@ export const SCOPES: Record<ProjectResource, ProjectRoleScope[]> = Object.fromEn
 /** All UI-visible scopes as a flat set, for permission counting */
 export const UI_VISIBLE_SCOPES: Set<string> = new Set([
 	...Object.values(SCOPES).flat(),
-	...COUPLED_HIDDEN_SCOPES,
+	...Object.keys(COUPLED_HIDDEN_SCOPES),
 ]);
 
 /** Total number of UI-visible permissions */
@@ -51,7 +55,7 @@ export const TOTAL_PROJECT_PERMISSIONS = UI_VISIBLE_SCOPES.size;
  * Prevents legacy roles with only one of the two from being saved in that
  * state when an admin edits unrelated permissions.
  */
-export function normalizeCoupledScopes(scopes: string[]): string[] {
+export function normalizeCoupledScopes(scopes: Scope[]): Scope[] {
 	const hasPublish = scopes.includes('workflow:publish');
 	const hasUnpublish = scopes.includes('workflow:unpublish');
 

@@ -15,7 +15,7 @@ import type { BaseFilters, Resource, VariableResource, DatatableColumn } from '@
 
 import { usePageRedirectionHelper } from '@/app/composables/usePageRedirectionHelper';
 import { EnterpriseEditionFeature, MODAL_CONFIRM } from '@/app/constants';
-import { VARIABLE_MODAL_KEY } from '@/features/settings/environments.ee/environments.constants';
+import { VARIABLE_MODAL_KEY } from '@/features/settings/environments/environments.constants';
 import { getResourcePermissions } from '@n8n/permissions';
 import {
 	N8nEmptyState,
@@ -35,10 +35,10 @@ import pickBy from 'lodash/pickBy';
 import type { ComponentExposed } from 'vue-component-type-helpers';
 import { useInsightsStore } from '@/features/execution/insights/insights.store';
 import InsightsSummary from '@/features/execution/insights/components/InsightsSummary.vue';
-import { useEnvironmentsStore } from '@/features/settings/environments.ee/environments.store';
-import type { EnvironmentVariable } from '@/features/settings/environments.ee/environments.types';
-import VariablesUsageBadge from '@/features/settings/environments.ee/components/VariablesUsageBadge.vue';
-import { useSourceControlStore } from '@/features/integrations/sourceControl.ee/sourceControl.store';
+import { useEnvironmentsStore } from '@/features/settings/environments/environments.store';
+import type { EnvironmentVariable } from '@/features/settings/environments/environments.types';
+import VariablesUsageBadge from '@/features/settings/environments/components/VariablesUsageBadge.vue';
+import { useSourceControlStore } from '@/features/integrations/sourceControl/sourceControl.store';
 import { useProjectPages } from '@/features/collaboration/projects/composables/useProjectPages';
 import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
 import ProjectHeader from '@/features/collaboration/projects/components/ProjectHeader.vue';
@@ -166,8 +166,6 @@ const handleDeleteVariable = async (variable: EnvironmentVariable) => {
 
 		await environmentsStore.deleteVariable({
 			id: variable.id,
-			value: variable.value,
-			key: variable.key,
 		});
 		showMessage({
 			title: i18n.baseText('variables.delete.successful.message', {
