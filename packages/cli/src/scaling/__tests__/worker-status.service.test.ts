@@ -3,7 +3,7 @@ import type { Mocked } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
 import type { Push } from '@/push';
-import { WorkerStatusService } from '@/scaling/worker-status.service.ee';
+import { WorkerStatusService } from '@/scaling/worker-status.service';
 
 describe('WorkerStatusService', () => {
 	let workerStatusService: WorkerStatusService;

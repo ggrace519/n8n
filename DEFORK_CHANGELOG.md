@@ -16,6 +16,92 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-09 — E10: multi-main leader election and worker status rebuilt fair-code
+
+Rebuilds the last two purged scaling modules. **Clean-room source:** the
+`.defork/e10-contract.md` contract (itself derived only from surviving fair-code),
+the fair-code consumers that import these symbols (`start.ts`, `worker.ts`,
+`debug.controller.ts`, `orchestration.controller.ts`), the surviving
+`leader-election-client.ts` primitives, the `@OnLeaderTakeover` /
+`@OnLeaderStepdown` decorator contract and its test, the `WorkerStatus` DTO in
+`@n8n/api-types`, and the pubsub event map. No `.ee` body was read.
+
+**Built at fair-code paths, not the contract's `.ee` filenames.** The contract's
+file map named the targets `multi-main-setup.ee.ts` and
+`worker-status.service.ee.ts`; this fork bans `.ee` paths, so they landed as
+`packages/cli/src/scaling/multi-main-setup.ts` and
+`packages/cli/src/scaling/worker-status.service.ts`, with every consumer and spec
+import repointed. Spec assertions were not touched.
+
+**Added — multi-main leader election.** `MultiMainSetup` assigns a definitive
+leader/follower role before `init()` resolves, renews the leader key on an
+interval, reconciles local role against Redis, and drives the `leader-takeover` /
+`leader-stepdown` events that 22 leader-only services depend on for triggers,
+schedules, queue recovery, pruning and gateway lifecycles. It adds only the state
+machine, timers and events on top of `LeaderElectionClient`; the Redis primitives
+were already fair-code.
+
+**Added — an owner-checked leader release.** `LeaderElectionClient.clearLeader()`
+performed an unconditional `DEL`, so a process with a stale local role could
+delete a *newer* leader's key — the exact split brain that makes two instances run
+every schedule. It is replaced by `releaseLeaderIfOwner()`, a compare-and-delete
+Lua script mirroring the existing owner-checked renewal. `clearLeader()` had no
+callers and was removed rather than left as a footgun.
+
+**Added — leader-election config is now validated at startup.** Nothing checked
+that the renewal interval fits inside the key TTL, so a misconfigured instance
+would let its key expire between renewals and flap leadership silently. `init()`
+now rejects with an actionable error unless the TTL is at least 2s and the
+interval leaves room for two renewal attempts per TTL window. The shipped defaults
+(10s TTL, 3s interval) pass; no config in the repo sets either variable.
+
+**Added — worker status reporting.** `WorkerStatusService` publishes
+`get-worker-status`, answers it on workers with one process/host snapshot, and
+fans responses out to the requesting user over push from whichever main holds
+their connection.
+
+**Behaviour decisions on points the contract left open** (each covered by a test
+in `src/scaling/__tests__/multi-main-setup.test.ts`):
+
+- Ambiguity always fails closed — the instance demotes rather than optimistically
+  retaining leadership. A failed atomic claim is never treated as proof of
+  leadership.
+- A renewal error demotes on the **first** failure. The trade-off is accepted and
+  deliberate: a transient Redis blip causes a stepdown/takeover cycle (and the
+  trigger churn that implies) roughly one interval later, which is far cheaper
+  than two mains believing they lead.
+- The **initial** role assignment emits no `leader-takeover`. `Start` calls
+  `registerEventHandlers()` only after `init()` resolves, so the event would reach
+  zero handlers; all 22 leader-only consumers self-initialize from `isLeader`.
+- Transitions **await** their decorator handlers. Handlers run concurrently (no
+  guaranteed order — stepdown teardown is time-sensitive) and a throwing handler
+  is logged without aborting the transition or the other handlers.
+- `shutdown()` does **not** emit `leader-stepdown`; consumers needing exit
+  teardown already declare `@OnShutdown`, and emitting would run it twice.
+- `fetchLeaderKey()` throws on a Redis failure rather than returning `null`, so an
+  outage cannot masquerade as "no leader".
+- The election client is resolved lazily, not constructor-injected: it opens a
+  Redis connection, and `DebugController` injects `MultiMainSetup` on every
+  instance — including single-main and regular-mode ones with no Redis. For the
+  same reason `fetchLeaderKey()` short-circuits to `null` on a non-multi-main
+  instance without contacting Redis. **Caveat:** that check reads `isMultiMain`,
+  which includes licensed state, so an instance whose multi-main entitlement is
+  absent reports `null` on the debug endpoint even if a leader key exists.
+- A leader check still in flight when `shutdown()` begins can no longer promote
+  the instance. Without a guard, a check parked on its leader read would resume
+  after shutdown started, win the atomic claim, and run every takeover handler —
+  starting gateways, pruning timers and trigger activation on an exiting process,
+  only for shutdown to delete the key it had just acquired.
+
+**Known, deliberately preserved:** a worker's status response echoes the
+requesting user's ID back inside the public `status` payload pushed to that user's
+browser. It is pinned by the surviving spec and left as-is; see the note in
+`.defork/e10-contract.md` §8.15.
+
+Still under-pinned and chosen as the simplest correct option: worker CPU string
+formatting, network-interface flattening order (name-sorted), unavailable
+container-memory APIs reported as `0`, and transition log wording.
+
 ### 2026-08-09 — E18 hardening: publication-integrity fixes
 
 Follow-up to the E18 rebuild below, closing five defects found in an adversarial

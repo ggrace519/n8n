@@ -16,7 +16,7 @@ import { LoadNodesAndCredentials } from '@/load-nodes-and-credentials';
 import { PubSubRegistry } from '@/scaling/pubsub/pubsub.registry';
 import { Subscriber } from '@/scaling/pubsub/subscriber.service';
 import { WorkerServer } from '@/scaling/worker-server';
-import { WorkerStatusService } from '@/scaling/worker-status.service.ee';
+import { WorkerStatusService } from '@/scaling/worker-status.service';
 import { RedisClientService } from '@/services/redis-client.service';
 
 import { Worker } from '../worker';

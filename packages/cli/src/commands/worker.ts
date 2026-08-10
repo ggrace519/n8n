@@ -19,7 +19,7 @@ import { Subscriber } from '@/scaling/pubsub/subscriber.service';
 import type { ScalingService } from '@/scaling/scaling.service';
 import type { WorkerServer, WorkerServerEndpointsConfig } from '@/scaling/worker-server';
 import { ExecutionStopService } from '@/scaling/execution-stop.service';
-import { WorkerStatusService } from '@/scaling/worker-status.service.ee';
+import { WorkerStatusService } from '@/scaling/worker-status.service';
 import { JwtService } from '@/services/jwt.service';
 
 import { BaseCommand } from './base-command';

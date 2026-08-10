@@ -12,7 +12,7 @@ import { mock, captor } from 'vitest-mock-extended';
 
 import type { ActiveExecutions } from '@/active-executions';
 import { ExecutionPersistence } from '@/executions/execution-persistence';
-import type { MultiMainSetup } from '@/scaling/multi-main-setup.ee';
+import type { MultiMainSetup } from '@/scaling/multi-main-setup';
 import type { OwnershipService } from '@/services/ownership.service';
 import { WaitTracker } from '@/wait-tracker';
 import type { WorkflowRunner } from '@/workflow-runner';
