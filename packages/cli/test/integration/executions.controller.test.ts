@@ -181,6 +181,48 @@ describe('PATCH /executions/:id', () => {
 		expect(response.body.data.annotation).toMatchObject({ note: 'keep me', vote: 'down' });
 	});
 
+	test('reports unknown tag ids as not found rather than a server error', async () => {
+		const execution = await saveExecution({ belongingTo: owner });
+
+		await testServer
+			.authAgentFor(owner)
+			.patch(`/executions/${execution.id}`)
+			.send({ tags: ['does-not-exist'] })
+			.expect(404);
+	});
+
+	test('a project viewer cannot annotate, matching what the editor offers', async () => {
+		const teamProject = await createTeamProject();
+		await linkUserToProject(member, teamProject, 'project:viewer');
+
+		const workflow = await createWorkflow({}, teamProject);
+		const execution = await createSuccessfulExecution(workflow);
+
+		// The viewer can read the execution...
+		await testServer.authAgentFor(member).get(`/executions/${execution.id}`).expect(200);
+
+		// ...but annotating it is a write.
+		await testServer
+			.authAgentFor(member)
+			.patch(`/executions/${execution.id}`)
+			.send({ vote: 'up' })
+			.expect(404);
+	});
+
+	test('a project editor can annotate', async () => {
+		const teamProject = await createTeamProject();
+		await linkUserToProject(member, teamProject, 'project:editor');
+
+		const workflow = await createWorkflow({}, teamProject);
+		const execution = await createSuccessfulExecution(workflow);
+
+		await testServer
+			.authAgentFor(member)
+			.patch(`/executions/${execution.id}`)
+			.send({ vote: 'up' })
+			.expect(200);
+	});
+
 	test('rejects an update carrying no annotation at all', async () => {
 		const execution = await saveExecution({ belongingTo: owner });
 

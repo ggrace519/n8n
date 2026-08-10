@@ -778,7 +778,16 @@ export class ExecutionService {
 		});
 
 		if (updateData.tags) {
-			await this.annotationTagMappingRepository.overwriteTags(annotation.id, updateData.tags);
+			try {
+				await this.annotationTagMappingRepository.overwriteTags(annotation.id, updateData.tags);
+			} catch (error) {
+				// A tag id that does not exist trips the foreign key. Reported the same
+				// way as the public API path below, rather than as a 500.
+				if (error instanceof QueryFailedError) {
+					throw new NotFoundError('Some tags not found');
+				}
+				throw error;
+			}
 		}
 	}
 

@@ -937,19 +937,31 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 		// Annotation filters join through the annotation rather than selecting it,
 		// so the common (unfiltered) list query keeps its existing plan.
 		if (vote ?? annotationTags?.length) {
+			// One annotation per execution (unique index on executionId), so this
+			// join cannot multiply rows.
 			qb.innerJoin(ExecutionAnnotation, 'annotation', 'annotation.executionId = execution.id');
 
 			if (vote) qb.andWhere('annotation.vote = :vote', { vote });
 
 			if (annotationTags?.length) {
-				// One row per execution even when several of its tags match.
-				qb.innerJoin(
-					AnnotationTagMapping,
-					'annotationTagMapping',
-					'annotationTagMapping.annotationId = annotation.id',
-				)
-					.andWhere('annotationTagMapping.tagId IN (:...annotationTags)', { annotationTags })
-					.distinct(true);
+				// Selecting several tags means "has all of them", matching how the
+				// workflow list filters by its own tags. Expressed as a grouped
+				// subquery rather than a join so the outer query keeps one row per
+				// execution: a join here would need SELECT DISTINCT, which Postgres
+				// then rejects because the ORDER BY expressions (the COALESCE and
+				// CASE forms above) are not in the select list.
+				const taggedAnnotations = qb
+					.subQuery()
+					.select('atm.annotationId')
+					.from(AnnotationTagMapping, 'atm')
+					.where('atm.tagId IN (:...annotationTags)')
+					.groupBy('atm.annotationId')
+					.having('COUNT(DISTINCT atm.tagId) = :annotationTagCount');
+
+				qb.andWhere(`annotation.id IN (${taggedAnnotations.getQuery()})`).setParameters({
+					annotationTags,
+					annotationTagCount: annotationTags.length,
+				});
 			}
 		}
 

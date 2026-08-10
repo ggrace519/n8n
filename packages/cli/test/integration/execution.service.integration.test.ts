@@ -1107,6 +1107,69 @@ describe('ExecutionService', () => {
 			]);
 		});
 
+		test('should require every selected annotation tag, not any of them', async () => {
+			const workflow = await createWorkflow({}, owner);
+
+			const [hasBoth, hasOne] = await Promise.all([
+				createExecution({ status: 'success' }, workflow),
+				createExecution({ status: 'success' }, workflow),
+			]);
+
+			const annotationTags = await createAnnotationTags(['tag1', 'tag2']);
+
+			await annotateExecution(
+				hasBoth.id,
+				{ vote: 'up', tags: [annotationTags[0].id, annotationTags[1].id] },
+				[workflow.id],
+			);
+			await annotateExecution(hasOne.id, { vote: 'up', tags: [annotationTags[0].id] }, [
+				workflow.id,
+			]);
+
+			const query: ExecutionSummaries.RangeQuery = {
+				kind: 'range',
+				status: ['success'],
+				range: { limit: 20 },
+				user: owner,
+				annotationTags: [annotationTags[0].id, annotationTags[1].id],
+			};
+
+			const output = await executionService.findRangeWithCount(query);
+
+			// Matches how the workflow list filters by its own tags.
+			expect(output.count).toBe(1);
+			expect(output.results).toHaveLength(1);
+			expect(output.results[0].id).toBe(hasBoth.id);
+		});
+
+		test('should filter by annotation tags under the default ordering', async () => {
+			const workflow = await createWorkflow({}, owner);
+
+			const execution = await createExecution({ status: 'success' }, workflow);
+			const annotationTags = await createAnnotationTags(['tag1']);
+
+			await annotateExecution(execution.id, { vote: 'up', tags: [annotationTags[0].id] }, [
+				workflow.id,
+			]);
+
+			// The editor's list sorts by startedAt. Combined with a tag filter this
+			// used to build SELECT DISTINCT with an ORDER BY expression outside the
+			// select list, which Postgres rejects outright.
+			const query: ExecutionSummaries.RangeQuery = {
+				kind: 'range',
+				status: ['success'],
+				range: { limit: 20 },
+				order: { startedAt: 'DESC' },
+				user: owner,
+				annotationTags: [annotationTags[0].id],
+			};
+
+			const output = await executionService.findRangeWithCount(query);
+
+			expect(output.count).toBe(1);
+			expect(output.results[0].id).toBe(execution.id);
+		});
+
 		test('should filter by annotation vote', async () => {
 			const workflow = await createWorkflow({}, owner);
 

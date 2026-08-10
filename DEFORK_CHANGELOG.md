@@ -16,6 +16,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-10 — Review fixes on the annotation rebuild
+
+A three-model review panel (codex, grok, a Claude reviewer) over the stacked
+branches found four defects worth acting on. Two were introduced by the
+annotation rebuild itself.
+
+**Fixed — filtering the executions list by annotation tag crashed on Postgres.**
+The tag filter joined the mapping table and used `SELECT DISTINCT` to collapse
+the duplicate rows that join produces. But the list's own sort orders are
+computed expressions (`COALESCE(startedAt, createdAt)`, and a `CASE` for
+top-of-list status), and Postgres rejects `SELECT DISTINCT` whose `ORDER BY`
+expressions are not in the select list. Any tag-filtered request under the
+editor's default sort returned a 500 — on the executions list hot path. SQLite
+does not enforce the restriction, and no test combined a tag filter with an
+order, so the earlier Postgres run passed. The filter is now a grouped subquery,
+which needs no `DISTINCT` at all.
+
+**Fixed — selecting several annotation tags now means "has all of them".** The
+rebuild used `tagId IN (...)`, i.e. any. The workflow list filters by its own
+tags with `HAVING COUNT(DISTINCT ...) = :tagCount`, and the executions filter UI
+is the same dropdown, so the two surfaces disagreed. Now consistent.
+
+**Fixed — a project viewer could annotate executions.** `PATCH /rest/executions/:id`
+resolved accessible workflows with `workflow:read`, but it writes: it stores a
+vote, note and tags. The editor only offers those controls to users holding
+`workflow:update`, so the API was more permissive than the UI it serves — and
+since annotated executions are now exempt from pruning, it also let a viewer
+pin executions in storage. Scoped on `workflow:update` to match.
+
+**Fixed — unknown tag ids returned 500 from the editor path.** The public API
+path already mapped the foreign-key failure to `404 Some tags not found`; the
+editor's PATCH did not. Both now agree.
+
+**Changed — `IExecutionResponse.annotation`** now declares the `id`, `vote` and
+`note` that `serializeAnnotation` has been populating, instead of `tags` alone.
+
+Regression tests added for all four; the two behavioural fixes were
+mutation-tested (reverting each fails its spec). Verified on **both** databases:
+`execution.service.integration` **39/39**, `executions.controller` **18/18**,
+`executions-pruning.service` **22/22**, `annotation-tags.api` **9/9** — 88/88 on
+Postgres and on SQLite; `@n8n/db` **411/411**; cli execution unit tests
+**231/231**; cli `tsc` unchanged at 16 pre-existing errors.
+
+**Reviewed and deliberately not changed:** `execution:stop` is absent from the
+custom-role scope groups, so only built-in roles can hold it — inert, as the stop
+routes authorize on `workflow:execute`. The annotation summary in list responses
+still omits `note`, which the surviving specs pin with an exact `toEqual`.
+
 ### 2026-08-10 — Execution annotations rebuilt fair-code (E19)
 
 The purge removed the execution-annotation backend while every consumer of it
