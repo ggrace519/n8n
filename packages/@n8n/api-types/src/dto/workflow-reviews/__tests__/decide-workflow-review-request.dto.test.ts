@@ -5,6 +5,10 @@ describe('DecideWorkflowReviewRequestDto', () => {
 		test.each([
 			{ name: 'approved decision', request: { decision: 'approved' } },
 			{ name: 'changes_requested decision', request: { decision: 'changes_requested' } },
+			{
+				name: 'decision naming the inspected version',
+				request: { decision: 'approved', expectedVersionId: 'aBcDeFgHiJkLmNoP' },
+			},
 		])('should validate $name', ({ request }) => {
 			const result = DecideWorkflowReviewRequestDto.safeParse(request);
 			expect(result.success).toBe(true);
@@ -33,6 +37,11 @@ describe('DecideWorkflowReviewRequestDto', () => {
 				name: 'non-string decision',
 				request: { decision: 1 },
 				expectedErrorPath: ['decision'],
+			},
+			{
+				name: 'over-long expectedVersionId',
+				request: { decision: 'approved', expectedVersionId: 'x'.repeat(37) },
+				expectedErrorPath: ['expectedVersionId'],
 			},
 		])('should fail validation for $name', ({ request, expectedErrorPath }) => {
 			const result = DecideWorkflowReviewRequestDto.safeParse(request);

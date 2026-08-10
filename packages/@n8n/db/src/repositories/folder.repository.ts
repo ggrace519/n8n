@@ -1,13 +1,15 @@
 import { Service } from '@n8n/di';
 import type { EntityManager, SelectQueryBuilder } from '@n8n/typeorm';
-import { DataSource, In, Repository } from '@n8n/typeorm';
+import { DataSource, In } from '@n8n/typeorm';
 import { PROJECT_ROOT } from 'n8n-workflow';
 
+import { BaseRepository } from './base-repository';
 import { Folder, FolderTagMapping, TagEntity } from '../entities';
 import type { FolderWithWorkflowAndSubFolderCountAndPath, ListQuery } from '../entities/types-db';
+import type { OperationContext } from '../services/transaction';
 
 @Service()
-export class FolderRepository extends Repository<Folder> {
+export class FolderRepository extends BaseRepository<Folder> {
 	constructor(dataSource: DataSource) {
 		super(Folder, dataSource.manager);
 	}
@@ -306,9 +308,22 @@ export class FolderRepository extends Repository<Folder> {
 	}
 
 	/** Re-home the given folders (by ID) into another project. */
-	async moveFoldersToProject(folderIds: string[], projectId: string) {
+	async moveFoldersToProject(folderIds: string[], projectId: string, ctx: OperationContext) {
 		if (folderIds.length === 0) return;
-		await this.update({ id: In(folderIds) }, { homeProject: { id: projectId } });
+		await this.managerFor(ctx).update(
+			Folder,
+			{ id: In(folderIds) },
+			{ homeProject: { id: projectId } },
+		);
+	}
+
+	/**
+	 * Re-parents one folder, or moves it to the project root when `parentFolder`
+	 * is null. Runs in the caller's transaction so it commits with the project
+	 * move that made the old parent unreachable.
+	 */
+	async updateParentFolder(folderId: string, parentFolder: Folder | null, ctx: OperationContext) {
+		await this.managerFor(ctx).update(Folder, { id: folderId }, { parentFolder });
 	}
 
 	async transferAllFoldersToProject(

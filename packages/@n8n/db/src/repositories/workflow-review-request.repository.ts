@@ -66,9 +66,10 @@ export class WorkflowReviewRequestRepository extends BaseRepository<WorkflowRevi
 	}
 
 	/**
-	 * The single open request for a workflow, if any. Called inside the create
-	 * transaction to enforce "at most one open review per workflow" — the schema
-	 * has no partial-unique index to lean on.
+	 * The single open request for a workflow, if any. Read from `request.state`,
+	 * never from the open sentinel: the sentinel exists to enforce the invariant,
+	 * and a second source of truth for "is this open" would drift towards
+	 * blocking publication.
 	 */
 	async findOpenRequestForWorkflow(
 		workflowId: string,
@@ -276,6 +277,15 @@ export class WorkflowReviewRequestRepository extends BaseRepository<WorkflowRevi
 		const ids = [...new Set(openRequests.map((row) => row.id))];
 		if (ids.length === 0) return [];
 
+		// Sentinel first, request row second: the module's single lock order (link
+		// row before request row). Clearing it releases the workflow for a new
+		// review; leaving it set would block every future review of that workflow.
+		await manager.update(
+			WorkflowReviewRequestWorkflow,
+			{ workflowReviewRequestId: In(ids) },
+			{ openWorkflowId: null },
+		);
+
 		// The decision is left as-is: closing for a lifecycle event is not a
 		// reviewer verdict, so it must not read as one.
 		await manager.update(
@@ -284,6 +294,37 @@ export class WorkflowReviewRequestRepository extends BaseRepository<WorkflowRevi
 			{ state: 'closed', closedById: actorId, updatedAt: new Date() },
 		);
 		return ids;
+	}
+
+	/**
+	 * Deletes review requests that no longer link any workflow, cascading their
+	 * child and junction rows. Such a request is unreachable: every read path
+	 * joins the link table.
+	 *
+	 * Safe against a create in flight because a request row and its link row are
+	 * inserted in one transaction, so a linkless request is never visible to
+	 * another connection.
+	 */
+	async deleteLinklessRequests(ctx: OperationContext): Promise<number> {
+		const manager = this.managerFor(ctx);
+		const query = manager
+			.createQueryBuilder(WorkflowReviewRequest, 'request')
+			.select('request.id', 'id');
+
+		const linkExists = query
+			.subQuery()
+			.select('1')
+			.from(WorkflowReviewRequestWorkflow, 'link')
+			.where('link.workflowReviewRequestId = request.id')
+			.getQuery();
+
+		const rows = await query.where(`NOT EXISTS ${linkExists}`).getRawMany<{ id: string }>();
+		if (rows.length === 0) return 0;
+
+		const result = await manager.delete(WorkflowReviewRequest, {
+			id: In(rows.map((row) => row.id)),
+		});
+		return result.affected ?? 0;
 	}
 
 	/** Replaces the reviewer junction for a request. */

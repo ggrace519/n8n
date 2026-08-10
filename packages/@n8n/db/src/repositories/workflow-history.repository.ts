@@ -27,6 +27,21 @@ export class WorkflowHistoryRepository extends BaseRepository<WorkflowHistory> {
 	}
 
 	/**
+	 * Whether the version belongs to that workflow. `versionId` is globally
+	 * unique, so a foreign-key check alone does not establish the pair — callers
+	 * pinning a version to a workflow must verify it here.
+	 */
+	async versionBelongsToWorkflow(
+		{ workflowId, versionId }: { workflowId: string; versionId: string },
+		ctx: OperationContext,
+	): Promise<boolean> {
+		const count = await this.managerFor(ctx).count(WorkflowHistory, {
+			where: { workflowId, versionId },
+		});
+		return count > 0;
+	}
+
+	/**
 	 * Name and optionally describe a single version. Scoped by `workflowId` too
 	 * so a version of another workflow can never be touched, and returns the
 	 * affected row count so callers running inside a transaction can treat `0`

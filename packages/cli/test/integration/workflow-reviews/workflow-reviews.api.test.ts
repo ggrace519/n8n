@@ -7,8 +7,10 @@ import {
 } from '@n8n/backend-test-utils';
 import type { Project, User, WorkflowEntity } from '@n8n/db';
 import {
+	SharedWorkflowRepository,
 	WorkflowHistoryRepository,
 	WorkflowPublishedVersionRepository,
+	WorkflowRepository,
 	WorkflowReviewRequestRepository,
 	WorkflowReviewRequestWorkflowRepository,
 } from '@n8n/db';
@@ -16,6 +18,8 @@ import { Container } from '@n8n/di';
 import { v4 as uuid } from 'uuid';
 
 import { WORKFLOW_REVIEWS_ENV_FEATURE_FLAG } from '@/constants/workflow-reviews';
+import { WorkflowReviewAccessService } from '@/modules/workflow-reviews/workflow-review-access.service';
+import { WorkflowReviewService } from '@/modules/workflow-reviews/workflow-review.service';
 import { WorkflowReviewPolicyService } from '@/services/workflow-review-policy.service';
 import { EnterpriseWorkflowService } from '@/workflows/workflow-collaboration.service';
 import { WorkflowPublishGuardProxy } from '@/workflows/workflow-publish-guard-proxy.service';
@@ -217,6 +221,105 @@ describe('workflow reviews API', () => {
 		it('rejects a second open review for the same workflow with 409', async () => {
 			await openReview();
 			await authorAgent.post('/workflow-review-requests').send(createPayload()).expect(409);
+		});
+
+		it('rejects a version that belongs to another workflow with 404', async () => {
+			const foreignVersionId = uuid();
+			const other = await createWorkflow({ name: 'Other', versionId: foreignVersionId }, project);
+			await createWorkflowHistory(other);
+
+			await authorAgent
+				.post('/workflow-review-requests')
+				.send(
+					createPayload({
+						workflows: [
+							{
+								workflowId: workflow.id,
+								workflowVersionId: foreignVersionId,
+								workflowVersionName: 'v1',
+							},
+						],
+					}),
+				)
+				.expect(404);
+
+			const { count } = await Container.get(WorkflowReviewRequestRepository).listForWorkflow(
+				{ workflowId: workflow.id },
+				{},
+			);
+			expect(count).toBe(0);
+		});
+
+		it('rejects a version that does not exist at all with 404', async () => {
+			await authorAgent
+				.post('/workflow-review-requests')
+				.send(
+					createPayload({
+						workflows: [
+							{ workflowId: workflow.id, workflowVersionId: uuid(), workflowVersionName: 'v1' },
+						],
+					}),
+				)
+				.expect(404);
+		});
+
+		it('rejects a concurrent second create at the database boundary with 409', async () => {
+			await openReview();
+
+			// Stands in for the interleaving the in-transaction pre-check cannot see:
+			// the check observes no open review while another create already committed
+			// one. The open sentinel's unique constraint is what has to reject it.
+			const precheck = vi
+				.spyOn(Container.get(WorkflowReviewRequestRepository), 'findOpenRequestForWorkflow')
+				.mockResolvedValue(null);
+
+			await authorAgent.post('/workflow-review-requests').send(createPayload()).expect(409);
+
+			precheck.mockRestore();
+
+			const { count } = await Container.get(WorkflowReviewRequestRepository).listForWorkflow(
+				{ workflowId: workflow.id },
+				{},
+			);
+			expect(count).toBe(1);
+		});
+
+		it('rejects a second open sentinel for the same workflow at the repository', async () => {
+			const review = await openReview();
+			const other = await Container.get(WorkflowReviewRequestRepository).createRequest(
+				{ projectId: project.id, title: 'Second', createdById: author.id },
+				{},
+			);
+
+			const result = await Container.get(WorkflowReviewRequestWorkflowRepository).createWorkflowRow(
+				{
+					workflowReviewRequestId: other.id,
+					workflowId: workflow.id,
+					workflowVersionId: pinnedVersionId,
+					open: true,
+				},
+				{},
+			);
+
+			expect(result.status).toBe('open-review-exists');
+			const links = await Container.get(WorkflowReviewRequestWorkflowRepository).findByRequestId(
+				review.id,
+				{},
+			);
+			expect(links[0].openWorkflowId).toBe(workflow.id);
+		});
+
+		it('allows a new review once the previous one was approved', async () => {
+			const review = await openReview();
+			vi.spyOn(Container.get(WorkflowService), 'activateWorkflow').mockResolvedValue(workflow);
+			await reviewerAgent
+				.post(`/workflow-review-requests/${review.id}/decision`)
+				.send({ decision: 'approved' })
+				.expect(200);
+
+			// The sentinel has to be released on closure, or the workflow could never
+			// be reviewed again.
+			await authorAgent.post('/workflow-review-requests').send(createPayload()).expect(200);
 		});
 
 		it('rejects a caller without publish rights on the workflow with 404', async () => {
@@ -470,6 +573,28 @@ describe('workflow reviews API', () => {
 				.expect(409);
 		});
 
+		it('rejects repinning to a version of another workflow with 404', async () => {
+			const review = await openReview();
+			const foreignVersionId = uuid();
+			const other = await createWorkflow({ name: 'Other', versionId: foreignVersionId }, project);
+			await createWorkflowHistory(other);
+
+			await authorAgent
+				.post(`/workflow-review-requests/${review.id}/update-version`)
+				.send({
+					workflowId: workflow.id,
+					workflowVersionId: foreignVersionId,
+					workflowVersionName: 'v2',
+				})
+				.expect(404);
+
+			const links = await Container.get(WorkflowReviewRequestWorkflowRepository).findByRequestId(
+				review.id,
+				{},
+			);
+			expect(links[0].workflowVersionId).toBe(pinnedVersionId);
+		});
+
 		it('rejects a caller without publish rights with 404', async () => {
 			const review = await openReview();
 			await viewerAgent
@@ -558,6 +683,119 @@ describe('workflow reviews API', () => {
 			expect(stored?.state).toBe('closed');
 		});
 
+		it('accepts a decision that names the version the reviewer inspected', async () => {
+			const review = await openReview();
+			const activateSpy = vi
+				.spyOn(Container.get(WorkflowService), 'activateWorkflow')
+				.mockResolvedValue(workflow);
+
+			await reviewerAgent
+				.post(`/workflow-review-requests/${review.id}/decision`)
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
+				.expect(200);
+
+			expect(activateSpy).toHaveBeenCalledWith(expect.anything(), workflow.id, {
+				versionId: pinnedVersionId,
+			});
+		});
+
+		it('rejects a decision naming a version the request no longer pins with 409', async () => {
+			const review = await openReview();
+			const newVersionId = await addHistoryVersion(uuid());
+			await authorAgent
+				.post(`/workflow-review-requests/${review.id}/update-version`)
+				.send({
+					workflowId: workflow.id,
+					workflowVersionId: newVersionId,
+					workflowVersionName: 'v2',
+				})
+				.expect(200);
+
+			const activateSpy = vi
+				.spyOn(Container.get(WorkflowService), 'activateWorkflow')
+				.mockResolvedValue(workflow);
+
+			// The reviewer inspected v1; the author has since pinned v2. Approving
+			// would publish a version nobody reviewed.
+			await reviewerAgent
+				.post(`/workflow-review-requests/${review.id}/decision`)
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
+				.expect(409);
+
+			expect(activateSpy).not.toHaveBeenCalled();
+			const stored = await Container.get(WorkflowReviewRequestRepository).findRequestWithRelations(
+				review.id,
+				{},
+			);
+			expect(stored?.state).toBe('open');
+			expect(stored?.decision).toBe('pending');
+		});
+
+		it('rejects a decision whose pin moved after the request was loaded with 409', async () => {
+			const review = await openReview();
+			const activateSpy = vi
+				.spyOn(Container.get(WorkflowService), 'activateWorkflow')
+				.mockResolvedValue(workflow);
+
+			const linkRepository = Container.get(WorkflowReviewRequestWorkflowRepository);
+			const [link] = await linkRepository.findByRequestId(review.id, {});
+
+			// Reports a pin the row no longer carries, which is what the deciding
+			// transaction sees when a re-pin commits under it.
+			const stalePin = vi
+				.spyOn(linkRepository, 'findByRequestId')
+				.mockResolvedValue([{ ...link, workflowVersionId: uuid() }]);
+
+			await reviewerAgent
+				.post(`/workflow-review-requests/${review.id}/decision`)
+				.send({ decision: 'approved' })
+				.expect(409);
+
+			stalePin.mockRestore();
+			expect(activateSpy).not.toHaveBeenCalled();
+			const stored = await Container.get(WorkflowReviewRequestRepository).findRequestWithRelations(
+				review.id,
+				{},
+			);
+			expect(stored?.state).toBe('open');
+		});
+
+		it('publishes the pin the deciding transaction read, not one loaded earlier', async () => {
+			const review = await openReview();
+			const newVersionId = await addHistoryVersion(uuid());
+			const activateSpy = vi
+				.spyOn(Container.get(WorkflowService), 'activateWorkflow')
+				.mockResolvedValue(workflow);
+
+			// Re-pins after `decide` loaded the request but before its transaction
+			// runs — the interleaving that let a stale link be published.
+			const accessService = Container.get(WorkflowReviewAccessService);
+			const canPublish = vi
+				.spyOn(accessService, 'canPublishWorkflow')
+				.mockImplementation(async () => {
+					canPublish.mockRestore();
+					await authorAgent
+						.post(`/workflow-review-requests/${review.id}/update-version`)
+						.send({
+							workflowId: workflow.id,
+							workflowVersionId: newVersionId,
+							workflowVersionName: 'v2',
+						})
+						.expect(200);
+					return true;
+				});
+
+			const response = await reviewerAgent
+				.post(`/workflow-review-requests/${review.id}/decision`)
+				.send({ decision: 'approved' })
+				.expect(200);
+
+			expect(activateSpy).toHaveBeenCalledWith(expect.anything(), workflow.id, {
+				versionId: newVersionId,
+			});
+			expect(response.body.data.workflowVersionId).toBe(newVersionId);
+		});
+
 		it('rejects a decision by an author with 403', async () => {
 			const review = await openReview();
 			await authorAgent
@@ -610,6 +848,7 @@ describe('workflow reviews API', () => {
 					workflowReviewRequestId: review.id,
 					workflowId: other.id,
 					workflowVersionId: otherVersionId,
+					open: true,
 				},
 				{},
 			);
@@ -971,6 +1210,62 @@ describe('workflow reviews API', () => {
 			expect(stored?.state).toBe('closed');
 		});
 
+		it('releases the workflow for a new review once it was archived', async () => {
+			await openReview();
+			await Container.get(WorkflowService).archive(owner, workflow.id);
+
+			// Closing has to clear the open sentinel, or the workflow could never be
+			// reviewed again after being archived and restored.
+			await authorAgent.post('/workflow-review-requests').send(createPayload()).expect(200);
+		});
+
+		it('closes the review in the same transaction as the ownership change', async () => {
+			const review = await openReview();
+			const destination = await createTeamProject(`destination-${uuid()}`, owner);
+
+			// A closure failure must take the transfer down with it: ownership in the
+			// destination project plus a still-open review of the source project is
+			// exactly the state that lets destination members decide it.
+			const closure = vi
+				.spyOn(Container.get(WorkflowReviewService), 'closeOpenReviewsForWorkflows')
+				.mockRejectedValue(new Error('db down'));
+
+			await expect(
+				Container.get(EnterpriseWorkflowService).transferWorkflow(
+					owner,
+					workflow.id,
+					destination.id,
+				),
+			).rejects.toThrow('db down');
+
+			closure.mockRestore();
+
+			const owningProject = await Container.get(SharedWorkflowRepository).getWorkflowOwningProject(
+				workflow.id,
+			);
+			expect(owningProject?.id).toBe(project.id);
+
+			const stored = await Container.get(WorkflowReviewRequestRepository).findRequestWithRelations(
+				review.id,
+				{},
+			);
+			expect(stored?.state).toBe('open');
+		});
+
+		it('releases the workflow for a new review once it was transferred back', async () => {
+			await openReview();
+			const destination = await createTeamProject(`destination-${uuid()}`, owner);
+
+			await Container.get(EnterpriseWorkflowService).transferWorkflow(
+				owner,
+				workflow.id,
+				destination.id,
+			);
+			await linkUserToProject(author, destination, 'project:admin');
+
+			await authorAgent.post('/workflow-review-requests').send(createPayload()).expect(200);
+		});
+
 		it('closes open reviews before the workflow is deleted', async () => {
 			const review = await openReview();
 
@@ -983,6 +1278,36 @@ describe('workflow reviews API', () => {
 				{},
 			);
 			expect(stored === null || stored.state === 'closed').toBe(true);
+		});
+
+		it('aborts the deletion when the open reviews cannot be closed', async () => {
+			await openReview();
+			const closure = vi
+				.spyOn(Container.get(WorkflowReviewService), 'closeOpenReviewsForWorkflows')
+				.mockRejectedValue(new Error('db down'));
+
+			await expect(Container.get(WorkflowService).delete(owner, workflow.id, true)).rejects.toThrow(
+				'db down',
+			);
+
+			closure.mockRestore();
+			await expect(
+				Container.get(WorkflowRepository).findOneBy({ id: workflow.id }),
+			).resolves.not.toBeNull();
+		});
+
+		it('removes the review request orphaned by the delete cascade', async () => {
+			const review = await openReview();
+
+			await Container.get(WorkflowService).delete(owner, workflow.id, true);
+
+			// The cascade takes the child link but not its parent, which would
+			// otherwise stay behind unreachable forever.
+			const stored = await Container.get(WorkflowReviewRequestRepository).findRequestWithRelations(
+				review.id,
+				{},
+			);
+			expect(stored).toBeNull();
 		});
 	});
 });

@@ -22,6 +22,19 @@ export class WorkflowReviewRequestWorkflow extends WithStringId {
 	@Column({ type: 'varchar', length: 36, nullable: true })
 	workflowVersionId: string | null;
 
+	/**
+	 * Enforcement sentinel for "at most one open review per workflow": carries
+	 * `workflowId` while the parent request is open, and is cleared on closure.
+	 * A unique constraint over a nullable column is portable — SQLite and
+	 * Postgres both treat NULLs as distinct — where a partial unique index is not.
+	 *
+	 * Enforcement only. "Is this review open?" is always answered from
+	 * `WorkflowReviewRequest.state`; deriving it from here would create a second
+	 * source of truth whose drift blocks legitimate publication.
+	 */
+	@Column({ type: 'varchar', length: 36, nullable: true })
+	openWorkflowId: string | null;
+
 	@ManyToOne('WorkflowReviewRequest', 'workflows', { onDelete: 'CASCADE' })
 	@JoinColumn({ name: 'workflowReviewRequestId' })
 	request: Relation<WorkflowReviewRequest>;

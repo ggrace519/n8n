@@ -55,6 +55,9 @@ import { WorkflowReviewFeatureService } from './workflow-review-feature.service'
 import { decodeInboxCursor, encodeInboxCursor } from './workflow-review-inbox-cursor';
 
 const REVIEW_NOT_FOUND = 'Workflow review request not found';
+const OPEN_REVIEW_EXISTS = 'This workflow already has an open review request';
+const REVIEW_MOVED_ON =
+	'The version under review changed since this decision was prepared. Reload the review and decide again.';
 
 @Service()
 export class WorkflowReviewService {
@@ -197,16 +200,19 @@ export class WorkflowReviewService {
 		if (!project) throw new NotFoundError('Workflow not found');
 
 		const request = await this.transactionRunner.run({}, async (ctx) => {
-			// No partial-unique index can express "one open review per workflow"
-			// portably, so uniqueness is enforced here inside the transaction. A
-			// simultaneous create on another instance can still slip through; the
-			// loser is closed by the next lifecycle action rather than corrupting state.
+			// A version from another workflow would pin a snapshot that cannot be
+			// loaded or published, so the pair is verified before anything is written.
+			await this.assertVersionBelongsToWorkflow(item.workflowId, item.workflowVersionId, ctx);
+
+			// Answers the common case with a clear conflict; the open sentinel's
+			// unique constraint below is what actually enforces the invariant when
+			// two creates race, here or across instances.
 			const existing = await this.requestRepository.findOpenRequestForWorkflow(
 				item.workflowId,
 				ctx,
 			);
 			if (existing) {
-				throw new ConflictError('This workflow already has an open review request');
+				throw new ConflictError(OPEN_REVIEW_EXISTS);
 			}
 
 			const created = await this.requestRepository.createRequest(
@@ -219,14 +225,18 @@ export class WorkflowReviewService {
 				ctx,
 			);
 
-			await this.linkRepository.createWorkflowRow(
+			const link = await this.linkRepository.createWorkflowRow(
 				{
 					workflowReviewRequestId: created.id,
 					workflowId: item.workflowId,
 					workflowVersionId: item.workflowVersionId,
+					open: true,
 				},
 				ctx,
 			);
+			if (link.status === 'open-review-exists') {
+				throw new ConflictError(OPEN_REVIEW_EXISTS);
+			}
 
 			await this.applyVersionMetadata(item, ctx);
 			await this.requestRepository.setAuthors({ id: created.id, userIds: [user.id] }, ctx);
@@ -261,6 +271,8 @@ export class WorkflowReviewService {
 		}
 
 		await this.transactionRunner.run({}, async (ctx) => {
+			await this.assertVersionBelongsToWorkflow(dto.workflowId, dto.workflowVersionId, ctx);
+
 			const repointed = await this.linkRepository.updatePinnedVersion(
 				{
 					workflowReviewRequestId: requestId,
@@ -322,35 +334,65 @@ export class WorkflowReviewService {
 
 		const approving = dto.decision === 'approved';
 
-		const affected = await this.transactionRunner.run(
-			{},
-			async (ctx) =>
-				await this.requestRepository.applyDecisionIfOpen(
-					{
-						id: requestId,
-						// Guards against a second reviewer overwriting a decision made
-						// between this caller's read and their submit.
-						expectedDecision: request.decision,
-						decision: dto.decision,
-						actorId: user.id,
-						close: approving,
-						approvedAt: approving ? new Date() : null,
-					},
-					ctx,
-				),
-		);
+		// The decided version comes out of the transaction that recorded the
+		// decision — never from the copy read above, which a re-pin may already
+		// have superseded.
+		const decidedVersionId = await this.transactionRunner.run({}, async (ctx) => {
+			const pinnedVersionId = await this.resolvePinForDecision(request.id, link.workflowId, ctx);
 
-		if (affected === 0) {
-			throw new ConflictError('This review request has already been decided');
-		}
+			// The reviewer states which version they inspected; if the author
+			// re-pinned before this arrived, the decision is about a version that is
+			// no longer under review.
+			if (dto.expectedVersionId !== undefined && dto.expectedVersionId !== pinnedVersionId) {
+				throw new ConflictError(REVIEW_MOVED_ON);
+			}
+
+			// Takes the link row and re-asserts the pin under its lock, so a re-pin
+			// committing between the read above and here loses instead of being
+			// approved unreviewed. Ordered before the request-row write, matching
+			// every other path that touches both rows.
+			const taken = await this.linkRepository.takeLinkAtPin(
+				{
+					workflowReviewRequestId: request.id,
+					workflowId: link.workflowId,
+					expectedVersionId: pinnedVersionId,
+					// An approval closes the request, so the workflow is released for a
+					// future review; a change request leaves it open.
+					clearOpenSentinel: approving,
+				},
+				ctx,
+			);
+			if (taken === 0) throw new ConflictError(REVIEW_MOVED_ON);
+
+			const affected = await this.requestRepository.applyDecisionIfOpen(
+				{
+					id: requestId,
+					// Guards against a second reviewer overwriting a decision made
+					// between this caller's read and their submit.
+					expectedDecision: request.decision,
+					decision: dto.decision,
+					actorId: user.id,
+					close: approving,
+					approvedAt: approving ? new Date() : null,
+				},
+				ctx,
+			);
+			if (affected === 0) {
+				throw new ConflictError('This review request has already been decided');
+			}
+
+			return pinnedVersionId;
+		});
 
 		const updated = await this.loadRequest(requestId);
-		const summary = this.toSummary(updated, link.workflowVersionId);
+		const summary = this.toSummary(updated, decidedVersionId);
 
 		// Publication is attempted only after the approval has committed: the
 		// publish guard would otherwise see this very request still open and block
 		// the version it just approved.
-		const autoPublish = approving ? await this.publishApprovedVersion(user, link) : undefined;
+		const autoPublish = approving
+			? await this.publishApprovedVersion(user, link.workflowId, decidedVersionId)
+			: undefined;
 
 		await this.broadcast([link.workflowId]);
 
@@ -361,22 +403,49 @@ export class WorkflowReviewService {
 	 * Closes every open review on the given workflows. Used by the lifecycle
 	 * hooks: an archived, transferred or deleted workflow can no longer be
 	 * reviewed, and leaving the review open would keep blocking publication.
+	 *
+	 * Pass the surrounding `ctx` to close in the caller's transaction — a
+	 * transfer does this so ownership and closure commit together. The broadcast
+	 * is then the caller's job, after the commit.
 	 */
-	async closeOpenReviewsForWorkflows(workflowIds: string[], actorId: string | null): Promise<void> {
+	async closeOpenReviewsForWorkflows(
+		workflowIds: string[],
+		actorId: string | null,
+		ctx: OperationContext = {},
+	): Promise<void> {
 		if (workflowIds.length === 0) return;
 
+		const joining = ctx.trx !== undefined;
+
 		const closedIds = await this.transactionRunner.run(
-			{},
-			async (ctx) =>
-				await this.requestRepository.closeOpenRequestsForWorkflows({ workflowIds, actorId }, ctx),
+			ctx,
+			async (inner) =>
+				await this.requestRepository.closeOpenRequestsForWorkflows({ workflowIds, actorId }, inner),
 		);
-		if (closedIds.length === 0) return;
+		if (joining || closedIds.length === 0) return;
 
 		const affectedWorkflowIds = await this.linkRepository.findWorkflowIdsByRequestIds(
 			closedIds,
 			{},
 		);
 		await this.broadcast(affectedWorkflowIds);
+	}
+
+	/**
+	 * Removes review requests left without any workflow. Called after a workflow
+	 * delete has cascaded its link away: the parent request is not reachable by
+	 * that cascade, so it would otherwise accumulate forever.
+	 */
+	async removeOrphanedReviews(): Promise<number> {
+		return await this.transactionRunner.run(
+			{},
+			async (ctx) => await this.requestRepository.deleteLinklessRequests(ctx),
+		);
+	}
+
+	/** Post-commit invalidation for callers that closed reviews inside their own transaction. */
+	async notifyWorkflowsChanged(workflowIds: string[]): Promise<void> {
+		await this.broadcast(workflowIds);
 	}
 
 	/** The open review blocking publication of a workflow, if any. */
@@ -392,30 +461,64 @@ export class WorkflowReviewService {
 
 	private async publishApprovedVersion(
 		user: User,
-		link: WorkflowReviewRequestWorkflow,
+		workflowId: string,
+		versionId: string | null,
 	): Promise<DecideWorkflowReviewRequestResponse['autoPublish']> {
-		if (!link.workflowVersionId) {
+		if (!versionId) {
 			return { status: 'failed', message: 'The approved version is no longer available' };
 		}
 
 		try {
 			// The pinned version is published, never the current working copy — the
 			// working copy may have moved on since the review was opened.
-			await this.workflowService.activateWorkflow(user, link.workflowId, {
-				versionId: link.workflowVersionId,
-			});
+			await this.workflowService.activateWorkflow(user, workflowId, { versionId });
 			return { status: 'published' };
 		} catch (error) {
 			// A failed publication must not undo the approval: the workflow can be
 			// published later through the ordinary publish flow, which is the retry.
 			const message = ensureError(error).message;
 			this.logger.warn('Auto-publication after review approval failed', {
-				workflowId: link.workflowId,
-				versionId: link.workflowVersionId,
+				workflowId,
+				versionId,
 				message,
 			});
 			return { status: 'failed', message };
 		}
+	}
+
+	/**
+	 * The pin the decision will act on, read inside the deciding transaction. The
+	 * link set is re-read rather than reused from the pre-transaction load, so a
+	 * request that grew a second workflow in between still fails loudly.
+	 */
+	private async resolvePinForDecision(
+		requestId: string,
+		workflowId: string,
+		ctx: OperationContext,
+	): Promise<string | null> {
+		const links = await this.linkRepository.findByRequestId(requestId, ctx);
+		if (links.length > 1) {
+			throw new UnexpectedError('Cannot decide on a review request spanning several workflows', {
+				extra: { workflowReviewRequestId: requestId, workflowCount: links.length },
+			});
+		}
+
+		const link = links[0];
+		if (!link || link.workflowId !== workflowId) throw new NotFoundError(REVIEW_NOT_FOUND);
+		return link.workflowVersionId;
+	}
+
+	/** A version pinned for review must belong to the workflow being reviewed. */
+	private async assertVersionBelongsToWorkflow(
+		workflowId: string,
+		versionId: string,
+		ctx: OperationContext,
+	): Promise<void> {
+		const belongs = await this.workflowHistoryRepository.versionBelongsToWorkflow(
+			{ workflowId, versionId },
+			ctx,
+		);
+		if (!belongs) throw new NotFoundError('Workflow version not found');
 	}
 
 	/**
@@ -489,7 +592,7 @@ export class WorkflowReviewService {
 		ctx: OperationContext,
 	): Promise<void> {
 		const description = item.workflowVersionDescription;
-		await this.workflowHistoryRepository.updateVersionMetadata(
+		const affected = await this.workflowHistoryRepository.updateVersionMetadata(
 			{
 				workflowId: item.workflowId,
 				versionId: item.workflowVersionId,
@@ -501,6 +604,11 @@ export class WorkflowReviewService {
 			},
 			ctx,
 		);
+
+		// Naming nothing means the version disappeared under us — the pin would
+		// reference a snapshot that can never be loaded or published. `undefined`
+		// is the driver declining to report a count, not a missing row.
+		if (affected === 0) throw new NotFoundError('Workflow version not found');
 	}
 
 	private async filterReadableWorkflowIds(workflowIds: string[], user: User): Promise<string[]> {

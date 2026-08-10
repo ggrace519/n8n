@@ -19,6 +19,7 @@ import { SharedWorkflowRepository } from './shared-workflow.repository';
 import { WorkflowHistoryRepository } from './workflow-history.repository';
 import {
 	CredentialsEntity,
+	Folder,
 	WebhookEntity,
 	TagEntity,
 	WorkflowEntity,
@@ -231,6 +232,19 @@ export class WorkflowRepository extends BaseRepository<WorkflowEntity> {
 			where: { id: workflowId },
 			relations: { shared: { project: true }, activeVersion: true },
 		});
+	}
+
+	/**
+	 * Re-homes a workflow under another folder, or to the project root when
+	 * `parentFolder` is null. Runs in the caller's transaction so it commits with
+	 * the ownership change that made the old folder unreachable.
+	 */
+	async updateParentFolder(
+		workflowId: string,
+		parentFolder: Folder | null,
+		ctx: OperationContext,
+	): Promise<void> {
+		await this.managerFor(ctx).update(WorkflowEntity, { id: workflowId }, { parentFolder });
 	}
 
 	/** Workflows by id with their parent folder loaded, e.g. for the source-control export. */

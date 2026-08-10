@@ -1,3 +1,4 @@
+import type { OperationContext } from '@n8n/db';
 import { Service } from '@n8n/di';
 
 /**
@@ -15,7 +16,19 @@ import { Service } from '@n8n/di';
 export interface WorkflowMutationHooks {
 	afterWorkflowArchived(workflowId: string): Promise<void>;
 
-	/** Called only for workflows whose owning project actually changed. */
+	/**
+	 * Called inside the transaction that re-homes the workflows, for state that
+	 * must change owner atomically with them. Throwing here rolls the transfer
+	 * back — which is the point: a module left holding project-scoped state for
+	 * the source project would expose it to the destination project's members.
+	 */
+	duringWorkflowsTransferred(workflowIds: string[], ctx: OperationContext): Promise<void>;
+
+	/**
+	 * Called once the transfer has committed, for effects that must not run
+	 * inside its transaction (push notifications, cache invalidation). Observes
+	 * a committed mutation, so it must not throw.
+	 */
 	afterWorkflowsTransferred(workflowIds: string[]): Promise<void>;
 
 	/**
@@ -42,6 +55,10 @@ export class WorkflowMutationHooksProxy implements WorkflowMutationHooks {
 
 	async afterWorkflowArchived(workflowId: string): Promise<void> {
 		await this.provider?.afterWorkflowArchived(workflowId);
+	}
+
+	async duringWorkflowsTransferred(workflowIds: string[], ctx: OperationContext): Promise<void> {
+		await this.provider?.duringWorkflowsTransferred(workflowIds, ctx);
 	}
 
 	async afterWorkflowsTransferred(workflowIds: string[]): Promise<void> {
