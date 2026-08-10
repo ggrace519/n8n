@@ -563,11 +563,15 @@ describe('workflow reviews API', () => {
 				.send({ decision: 'approved' })
 				.expect(200);
 
+			// The version is created before the payload literal: an `await` inside it
+			// lets the request start before `.send()` runs, so the body arrives empty.
+			const newVersionId = await addHistoryVersion(uuid());
+
 			await authorAgent
 				.post(`/workflow-review-requests/${review.id}/update-version`)
 				.send({
 					workflowId: workflow.id,
-					workflowVersionId: await addHistoryVersion(uuid()),
+					workflowVersionId: newVersionId,
 					workflowVersionName: 'v2',
 				})
 				.expect(409);
