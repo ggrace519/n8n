@@ -37,6 +37,7 @@ import {
 } from '@n8n/db';
 import { Service } from '@n8n/di';
 import { ensureError } from '@n8n/utils/errors/ensure-error';
+import { UnexpectedError } from 'n8n-workflow';
 
 import { CollaborationService } from '@/collaboration/collaboration.service';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
@@ -301,8 +302,7 @@ export class WorkflowReviewService {
 		await this.featureService.assertEnabled();
 
 		const request = await this.loadRequest(requestId);
-		const link = request.workflows[0];
-		if (!link) throw new NotFoundError(REVIEW_NOT_FOUND);
+		const link = this.singleLinkedWorkflow(request);
 
 		// Re-checked here rather than trusted from the detail response: eligibility
 		// there is advisory and deliberately ignores the request lifecycle.
@@ -416,6 +416,27 @@ export class WorkflowReviewService {
 			});
 			return { status: 'failed', message };
 		}
+	}
+
+	/**
+	 * The one workflow a decision acts on.
+	 *
+	 * The schema permits several workflows per request and the repositories stay
+	 * compatible with that, but the create DTO admits exactly one and the decision
+	 * path assumes it: it authorizes against this workflow and publishes this
+	 * workflow's pin. `findRequestWithRelations` does not order the relation, so
+	 * with two rows the choice would be arbitrary — authorizing against one
+	 * workflow while publishing another's version. Fail loudly instead.
+	 */
+	private singleLinkedWorkflow(request: WorkflowReviewRequest): WorkflowReviewRequestWorkflow {
+		const links = request.workflows ?? [];
+		if (links.length === 0) throw new NotFoundError(REVIEW_NOT_FOUND);
+		if (links.length > 1) {
+			throw new UnexpectedError('Cannot decide on a review request spanning several workflows', {
+				extra: { workflowReviewRequestId: request.id, workflowCount: links.length },
+			});
+		}
+		return links[0];
 	}
 
 	private async loadRequest(requestId: string): Promise<WorkflowReviewRequest> {

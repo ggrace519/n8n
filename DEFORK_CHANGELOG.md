@@ -81,6 +81,15 @@ the creator plus anyone who re-pins; lifecycle closure sets `state = 'closed'` a
 move is not a reviewer verdict; the diff baseline is the currently published
 version; disabling the policy stops enforcement but leaves open reviews intact.
 
+**Deliberate deviations from a documented interface, both covered by tests:**
+`beforeWorkflowDeleted` is documented as the one mutation hook that *may* throw
+to abort a delete; this provider swallows and logs instead, because failing to
+tidy up review bookkeeping should not stop a user deleting their own workflow.
+And although the schema permits several workflows per review, `decide` now
+throws `UnexpectedError` if it ever finds more than one, rather than picking an
+arbitrary row — the relation is unordered, so a silent pick would authorize
+against one workflow while publishing another's pinned version.
+
 **Clean-room sources:** the surviving migration
 `packages/@n8n/db/src/migrations/common/1784000000052-CreateWorkflowReviewRequestTables.ts`
 and its spec (authoritative for tables, columns, FKs and indices); the seven

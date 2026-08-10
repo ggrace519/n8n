@@ -597,6 +597,29 @@ describe('workflow reviews API', () => {
 				.expect(409);
 		});
 
+		it('refuses to decide a request spanning several workflows', async () => {
+			// The DTO admits exactly one workflow, but the schema permits more. If a
+			// second link ever appears, the decision path must not silently authorize
+			// against one workflow while publishing another's pin.
+			const review = await openReview();
+			const otherVersionId = uuid();
+			const other = await createWorkflow({ name: 'Other', versionId: otherVersionId }, project);
+			await createWorkflowHistory(other);
+			await Container.get(WorkflowReviewRequestWorkflowRepository).createWorkflowRow(
+				{
+					workflowReviewRequestId: review.id,
+					workflowId: other.id,
+					workflowVersionId: otherVersionId,
+				},
+				{},
+			);
+
+			await reviewerAgent
+				.post(`/workflow-review-requests/${review.id}/decision`)
+				.send({ decision: 'approved' })
+				.expect(500);
+		});
+
 		it('rejects `pending` as an input decision with 400', async () => {
 			const review = await openReview();
 			await reviewerAgent
@@ -724,6 +747,39 @@ describe('workflow reviews API', () => {
 			await openReview();
 			const response = await outsiderAgent.get('/workflow-review-requests/inbox').expect(200);
 			expect(response.body.data.data).toHaveLength(0);
+		});
+
+		it("includes reviews on a workflow in the caller's personal project", async () => {
+			// Personal-space workflows are the common case; the inbox filter is the one
+			// place that does not go through WorkflowFinderService, so it is pinned here.
+			const personalVersionId = uuid();
+			const personalWorkflow = await createWorkflow(
+				{ name: 'Personal workflow', versionId: personalVersionId },
+				author,
+			);
+			await createWorkflowHistory(personalWorkflow);
+
+			await authorAgent
+				.post('/workflow-review-requests')
+				.send({
+					title: 'Personal review',
+					workflows: [
+						{
+							workflowId: personalWorkflow.id,
+							workflowVersionId: personalVersionId,
+							workflowVersionName: 'v1',
+						},
+					],
+				})
+				.expect(200);
+
+			const inbox = await authorAgent.get('/workflow-review-requests/inbox').expect(200);
+			expect(inbox.body.data.data.map((i: { title: string }) => i.title)).toContain(
+				'Personal review',
+			);
+
+			const summary = await authorAgent.get('/workflow-review-requests/summary').expect(200);
+			expect(summary.body.data.open).toBeGreaterThanOrEqual(1);
 		});
 
 		it('rejects a malformed cursor with 400', async () => {
