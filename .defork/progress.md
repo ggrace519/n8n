@@ -1267,3 +1267,67 @@ access for seven minutes.
 `scp n8n:/tmp/agent-comms.md ~/.defork-backup/agent-comms.md` after posting, so
 the thread can be restored verbatim if `/tmp` is cleared. Recovery only; it is
 not a second channel.
+
+## 2026-08-10 — SESSION END (2) — resume state
+
+**MASTER: 31/41 pass, clean, synced at `daa7ee78c0`. No open PRs.** Phase E is
+complete except the item split out below. Nothing is half-built: every branch
+this session was merged and deleted.
+
+**MERGED TODAY:** #23 (shared role/scope types + 8 missing API-key scopes),
+#29 (E19 execution annotations), #28 (13-scope API-key bridge, closes #24),
+#22 (A11 editor-ui, the other agent's). `packages/cli` tsc: **66 → 16**.
+
+**STOPPED HERE — E20, nothing written yet.** Rebuild the purged
+`@n8n/ai-workflow-builder`. Tracking and contract derivation are DONE and live
+in the E20 item in `feature_list.json`; the code is not started. Resume by
+reading that item's note first — it has the four layers and the contract source,
+so none of it needs re-deriving.
+
+- Layers 1–3 (tool descriptors + `SDK_IMPORT_STATEMENT`; parse/validate;
+  session storage) are derivable from the ~12
+  `vi.mock('@n8n/ai-workflow-builder', …)` blocks and were what I was about to
+  build. Each mock carries the real `toolName` for the tool its file tests and
+  placeholders for the others, so read the value from its OWN test. Tool names
+  are independently corroborated by the public n8n MCP tool surface.
+- **Layer 4 is the risk** — `AiWorkflowBuilderService` + `ChatPayload` +
+  `createPassthroughSsrfGuard` + `ResourceLocatorCallbackFactory`, an LLM agent
+  behind `@Licensed('feat:aiBuilder')`/`feat:aiGateway` in `ai.controller.ts`.
+  **Do not stub it silently.** It must fail loudly when unavailable — the
+  `OWNER_API_KEY_SCOPES` bug earlier today was exactly that shape: a symbol that
+  satisfied a check while production used a different path. Greg wants eyes on
+  this design before it is committed to.
+
+**DELEGATION IN FLIGHT (no reply yet).** Asked the A11 agent, via
+`/tmp/agent-comms.md` on host `n8n`, to extract the `/ai/build` wire contract
+from the surviving `packages/frontend/editor-ui/src/features/ai/assistant/`
+client + its tests — routes, `ChatPayload` shape, whether it streams and the
+framing, error/abort behaviour, session continuity (which pins layer 3). That is
+the thing layer 4 cannot be safely designed without. Their reply will be in that
+file. They were told to mark anything the FE does not pin as "not pinned"
+rather than guess.
+
+**THE WATCHER DIES WITH THE SESSION.** A `Monitor` was polling
+`n8n:/tmp/agent-comms.md` every 60s, emitting one event per new post from the
+other side and refreshing `~/.defork-backup/agent-comms.md`. Session-scoped, so
+it is gone — re-arm it on resume, or just read the file. Nothing is lost either
+way; the file on host `n8n` is durable.
+
+**CORRECTED TODAY, worth not re-breaking:**
+- `@n8n/ai-workflow-builder` is **E20, not C2**. Filing it under C2 made the
+  board circular (C2 `blocked_by` A12 → A10 → this package).
+- **A10 is not blocked by annotations.** E19 closed one of two blockers;
+  `start.test.ts` still collects 0 tests because of this package.
+- A11 was passing but unflipped — nobody ran its gate after #22.
+
+**OPEN ISSUES:** #26 (API keys derive scopes from the global role only, so
+members get 7 of 88 — the structural half of #24), #20 (multi-main fencing),
+#18 (review/version binding; FE half landed in #22, backend half open),
+#13 (unshare cleanup), #8 (public API tag delete), #7 (node-rsa override —
+needs Greg's call on a repo-wide pin).
+
+**ALSO UNTRACKED:** GitHub reports 159 Dependabot vulnerabilities on master
+(2 critical, 44 high), inherited from upstream. Not in `.defork/` anywhere.
+
+**ORDER ON RESUME:** E20 layers 1–3 → read the A11 reply → design layer 4 with
+Greg → A10 → A12 → A13. C2 only after A12.
