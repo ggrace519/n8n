@@ -123,7 +123,7 @@ export const getStatus = async (context: IRestApiContext): Promise<SourceControl
 export const getRemoteWorkflow = async (
 	context: IRestApiContext,
 	id: string,
-): Promise<{ content: IWorkflowDb }> => {
+): Promise<{ content: IWorkflowDb; type: string }> => {
 	return await makeRestApiRequest(
 		context,
 		'GET',

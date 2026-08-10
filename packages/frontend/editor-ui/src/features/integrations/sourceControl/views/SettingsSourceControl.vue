@@ -110,6 +110,7 @@ async function onSave() {
 		syncFormFromStore();
 		toast.showToast({
 			title: i18n.baseText('settings.sourceControl.saved.title'),
+			message: '',
 			type: 'success',
 		});
 	} catch (error) {
@@ -163,6 +164,7 @@ async function onRefreshSshKey() {
 		await sourceControlStore.generateKeyPair(form.keyGeneratorType);
 		toast.showToast({
 			title: i18n.baseText('settings.sourceControl.refreshSshKey.successful.title'),
+			message: '',
 			type: 'success',
 		});
 	} catch (error) {

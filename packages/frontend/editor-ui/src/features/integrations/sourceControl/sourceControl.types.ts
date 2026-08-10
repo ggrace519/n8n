@@ -10,6 +10,7 @@ export interface SourceControlPreferences {
 	connected: boolean;
 	repositoryUrl: string;
 	branchName: string;
+	branches?: string[];
 	branchReadOnly: boolean;
 	branchColor: string;
 	publicKey?: string;
