@@ -48,8 +48,7 @@ const {
 } = useRoleEditorForm({
 	roleSlug: () => props.roleSlug,
 	viewRoute: VIEWS.INSTANCE_ROLE_VIEW,
-	filterScopes: (scopes) =>
-		scopes.filter((s) => (ALL_INSTANCE_SCOPES as readonly string[]).includes(s)),
+	filterScopes: (scopes) => scopes.filter((s) => ALL_INSTANCE_SCOPES.includes(s)),
 	fetchError: i18n.baseText('roles.instance.action.fetch.error'),
 });
 
@@ -93,7 +92,7 @@ function setPreset(slug: string) {
 	// Only keep scopes the editor knows about; system roles may carry internal scopes
 	// (e.g. chatHub:*) that the UI doesn't expose and shouldn't be silently forwarded.
 	form.value.scopes = structuredClone(toRaw(preset.scopes)).filter((s) =>
-		(ALL_INSTANCE_SCOPES as readonly string[]).includes(s),
+		ALL_INSTANCE_SCOPES.includes(s),
 	);
 }
 

@@ -258,6 +258,14 @@ const {
 	getChangedSharedFields,
 } = form;
 
+// CredentialSharing needs the sharing-capable shape (homeProject / sharedWithProjects /
+// scopes), which only the encrypted response carries. `isManaged` is present on that
+// shape and absent from the decrypted one, so it narrows the union cleanly.
+const sharingCredential = computed<ICredentialsResponse | null>(() => {
+	const cred = currentCredential.value;
+	return cred && 'isManaged' in cred ? cred : null;
+});
+
 const hideAskAssistant = computed<boolean>(() => {
 	const modalState = uiStore.modalStateById[CREDENTIAL_EDIT_MODAL_KEY];
 	return isCredentialModalState(modalState) && modalState.hideAskAssistant === true;
@@ -1438,7 +1446,7 @@ const { width } = useElementSize(credNameRef);
 					</div>
 					<div v-else-if="showSharingContent" :class="$style.mainContent">
 						<CredentialSharing
-							:credential="currentCredential"
+							:credential="sharingCredential"
 							:credential-data="credentialData"
 							:credential-id="credentialId"
 							:credential-permissions="credentialPermissions"
