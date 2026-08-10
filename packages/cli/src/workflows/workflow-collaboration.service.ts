@@ -20,6 +20,7 @@ import { OwnershipService } from '@/services/ownership.service';
 import { ProjectService } from '@/services/project.service';
 
 import { WorkflowFinderService } from './workflow-finder.service';
+import { WorkflowMutationHooksProxy } from './workflow-mutation-hooks-proxy.service';
 
 const PROJECT_ROOT_FOLDER = '0';
 
@@ -78,6 +79,7 @@ export class EnterpriseWorkflowService {
 		private readonly projectService: ProjectService,
 		private readonly activeWorkflowManager: ActiveWorkflowManager,
 		private readonly ownershipService: OwnershipService,
+		private readonly workflowMutationHooks: WorkflowMutationHooksProxy,
 	) {}
 
 	/**
@@ -282,6 +284,10 @@ export class EnterpriseWorkflowService {
 
 		await this.shareShareableCredentialsWithProject(user, shareCredentials, destinationProjectId);
 
+		// The owning project really did change (a self-transfer is rejected above),
+		// so modules that track project-scoped state must be told once it is committed.
+		await this.workflowMutationHooks.afterWorkflowsTransferred([workflowId]);
+
 		if (wasActive) {
 			await this.activeWorkflowManager.add(workflowId, 'update');
 		}
@@ -376,6 +382,12 @@ export class EnterpriseWorkflowService {
 		);
 
 		await this.shareShareableCredentialsWithProject(user, shareCredentials, destinationProjectId);
+
+		// Same as the single-workflow move: source and destination projects differ
+		// (guarded above), so every workflow in the subtree changed owner.
+		await this.workflowMutationHooks.afterWorkflowsTransferred(
+			workflows.map((workflow) => workflow.id),
+		);
 
 		for (const workflowId of activeWorkflowIds) {
 			await this.activeWorkflowManager.add(workflowId, 'update');

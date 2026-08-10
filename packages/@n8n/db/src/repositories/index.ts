@@ -93,6 +93,16 @@ export {
 } from './workflow-published-version.repository';
 export { WorkflowPublishHistoryRepository } from './workflow-publish-history.repository';
 export {
+	WorkflowReviewRequestRepository,
+	type CreateWorkflowReviewRequestInput,
+	type WorkflowReviewAccessFilter,
+	type WorkflowReviewInboxCursor,
+} from './workflow-review-request.repository';
+export {
+	WorkflowReviewRequestWorkflowRepository,
+	type CreateWorkflowReviewRequestWorkflowInput,
+} from './workflow-review-request-workflow.repository';
+export {
 	WorkflowDependencyRepository,
 	WorkflowDependencies,
 } from './workflow-dependency.repository';
