@@ -96,11 +96,13 @@ specs, `executions-pruning.service` **22/22**, `test/integration/executions`
 **45/45**, and a new `annotation-tags.api` spec at **9/9**. `eslint --quiet` on
 every touched file: 0 errors.
 
-**Not verified: Postgres.** All of the above ran on SQLite; no Postgres was
-reachable in this environment. That matters more than usual here, because the
-surviving code carries a comment that upsert behaviour diverges between the two,
-and the annotate path is an upsert. Before merge, run
-`pnpm --filter n8n test:postgres` over the executions specs.
+**Also verified on Postgres**, which mattered here: the surviving code warns that
+upsert behaviour diverges between the two databases and the annotate path is an
+upsert, plus the prune exclusion is hand-written SQL. Against a real Postgres
+(`pnpm --filter n8n-containers services --services postgres`, then
+`pnpm test:postgres`): `executions.controller` **15/15** including the three note
+specs, `executions-pruning.service` **22/22**, `annotation-tags.api` **9/9**,
+`execution.service.integration` **37/37** — **83/83**, no divergence from SQLite.
 
 **Does not fully unblock A10.** `start.test.ts` still collects 0 tests, but on a
 different import now: `@n8n/ai-workflow-builder`, reached via `ai.controller.ts`.
