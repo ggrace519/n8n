@@ -16,6 +16,91 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-10 — Execution annotations rebuilt fair-code (E19)
+
+The purge removed the execution-annotation backend while every consumer of it
+survived, so the editor's vote/note/tag controls called routes with nothing
+behind them and `packages/cli` could not compile. Rebuilt clean-room from the
+surviving fair-code; the last Phase-E item.
+
+**Added — `@n8n/db`**
+
+- Entities `AnnotationTagEntity`, `ExecutionAnnotation` and `AnnotationTagMapping`,
+  mirroring the already-migrated schema in `1724753530828-CreateExecutionAnnotationTables`
+  and `1728659839644-AddMissingPrimaryKeyOnAnnotationTagMapping` exactly (24-char
+  tag names, one annotation per execution via the unique index on `executionId`,
+  cascade delete from the execution).
+- Repositories `AnnotationTagRepository`, `AnnotationTagMappingRepository` and
+  `ExecutionAnnotationRepository`. Their names are pinned by surviving callers —
+  `ExecutionService` and the integration test helpers already imported them.
+- `ExecutionEntity.annotation`, which is what made the five surviving
+  `execution-persistence.ts` annotation call sites compile again.
+
+**Fixed — `@n8n/db` `execution.repository.ts`** (paths stripped by A8b)
+
+- `includeAnnotation` restored across the four `findSingleExecution` overloads
+  and the implementation.
+- Pruning no longer deletes annotated executions. Someone annotating an execution
+  is the clearest signal they want to keep it; without the exclusion subquery the
+  two surviving `should not prune annotated executions` specs fail (verified by
+  removing it).
+- Execution summaries carry their annotation again. Loaded in a second query
+  keyed on the already-paginated ids rather than joined into the list query: a tag
+  join multiplies rows, so `LIMIT` would have truncated executions instead of
+  tags. Filtering by `vote`/`annotationTags` does join, and only when those
+  filters are present, so the common list path keeps its existing plan.
+
+**Added — `packages/cli`**
+
+- `annotation-tags.controller.ts` at a **fair-code path** (was
+  `annotation-tags.controller.ee`), plus `AnnotationTagService`. `/rest/annotation-tags`
+  CRUD gated on `annotationTag:list|create|update|delete`, reusing the same
+  `CreateOrUpdateTagRequestDto`/`RetrieveTagQueryDto` the surviving
+  `createTagsApi('/annotation-tags')` client sends. Kept separate from
+  `TagService` rather than made a mode flag, so neither tag surface can grant the
+  other's scope.
+- `server.ts` and the integration `test-server` now import it. This was the last
+  `.ee` reference in `packages/cli`: the feature-list check
+  (`grep -ran "annotation-tags\.controller\.ee" …`) returns **0**.
+
+**Added — annotation notes end to end**
+
+`note` reaches the database for the first time in this fork: added to
+`ExecutionSummary.annotation` (`packages/workflow`), to `ExecutionUpdatePayload`,
+to the `PATCH /rest/executions/:id` zod schema — **which strips unknown keys, so
+without this the field would have been silently dropped** — and to
+`serializeAnnotation`. The upsert in `ExecutionService.annotate` is now
+field-wise, so a vote-only update no longer erases an existing note (both
+behaviours verified by reverting the change and watching the specs fail).
+`ExecutionSummary.annotation.vote` is now `AnnotationVote | null`, matching the
+nullable column and what the list already returned. No surviving consumer reads
+`note` yet — the A11 editor components will.
+
+**Clean-room sources:** the two annotation migrations (authoritative schema), the
+surviving `AnnotationTagsRequest` in `requests.ts`, `tags.api.ts` +
+`tags.store.ts` (routes, DTOs and scopes), the intact `@Patch('/:id')` handler in
+`executions.controller.ts`, `executions.store.ts` (which does
+`addExecution(response)`, pinning PATCH's full-summary response), the surviving
+`execution.service.integration` and `executions-pruning.service` specs, the
+`annotateExecution`/`createAnnotationTags` test helpers, and `tags.controller.ts`
+as the controller idiom.
+
+**Verification:** `@n8n/db` build exit 0 and **411/411** (409 + 2 new);
+`n8n-workflow` **5510/5510**; `packages/cli` `tsc -p tsconfig.build.json --noEmit`
+**32 → 16 errors, 0 new** (all 16 remaining are the purged
+`@n8n/ai-workflow-builder` package and `workflows.controller.ts`, neither in E19's
+scope); cli execution unit tests **231/231**; integration
+`execution.service.integration` **37/37** (was 32/37 — the 5 failures were the
+annotated-list specs), `executions.controller` **15/15** including 4 new PATCH
+specs, `executions-pruning.service` **22/22**, `test/integration/executions`
+**45/45**, and a new `annotation-tags.api` spec at **9/9**. `eslint --quiet` on
+every touched file: 0 errors.
+
+**Does not fully unblock A10.** `start.test.ts` still collects 0 tests, but on a
+different import now: `@n8n/ai-workflow-builder`, reached via `ai.controller.ts`.
+The earlier note that annotations were the sole cause was wrong — there were two
+blockers and this closes one. The other is defork item C2.
+
 ### 2026-08-10 — Eight public API routes were requiring scopes no key could hold
 
 **Fixed — `@n8n/permissions` `constants.ts`**

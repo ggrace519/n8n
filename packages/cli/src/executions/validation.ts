@@ -6,6 +6,7 @@ import type { ExecutionRequest } from '@/executions/execution.types';
 const executionUpdateSchema = z.object({
 	tags: z.array(z.string()).optional(),
 	vote: z.enum(['up', 'down']).nullable().optional(),
+	note: z.string().nullable().optional(),
 });
 
 export function validateExecutionUpdatePayload(
@@ -15,8 +16,8 @@ export function validateExecutionUpdatePayload(
 		const validatedPayload = executionUpdateSchema.parse(payload);
 
 		// Additional check to ensure that at least one property is provided
-		const { tags, vote } = validatedPayload;
-		if (!tags && vote === undefined) {
+		const { tags, vote, note } = validatedPayload;
+		if (!tags && vote === undefined && note === undefined) {
 			throw new BadRequestError('No annotation provided');
 		}
 
