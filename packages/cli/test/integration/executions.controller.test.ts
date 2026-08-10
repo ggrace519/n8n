@@ -132,6 +132,62 @@ describe('GET /executions/:id', () => {
 	});
 });
 
+describe('PATCH /executions/:id', () => {
+	test('returns the full updated execution, not a bare annotation', async () => {
+		const execution = await saveExecution({ belongingTo: owner });
+
+		const response = await testServer
+			.authAgentFor(owner)
+			.patch(`/executions/${execution.id}`)
+			.send({ vote: 'up' })
+			.expect(200);
+
+		// The editor store does `addExecution(response)`, so the payload has to be
+		// a whole execution rather than just what changed.
+		expect(response.body.data).toMatchObject({
+			id: execution.id,
+			workflowId: execution.workflowId,
+			status: execution.status,
+			annotation: expect.objectContaining({ vote: 'up' }),
+		});
+	});
+
+	test('persists a note and round-trips it on read', async () => {
+		const execution = await saveExecution({ belongingTo: owner });
+
+		await testServer
+			.authAgentFor(owner)
+			.patch(`/executions/${execution.id}`)
+			.send({ note: 'looks wrong on retry' })
+			.expect(200);
+
+		const response = await testServer
+			.authAgentFor(owner)
+			.get(`/executions/${execution.id}`)
+			.expect(200);
+
+		expect(response.body.data.annotation).toMatchObject({ note: 'looks wrong on retry' });
+	});
+
+	test('a vote-only update does not erase an existing note', async () => {
+		const execution = await saveExecution({ belongingTo: owner });
+		const agent = testServer.authAgentFor(owner);
+
+		await agent.patch(`/executions/${execution.id}`).send({ note: 'keep me' }).expect(200);
+		await agent.patch(`/executions/${execution.id}`).send({ vote: 'down' }).expect(200);
+
+		const response = await agent.get(`/executions/${execution.id}`).expect(200);
+
+		expect(response.body.data.annotation).toMatchObject({ note: 'keep me', vote: 'down' });
+	});
+
+	test('rejects an update carrying no annotation at all', async () => {
+		const execution = await saveExecution({ belongingTo: owner });
+
+		await testServer.authAgentFor(owner).patch(`/executions/${execution.id}`).send({}).expect(400);
+	});
+});
+
 describe('POST /executions/delete', () => {
 	test('should hard-delete an execution', async () => {
 		await saveExecution({ belongingTo: owner });

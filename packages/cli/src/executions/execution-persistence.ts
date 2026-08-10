@@ -1092,10 +1092,11 @@ export class ExecutionPersistence {
 
 	private serializeAnnotation(annotation: ExecutionEntity['annotation']) {
 		if (!annotation) return null;
-		const { id, vote, tags } = annotation;
+		const { id, vote, note, tags } = annotation;
 		return {
 			id,
 			vote,
+			note,
 			tags: tags?.map(({ id, name }) => ({ id, name })) ?? [],
 		};
 	}
