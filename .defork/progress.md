@@ -1071,3 +1071,44 @@ literal in the api spec — the request starts during the await so the body is
 empty. SQLite was fast enough to hide it; Postgres wasn't.
 
 **NEXT.** E10 (multi-main) is the LAST Phase-E item, then A10.
+
+## 2026-08-10 — E10 DONE (multi-main) — 3 P0 split-brain defects found and fixed
+
+**LAST PHASE-E ITEM.** MultiMainSetup + WorkerStatusService rebuilt at fair-code
+paths on top of the surviving leader-election-client.
+
+**THE REVIEW EARNED ITS KEEP AGAIN — 276 specs passed, then codex found 3 P0s:**
+1. hostId was the lock-owner token, but Docker derives it from the hostname and
+   this repo ALREADY detects live host-ID clashes -> two mains sharing one could
+   both renew/delete the same lease. Now an unguessable per-acquisition token,
+   minted BEFORE the SET NX so a timed-out claim that reached Redis is still
+   recognised as ours.
+2. Reading our own key via GET promoted without an atomic renew -> a follower
+   could promote on an about-to-expire key. Now compare-and-renew; key-missing
+   falls through to NX; another owner stays follower.
+3. Leadership was not bounded by the lease: takeover handlers ran INSIDE the
+   in-flight guard, so a slow handler blocked renewals until the key expired.
+   Handlers now run in a serialized queue outside the check; a dedicated 500ms
+   watchdog demotes before the last PROVEN deadline (measured from when the
+   proof was SENT, not when it resolved); config requires
+   interval + command-timeout + margin < ttl (ttl=2/interval=1 now rejected).
+Plus: subscribe-before-start, unconditional release after draining, fail-stop on
+failed stepdown teardown, get-worker-status made immediate (two users' requests
+were collapsing), requestingUserId no longer echoed to the browser.
+
+309 scaling tests; 9 mutation tests each caught their target. One mutation came
+back CLEAN first time — the agent had assigned a handler promise without
+awaiting; corrected, it failed 2 tests. Good example of mutation testing finding
+a weak test rather than weak code.
+
+**STILL OPEN -> #20:** a lease alone cannot survive a process pause or Redis
+failover; only fencing/generation tokens threaded through leader-only work close
+that. Deliberately out of scope.
+
+**MY PROCESS ERROR (fixed, and worth not repeating).** I ran `git add -A` in a
+worktree where the E10 subagent was mid-edit, so my small cross-package commit
+absorbed ~590 lines of its in-flight hardening under a message documenting none
+of it. Branch was unpushed, so I split it: soft-reset, recommitted with EXPLICIT
+paths, and verified `git rev-parse HEAD^{tree}` matched byte-for-byte before and
+after. RULE: when a subagent is editing the same worktree, stage explicit paths —
+never `git add -A`.

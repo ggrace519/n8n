@@ -2,10 +2,12 @@ import type { Logger } from '@n8n/backend-common';
 import { mockInstance, mockLogger } from '@n8n/backend-test-utils';
 import { ExecutionsConfig, GlobalConfig } from '@n8n/config';
 import type { Redis as SingleNodeClient } from 'ioredis';
+import type { InstanceSettings } from 'n8n-core';
 import { mock } from 'vitest-mock-extended';
 
 import type { RedisClientService } from '@/services/redis-client.service';
 
+import { Publisher } from '../publisher.service';
 import type { PubSubEventBus } from '../pubsub.eventbus';
 import type { McpRelayMessage } from '../subscriber.service';
 import { Subscriber } from '../subscriber.service';
@@ -105,6 +107,75 @@ describe('Subscriber', () => {
 				'n8n-instance-1:n8n.worker-response',
 				expect.any(Function),
 			);
+		});
+	});
+
+	describe('worker status requests from different users', () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+			client.on.mockClear();
+			client.publish.mockClear();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		function getMessageHandler() {
+			const call = client.on.mock.calls.find(([event]) => event === 'message');
+			expect(call).toBeDefined();
+			return call![1] as (channel: string, msg: string) => void;
+		}
+
+		it('should deliver both users’ requests published within one debounce window', async () => {
+			// Debounce is keyed only by command name, so two users asking at once used
+			// to collapse into one request and only the second user got any answers.
+			//
+			// Published through the real `Publisher`, so the debounce flag is derived
+			// from `IMMEDIATE_COMMANDS` rather than asserted into the test.
+			const publisher = new Publisher(
+				mockLogger(),
+				redisClientService,
+				mock<InstanceSettings>({ hostId: 'main-requester' }),
+				executionsConfig,
+				globalConfig,
+			);
+
+			await publisher.publishCommand({
+				command: 'get-worker-status',
+				payload: { requestingUserId: 'user-a' },
+			});
+			await publisher.publishCommand({
+				command: 'get-worker-status',
+				payload: { requestingUserId: 'user-b' },
+			});
+
+			const published = client.publish.mock.calls.map(([, msg]) => msg as string);
+			expect(published).toHaveLength(2);
+
+			const pubsubEventBus = mock<PubSubEventBus>();
+			new Subscriber(
+				mockLogger(),
+				mock(),
+				pubsubEventBus,
+				redisClientService,
+				executionsConfig,
+				globalConfig,
+			);
+
+			const messageHandler = getMessageHandler();
+
+			for (const msg of published) messageHandler('n8n:n8n.commands', msg);
+
+			vi.advanceTimersByTime(300);
+
+			expect(pubsubEventBus.emit).toHaveBeenCalledWith('get-worker-status', {
+				requestingUserId: 'user-a',
+			});
+			expect(pubsubEventBus.emit).toHaveBeenCalledWith('get-worker-status', {
+				requestingUserId: 'user-b',
+			});
+			expect(pubsubEventBus.emit).toHaveBeenCalledTimes(2);
 		});
 	});
 

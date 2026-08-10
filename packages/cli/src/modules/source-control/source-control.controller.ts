@@ -260,7 +260,14 @@ export class SourceControlController {
 		@Param('type') type: string,
 		@Param('id') id: string,
 	) {
-		return await this.sourceControlService.getRemoteFileEntity({ user: req.user, type, id });
+		const { content } = await this.sourceControlService.getRemoteFileEntity({
+			user: req.user,
+			type,
+			id,
+		});
+		// Echo the validated type back: the diff view keys off it, and the
+		// service only accepts a type it recognises.
+		return { content, type };
 	}
 
 	private parsePreferencesBody(body: unknown): PreferencesRequestBody {

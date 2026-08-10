@@ -32,7 +32,7 @@ import { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus'
 import { EventService } from '@/events/event.service';
 import { LoadNodesAndCredentials } from '@/load-nodes-and-credentials';
 import { N8NCheckpointStorage } from '@/modules/agents/integrations/n8n-checkpoint-storage';
-import { MultiMainSetup } from '@/scaling/multi-main-setup.ee';
+import { MultiMainSetup } from '@/scaling/multi-main-setup';
 import { Publisher } from '@/scaling/pubsub/publisher.service';
 import { PubSubRegistry } from '@/scaling/pubsub/pubsub.registry';
 import { Subscriber } from '@/scaling/pubsub/subscriber.service';
@@ -291,9 +291,9 @@ export class Start extends BaseCommand<z.infer<typeof flagsSchema>> {
 		const { AuthHandlerRegistry } = await import('@/auth/auth-handler.registry.js');
 		await Container.get(AuthHandlerRegistry).init();
 
-		if (this.instanceSettings.isMultiMain) {
-			Container.get(MultiMainSetup).registerEventHandlers();
-		}
+		// Leadership handlers are deliberately *not* wired here: `MultiMainSetup.init()`
+		// subscribes before it starts electing, so a transition fired during module
+		// loading cannot reach zero handlers. Late-loading modules are still picked up.
 
 		await this.executionContextHookRegistry.init();
 		await Container.get(LoadNodesAndCredentials).postProcessLoaders();

@@ -167,9 +167,10 @@
       "id": "E10-multi-main",
       "phase": "E",
       "title": "Rebuild scaling worker-status.service + multi-main-setup fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -rnE \"worker-status.service.ee\\|multi-main-setup.ee\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0",
-      "notes": "Clean-room: consumers + Redis pub/sub scaling design + surviving scaling tests."
+      "notes": "Clean-room: consumers + Redis pub/sub scaling design + surviving scaling tests.",
+      "verified": "2026-08-10: MultiMainSetup + WorkerStatusService rebuilt at fair-code paths (no .ee) on the surviving leader-election-client. grep multi-main-setup.ee/worker-status.service.ee = 0; scaling 309/309 (13 files); wait-tracker+worker 27/27; decorators 146/146; modules regression 314/314; credentials 80/80; debug.controller 1/1; scoped tsc 0; eslint clean. Codex adversarial review found 3 P0 SPLIT-BRAIN defects the 276 passing specs never modelled - ALL FIXED: (1) hostId was the lock-owner token but Docker derives it from hostname and this repo detects live host-id clashes -> now an unguessable per-acquisition token minted before SET NX; (2) reading our own key via GET promoted without an atomic renew -> now compare-and-renew, key-missing falls to NX, other owner stays follower; (3) leadership unbounded by the lease (handlers ran inside the in-flight guard, blocking renewals) -> handlers serialized outside the check + 500ms watchdog demoting before the last PROVEN deadline (measured from send, not resolve) + config requires interval+command-timeout+margin < ttl. Plus subscribe-before-start, unconditional release after draining, fail-stop on failed stepdown teardown, get-worker-status made IMMEDIATE (two users' requests were collapsing under debounce), requestingUserId no longer echoed to the browser. 9 mutation tests each caught their guard. OPEN -> issue #20: a lease cannot survive a process pause or Redis failover; only fencing tokens threaded through leader-only work close that (architectural, out of scope). start.test.ts remains blocked by E19."
     },
     {
       "id": "E11-provisioning",
@@ -247,6 +248,14 @@
         "#15"
       ],
       "verified": "2026-08-09: REBUILT (contract recommended rebuild over remove: removal would need a new forward migration since the existing one may have run in deployed DBs, plus unwinding DTOs/frontend/settings/publish-guards). No backend spec survived, so tests were AUTHORED: 31 unit + 77 integration, all passing on BOTH sqlite and Postgres. Mutation-tested (9 invariants broken, each caught). Regression: ownership-transfer 11/11 (closes #15, was 2-fail), history+collaboration 23/23, credentials 80/80, workflows integration 292/292, src/workflows 496/496, agent-evals+provisioning 283/283, db 409/409, migrations 218+1skip on both drivers, api-types DTO 40/40. Codex adversarial review: 5 findings, ALL fixed (decision/pin binding, DB-boundary single-open-review sentinel + migration, (workflowId,versionId) pair validation, transfer closure moved INTO the ownership transaction, deletion orphan sweep). Review CLEARED the hand-rolled inbox access filter as matching WorkflowFinderService/userHasScopes, plus cursor tampering, route authz, author-self-approval, pruning SQL. RESIDUAL LIVE DEFECT -> issue #18: expectedVersionId is optional, so a non-racing re-pin can still approve an unreviewed version until the frontend echoes it back. BEHAVIOUR CHANGE: a review-closure failure now fails the enclosing transfer/delete instead of being swallowed."
+    },
+    {
+      "id": "E19-execution-annotations",
+      "phase": "E",
+      "title": "Rebuild execution-annotations (entities, repository, service, annotation-tags controller + execution.repository paths stripped in A8b)",
+      "passes": false,
+      "verify": "grep -ran \"annotation-tags\\.controller\\.ee\" packages/cli/src packages/cli/test --include='*.ts' | wc -l  # expect 0; plus editor-ui annotation components resolve",
+      "notes": "Discovered 2026-08-10 by the A11 frontend agent + a corrected .ee audit (my earlier audit regex used a char class excluding '/', so '@/controllers/annotation-tags.controller.ee' never matched - THIRD miss of this family). Blocks BOTH A10 (server.ts imports the controller) and A11 (4 editor-ui .ee.vue components). SURVIVING PINS: migrations 1724753530828-CreateExecutionAnnotationTables + 1728659839644-AddMissingPrimaryKeyOnAnnotationTagMapping (authoritative schema); annotationTags/vote remnants on ExecutionSummaries.Query in types-db.ts; the 4 editor-ui components pin the API contract (same pattern as E18, where DTOs+frontend client sufficed). NO surviving backend specs and NO api-types DTOs. SCOPE ALSO INCLUDES restoring what A8b stripped from @n8n/db execution.repository.ts: serializeAnnotation, includeAnnotation across 4 findSingleExecution overloads + impl + findIfShared, the annotation exclusion subquery in softDeletePrunableExecutions, and the raw-SQL WithAnnotations list flow (annotationFields, reduceExecutionsWithAnnotations, toQueryBuilderWithAnnotations, the vote/annotationTags join in toQueryBuilder). Per standing policy (rebuild every enterprise subsystem, do NOT drop) the answer is rebuild; Greg can override to drop."
     },
     {
       "id": "A10-cli-green",
