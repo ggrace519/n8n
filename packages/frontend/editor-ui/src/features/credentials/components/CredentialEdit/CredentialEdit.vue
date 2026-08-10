@@ -17,7 +17,7 @@ import CredentialIcon from '../CredentialIcon.vue';
 
 import CredentialConfig from './CredentialConfig.vue';
 import CredentialInfo from './CredentialInfo.vue';
-import CredentialSharing from './CredentialSharing.ee.vue';
+import CredentialSharing from './CredentialSharing.vue';
 import Modal from '@/app/components/Modal.vue';
 import SaveButton from '@/app/components/SaveButton.vue';
 import { useMessage } from '@/app/composables/useMessage';
