@@ -242,7 +242,7 @@ export const useExecutionsStore = defineStore('executions', () => {
 
 	async function annotateExecution(
 		id: string,
-		data: { tags?: string[]; vote?: AnnotationVote | null },
+		data: { tags?: string[]; vote?: AnnotationVote | null; note?: string },
 	): Promise<void> {
 		const updatedExecution: ExecutionSummaryWithScopes = await makeRestApiRequest(
 			rootStore.restApiContext,
