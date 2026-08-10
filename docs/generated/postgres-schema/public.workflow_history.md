@@ -112,6 +112,7 @@ erDiagram
 }
 "public.workflow_review_request_workflow" {
   varchar_36_ id
+  varchar_36_ openWorkflowId
   varchar_36_ workflowId FK
   varchar_36_ workflowReviewRequestId FK
   varchar_36_ workflowVersionId FK

@@ -16,6 +16,172 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-09 — E18 hardening: publication-integrity fixes
+
+Follow-up to the E18 rebuild below, closing five defects found in an adversarial
+review of it. Same clean-room provenance: derived from the surviving DTOs, the
+fair-code consumers, and this repo's own fair-code — no `.ee` body was read.
+
+**Fixed — decisions are bound to the version the reviewer inspected.** A
+reviewer could load V1, have the author re-pin to V2, and approve — publishing a
+version nobody reviewed. `decide()` now resolves the pin inside its own
+transaction, takes the link row with a conditional write that re-asserts that
+pin, and auto-publishes the version that transaction returned rather than one
+read before it. **Partial by design:** this closes a re-pin that races the
+decision. A re-pin that lands *before* the decision arrives is caught only when
+the client sends the new optional `expectedVersionId` on
+`POST /workflow-review-requests/:id/decision`, which is CAS-checked and 409s on
+mismatch. The field is optional so existing clients keep working; the protection
+is complete only once the editor sends it (tracked separately).
+
+**Fixed — "at most one open review per workflow" is now a database invariant.**
+It was an unlocked check-then-insert, so two concurrent creates both committed
+and both blocked publication. A nullable `openWorkflowId` sentinel on
+`workflow_review_request_workflow`, cleared on every closure path and covered by
+a plain unique constraint, enforces it portably on SQLite and Postgres (a
+partial unique index is not portable). Contention returns 409.
+
+**Fixed — a pinned version is verified to belong to the linked workflow.** The
+foreign key only checks the globally unique `versionId`, so a caller could pin
+another workflow's version, producing a null review snapshot that blocked
+publication and then failed to publish. The `(workflowId, versionId)` pair is
+now validated before both create and re-pin, and a version-metadata update
+affecting zero rows is an error instead of being ignored.
+
+**Fixed — transfers close their reviews atomically.** Ownership changed before
+the best-effort `afterWorkflowsTransferred` hook, so a failure in the gap left
+the destination project's members able to see and decide the source project's
+still-open review. Closure now runs in the transaction that moves ownership,
+through a new `duringWorkflowsTransferred` hook that is allowed to throw;
+`afterWorkflowsTransferred` remains post-commit but only broadcasts. **Behaviour
+change:** a closure failure now fails the transfer instead of being swallowed.
+
+**Fixed — workflow deletion no longer orphans the review aggregate.** The
+cascade removed the child link but not its parent request, and a swallowed
+pre-delete failure left that parent `open`. `beforeWorkflowDeleted` now
+propagates failures so the delete is aborted, and `afterWorkflowDeleted` removes
+requests left without any workflow. **Behaviour change:** a review-closure
+failure now aborts a workflow delete, including the per-workflow loops in
+project deletion and user deletion.
+
+**Added (migration):**
+`packages/@n8n/db/src/migrations/common/1785913150000-AddOpenWorkflowSentinelToWorkflowReviews.ts`,
+reversible. Adds the nullable sentinel column, resolves any pre-existing
+duplicate open reviews (newest per workflow keeps the sentinel and stays open,
+older ones are closed), backfills the sentinel for open reviews, then creates
+the unique index. Both index files are generated, so they pick it up
+automatically.
+
+**Changed (persistence, `packages/@n8n/db/`):**
+`WorkflowReviewRequestWorkflowRepository` gains `takeLinkAtPin` (the locking
+pin CAS that also releases the sentinel) and reports a sentinel collision as a
+domain result rather than a driver error; `createWorkflowRow` now takes an
+explicit `open` flag. `WorkflowReviewRequestRepository` clears sentinels before
+the request-row write — the module's single lock order is link row before
+request row — and gains `deleteLinklessRequests`. `WorkflowHistoryRepository`
+gains `versionBelongsToWorkflow`. `SharedWorkflowRepository.transferOwnership`,
+`WorkflowRepository.updateParentFolder` and `FolderRepository.moveFoldersToProject`
+now run in the caller's transaction (`OperationContext`), so ownership, folder
+re-homing and module cleanup commit as one unit.
+
+**Verification:** 108 tests across the module (31 unit, 77 API integration), 4
+new migration tests covering the duplicate resolution and the reversal, all
+green on both SQLite and Postgres. Every new guard was mutation-tested: breaking
+it makes targeted tests fail.
+
+### 2026-08-09 — E18: workflow-reviews module
+
+Rebuilds the purged workflow-reviews backend module clean-room: the two ORM
+entities and their junctions, the two repositories, the eight-route REST
+surface, the publish guard, the lifecycle hooks, and the workflow-history
+pruning protection for open review pins. Unlike other de-fork items, **no
+backend endpoint spec survived** — the surviving DTOs, the frontend REST client,
+the migration and the workflow-history integration test were the whole contract,
+so this change also authors the missing endpoint/service tests (82 new tests).
+
+**Added (entities, `packages/@n8n/db/src/entities/`):**
+`workflow-review-request.ts` (`WorkflowReviewRequest` → `workflow_review_request`)
+and `workflow-review-request-workflow.ts` (`WorkflowReviewRequestWorkflow` →
+`workflow_review_request_workflow`), both registered in `entities/index.ts` —
+export block **and** the `entities` map, whose keys are what `testDb.truncate`'s
+`EntityName` union derives from (the surviving workflow-history integration test
+truncates both by name). The reviewer and author junctions are modelled as
+`@ManyToMany` + explicit `@JoinTable` on the request rather than as entities, so
+`truncate` clears them through TypeORM's many-to-many metadata instead of relying
+on FK cascade.
+
+**Added (repositories, `packages/@n8n/db/src/repositories/`):**
+`workflow-review-request.repository.ts` and
+`workflow-review-request-workflow.repository.ts`, exported from
+`repositories/index.ts`. Both extend `BaseRepository`, take an `OperationContext`
+and keep TypeORM behind use-case-named methods. `createRequest`,
+`createWorkflowRow` and `findByRequestId` reproduce the exact signatures the
+surviving `workflow-history.repository.test.ts` calls.
+
+**Added (module, `packages/cli/src/modules/workflow-reviews/`):** fair-code path,
+no `.ee`. `workflow-reviews.module.ts` (registers the controller and both
+providers), `workflow-reviews.controller.ts` (the eight routes),
+`workflow-review.service.ts` (authorization, transitions, detail assembly,
+approval, auto-publication, collaboration invalidation),
+`workflow-review-access.service.ts`, `workflow-review-feature.service.ts`,
+`workflow-review-inbox-cursor.ts`, `workflow-review-publish-guard.ts`,
+`workflow-review-lifecycle-hooks.ts`, and
+`database/workflow-review-user.repository.ts`.
+
+**Changed:** `WorkflowHistoryRepository.deleteEarlierThanExceptCurrentAndActive`
+now excludes versions pinned by an **open** review, even when named-version
+preservation is off — review pins are named versions and would otherwise be
+pruned mid-review. A closed review no longer protects its pin, and the child FK
+nulls the pin when the version is pruned.
+`ownership-transfer.manifest.json` now points `WorkflowReviewRequest` at its
+rebuilt declaring file, and the integration `test-server.ts` imports the clean
+module path.
+
+**Fixed (surviving-code defect):** `WorkflowMutationHooks.afterWorkflowsTransferred`
+existed on the proxy but had **no production caller**, so no module could react
+to a workflow changing project. `EnterpriseWorkflowService.transferWorkflow` and
+`.transferFolder` now invoke it after the ownership change commits. Without this,
+moving a workflow to another project would have left its review open and blocking
+publication forever.
+
+**Decisions on under-pinned points** (contract §9), all covered by new tests:
+single-open-review uniqueness is enforced by a check inside the create
+transaction rather than a new forward migration (a partial unique index on
+`state = 'open'` is not portable across SQLite and Postgres, and the migration is
+already deployed); a new pin resets `changes_requested` to `pending`; authors are
+the creator plus anyone who re-pins; lifecycle closure sets `state = 'closed'` and
+`closedById` but leaves `decision` untouched, because closing for an archive or a
+move is not a reviewer verdict; the diff baseline is the currently published
+version; disabling the policy stops enforcement but leaves open reviews intact.
+
+**Deliberate deviations from a documented interface, both covered by tests:**
+`beforeWorkflowDeleted` is documented as the one mutation hook that *may* throw
+to abort a delete; this provider swallows and logs instead, because failing to
+tidy up review bookkeeping should not stop a user deleting their own workflow.
+And although the schema permits several workflows per review, `decide` now
+throws `UnexpectedError` if it ever finds more than one, rather than picking an
+arbitrary row — the relation is unordered, so a silent pick would authorize
+against one workflow while publishing another's pinned version.
+
+**Clean-room sources:** the surviving migration
+`packages/@n8n/db/src/migrations/common/1784000000052-CreateWorkflowReviewRequestTables.ts`
+and its spec (authoritative for tables, columns, FKs and indices); the seven
+surviving DTOs and shared types in `packages/@n8n/api-types/src/dto/workflow-reviews/`,
+`workflow-review-request-summary.ts`, `workflow-review-eligible-reviewer.ts`,
+`workflow-reviews-policy.ts`, `push/workflow-review.ts` and
+`workflow-publish-blocked-details.ts` (authoritative for every request and
+response shape); the frontend REST client
+`packages/frontend/editor-ui/src/features/workflow-reviews/workflowReviews.api.ts`
+with its stores and components (authoritative for method, path, and the 409 /
+403-404 / auto-publish behaviours) — read only, never modified; the surviving
+`packages/cli/test/integration/database/repositories/workflow-history.repository.test.ts`
+(pins repository class names, the three method signatures and pin-retention);
+the fair-code proxies `workflow-publish-guard-proxy.service.ts` and
+`workflow-mutation-hooks-proxy.service.ts`; `collaboration.service.ts`,
+`workflow-review-policy.service.ts`, `security-settings.controller.ts`,
+`frontend.service.ts`, `WorkflowPublishHistoryRepository`, and
+`ownership-transfer.manifest.json`. No `.ee` body was read from any source.
+
 ### 2026-08-09 — E17: agent-eval database substrate
 
 Rebuilds the four purged agent-eval entities and their repositories in

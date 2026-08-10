@@ -189,14 +189,18 @@ export class SharedWorkflowRepository extends BaseRepository<SharedWorkflow> {
 	 * Move a workflow's ownership to another project: removes ALL existing
 	 * sharing relations and creates a single owner relation in the destination.
 	 */
-	async transferOwnership(workflowId: string, destinationProjectId: string) {
-		await this.manager.transaction(async (em) => {
-			await em.delete(SharedWorkflow, { workflowId });
-			await em.insert(SharedWorkflow, {
-				workflowId,
-				projectId: destinationProjectId,
-				role: 'workflow:owner',
-			});
+	/**
+	 * Replaces every sharing of a workflow with ownership by the destination
+	 * project. Runs in the caller's transaction, so ownership and whatever else
+	 * must move with it (project-scoped module state) commit together.
+	 */
+	async transferOwnership(workflowId: string, destinationProjectId: string, ctx: OperationContext) {
+		const manager = this.managerFor(ctx);
+		await manager.delete(SharedWorkflow, { workflowId });
+		await manager.insert(SharedWorkflow, {
+			workflowId,
+			projectId: destinationProjectId,
+			role: 'workflow:owner',
 		});
 	}
 

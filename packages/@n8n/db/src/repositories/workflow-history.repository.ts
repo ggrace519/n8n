@@ -2,7 +2,13 @@ import { Service } from '@n8n/di';
 import { DataSource, In, LessThan } from '@n8n/typeorm';
 import { DiffMetaData, DiffRule, groupWorkflows, SKIP_RULES } from 'n8n-workflow';
 
-import { WorkflowHistory, WorkflowEntity, WorkflowPublishedVersion } from '../entities';
+import {
+	WorkflowHistory,
+	WorkflowEntity,
+	WorkflowPublishedVersion,
+	WorkflowReviewRequest,
+	WorkflowReviewRequestWorkflow,
+} from '../entities';
 import { BaseRepository } from './base-repository';
 import { WorkflowPublishHistoryRepository } from './workflow-publish-history.repository';
 import type { OperationContext } from '../services/transaction';
@@ -18,6 +24,21 @@ export class WorkflowHistoryRepository extends BaseRepository<WorkflowHistory> {
 
 	async deleteEarlierThan(date: Date) {
 		return await this.delete({ createdAt: LessThan(date) });
+	}
+
+	/**
+	 * Whether the version belongs to that workflow. `versionId` is globally
+	 * unique, so a foreign-key check alone does not establish the pair — callers
+	 * pinning a version to a workflow must verify it here.
+	 */
+	async versionBelongsToWorkflow(
+		{ workflowId, versionId }: { workflowId: string; versionId: string },
+		ctx: OperationContext,
+	): Promise<boolean> {
+		const count = await this.managerFor(ctx).count(WorkflowHistory, {
+			where: { workflowId, versionId },
+		});
+		return count > 0;
 	}
 
 	/**
@@ -73,6 +94,20 @@ export class WorkflowHistoryRepository extends BaseRepository<WorkflowHistory> {
 			.from(WorkflowPublishedVersion, 'wpv')
 			.getQuery();
 
+		// Versions pinned by an *open* review must survive even when named-version
+		// preservation is off: review pins are named versions, so they would
+		// otherwise vanish mid-review. A closed review no longer protects its pin,
+		// and the child FK nulls the pin when the version does get pruned.
+		const openReviewPinnedVersionIdsSubquery = this.manager
+			.createQueryBuilder()
+			.subQuery()
+			.select('link.workflowVersionId')
+			.from(WorkflowReviewRequestWorkflow, 'link')
+			.innerJoin(WorkflowReviewRequest, 'request', 'request.id = link.workflowReviewRequestId')
+			.where('request.state = :openReviewState', { openReviewState: 'open' })
+			.andWhere('link.workflowVersionId IS NOT NULL')
+			.getQuery();
+
 		const query = this.manager
 			.createQueryBuilder()
 			.delete()
@@ -80,7 +115,9 @@ export class WorkflowHistoryRepository extends BaseRepository<WorkflowHistory> {
 			.where('createdAt < :date', { date })
 			.andWhere(`versionId NOT IN (${currentVersionIdsSubquery})`)
 			.andWhere(`versionId NOT IN (${activeVersionIdsSubquery})`)
-			.andWhere(`versionId NOT IN (${publishedVersionIdsSubquery})`);
+			.andWhere(`versionId NOT IN (${publishedVersionIdsSubquery})`)
+			.andWhere(`versionId NOT IN (${openReviewPinnedVersionIdsSubquery})`)
+			.setParameter('openReviewState', 'open');
 
 		if (preserveNamedVersions) {
 			query.andWhere('name IS NULL');

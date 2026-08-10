@@ -5,6 +5,7 @@
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
 | id | varchar(36) |  | false |  |  |  |
+| openWorkflowId | varchar(36) |  | true |  |  | Holds workflowId while the parent review request is open, NULL once closed; uniquely constrained so a workflow can have at most one open review |
 | workflowId | varchar(36) |  | false |  | [public.workflow_entity](public.workflow_entity.md) |  |
 | workflowReviewRequestId | varchar(36) |  | false |  | [public.workflow_review_request](public.workflow_review_request.md) |  |
 | workflowVersionId | varchar(36) |  | true |  | [public.workflow_history](public.workflow_history.md) | Pinned workflow_history version for this review item |
@@ -27,6 +28,7 @@
 | ---- | ---------- |
 | IDX_workflow_review_request_workflow_workflow_request | CREATE INDEX "IDX_workflow_review_request_workflow_workflow_request" ON public.workflow_review_request_workflow USING btree ("workflowId", "workflowReviewRequestId") |
 | PK_be3bf4facb054cf2b2b116b3b9c | CREATE UNIQUE INDEX "PK_be3bf4facb054cf2b2b116b3b9c" ON public.workflow_review_request_workflow USING btree (id) |
+| UQ_workflow_review_request_workflow_open_workflow | CREATE UNIQUE INDEX "UQ_workflow_review_request_workflow_open_workflow" ON public.workflow_review_request_workflow USING btree ("openWorkflowId") |
 | UQ_workflow_review_request_workflow_request_workflow | CREATE UNIQUE INDEX "UQ_workflow_review_request_workflow_request_workflow" ON public.workflow_review_request_workflow USING btree ("workflowReviewRequestId", "workflowId") |
 
 ## Relations
@@ -40,6 +42,7 @@ erDiagram
 
 "public.workflow_review_request_workflow" {
   varchar_36_ id
+  varchar_36_ openWorkflowId
   varchar_36_ workflowId FK
   varchar_36_ workflowReviewRequestId FK
   varchar_36_ workflowVersionId FK

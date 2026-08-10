@@ -401,6 +401,7 @@ describe('WorkflowHistoryRepository', () => {
 					workflowReviewRequestId: openRequest.id,
 					workflowId: workflow.id,
 					workflowVersionId: vOpenPinned,
+					open: true,
 				},
 				{},
 			);
@@ -414,6 +415,7 @@ describe('WorkflowHistoryRepository', () => {
 					workflowReviewRequestId: closedRequest.id,
 					workflowId: workflow.id,
 					workflowVersionId: vClosedPinned,
+					open: false,
 				},
 				{},
 			);

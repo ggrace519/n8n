@@ -4,6 +4,7 @@ import {
 	FolderRepository,
 	SharedCredentialsRepository,
 	SharedWorkflowRepository,
+	TransactionRunner,
 	WorkflowRepository,
 } from '@n8n/db';
 import { Service } from '@n8n/di';
@@ -20,6 +21,7 @@ import { OwnershipService } from '@/services/ownership.service';
 import { ProjectService } from '@/services/project.service';
 
 import { WorkflowFinderService } from './workflow-finder.service';
+import { WorkflowMutationHooksProxy } from './workflow-mutation-hooks-proxy.service';
 
 const PROJECT_ROOT_FOLDER = '0';
 
@@ -78,6 +80,8 @@ export class EnterpriseWorkflowService {
 		private readonly projectService: ProjectService,
 		private readonly activeWorkflowManager: ActiveWorkflowManager,
 		private readonly ownershipService: OwnershipService,
+		private readonly workflowMutationHooks: WorkflowMutationHooksProxy,
+		private readonly transactionRunner: TransactionRunner,
 	) {}
 
 	/**
@@ -275,12 +279,23 @@ export class EnterpriseWorkflowService {
 			await this.activeWorkflowManager.remove(workflowId);
 		}
 
-		await this.sharedWorkflowRepository.transferOwnership(workflowId, destinationProjectId);
-		// The old parent folder belongs to the source project — always re-home.
-		await this.workflowRepository.update({ id: workflowId }, { parentFolder: destinationFolder });
+		// Ownership, re-homing and the modules' project-scoped state move as one
+		// unit: a failure part-way through must not leave a module still holding
+		// state for the source project while the destination project owns the
+		// workflow. The owning project really did change (a self-transfer is
+		// rejected above), so the hook always applies.
+		await this.transactionRunner.run({}, async (ctx) => {
+			await this.sharedWorkflowRepository.transferOwnership(workflowId, destinationProjectId, ctx);
+			// The old parent folder belongs to the source project — always re-home.
+			await this.workflowRepository.updateParentFolder(workflowId, destinationFolder, ctx);
+			await this.workflowMutationHooks.duringWorkflowsTransferred([workflowId], ctx);
+		});
+
 		await this.ownershipService.invalidateWorkflowProjectCacheByIds([workflowId]);
 
 		await this.shareShareableCredentialsWithProject(user, shareCredentials, destinationProjectId);
+
+		await this.workflowMutationHooks.afterWorkflowsTransferred([workflowId]);
 
 		if (wasActive) {
 			await this.activeWorkflowManager.add(workflowId, 'update');
@@ -364,18 +379,31 @@ export class EnterpriseWorkflowService {
 			}
 		}
 
-		for (const workflow of workflows) {
-			await this.sharedWorkflowRepository.transferOwnership(workflow.id, destinationProjectId);
-		}
+		const workflowIds = workflows.map((workflow) => workflow.id);
 
-		// Re-home the whole subtree; only the transferred root changes parent.
-		await this.folderRepository.moveFoldersToProject(subtreeFolderIds, destinationProjectId);
-		await this.folderRepository.update({ id: sourceFolderId }, { parentFolder: destinationFolder });
-		await this.ownershipService.invalidateWorkflowProjectCacheByIds(
-			workflows.map((workflow) => workflow.id),
-		);
+		// Same as the single-workflow move: source and destination projects differ
+		// (guarded above), so every workflow in the subtree changed owner, and the
+		// modules' project-scoped state must change with it or not at all.
+		await this.transactionRunner.run({}, async (ctx) => {
+			for (const workflowId of workflowIds) {
+				await this.sharedWorkflowRepository.transferOwnership(
+					workflowId,
+					destinationProjectId,
+					ctx,
+				);
+			}
+
+			// Re-home the whole subtree; only the transferred root changes parent.
+			await this.folderRepository.moveFoldersToProject(subtreeFolderIds, destinationProjectId, ctx);
+			await this.folderRepository.updateParentFolder(sourceFolderId, destinationFolder, ctx);
+			await this.workflowMutationHooks.duringWorkflowsTransferred(workflowIds, ctx);
+		});
+
+		await this.ownershipService.invalidateWorkflowProjectCacheByIds(workflowIds);
 
 		await this.shareShareableCredentialsWithProject(user, shareCredentials, destinationProjectId);
+
+		await this.workflowMutationHooks.afterWorkflowsTransferred(workflowIds);
 
 		for (const workflowId of activeWorkflowIds) {
 			await this.activeWorkflowManager.add(workflowId, 'update');
