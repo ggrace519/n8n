@@ -175,20 +175,38 @@ describe('Public API scope parity', () => {
 		expect(mismatches).toEqual([]);
 	}, 30_000);
 
-	test('every API key scope in API_KEY_RESOURCES is consumed by at least one endpoint', () => {
-		const consumed = new Set(
+	/** Scopes named by an `x-required-scope`, composites split into their parts. */
+	function consumedScopes() {
+		return new Set(
 			ops.flatMap((op) => {
 				if (op.requiredScope === null || op.requiredScope === 'none') return [];
 				return op.requiredScope.split(',').map((scope) => scope.trim());
 			}),
 		);
+	}
+
+	function declaredScopes() {
 		const declared = new Set<string>();
 		for (const [resource, operations] of Object.entries(API_KEY_RESOURCES)) {
 			for (const operation of operations) {
 				declared.add(`${resource}:${operation}`);
 			}
 		}
-		const orphans = [...declared].filter((scope) => !consumed.has(scope));
+		return declared;
+	}
+
+	test('every API key scope in API_KEY_RESOURCES is consumed by at least one endpoint', () => {
+		const consumed = consumedScopes();
+		const orphans = [...declaredScopes()].filter((scope) => !consumed.has(scope));
 		expect(orphans).toEqual([]);
+	});
+
+	// The direction that was missing: a scope a route requires but the catalog
+	// omits can never be granted (getApiKeyScopesForRole filters by the catalog),
+	// so the route 403s for everyone. Eight scopes had drifted out this way.
+	test('every scope an endpoint requires is declared in API_KEY_RESOURCES', () => {
+		const declared = declaredScopes();
+		const undeclared = [...consumedScopes()].filter((scope) => !declared.has(scope));
+		expect(undeclared).toEqual([]);
 	});
 });

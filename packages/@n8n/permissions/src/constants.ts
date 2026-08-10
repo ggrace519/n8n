@@ -100,7 +100,7 @@ export const RESOURCES = {
 		'writeColumn',
 		'listProject',
 	],
-	execution: ['delete', 'read', 'retry', 'list', 'get', 'reveal'],
+	execution: ['delete', 'read', 'retry', 'stop', 'list', 'get', 'reveal'],
 	testRun: ['read', 'list'],
 	workflowTags: ['update', 'list'],
 	role: ['manage', 'read', 'manageProject'],
@@ -119,19 +119,34 @@ export const RESOURCES = {
 
 /**
  * Catalog of resources/operations addressable via public API keys. This is a
- * deliberately narrower surface than {@link RESOURCES} and may expose operations
- * (e.g. `testRun:create`) that are managed differently in the UI RBAC catalog.
+ * separate surface from {@link RESOURCES}, not a subset of it: it may expose
+ * operations managed differently in the UI RBAC catalog (e.g. `testRun:create`)
+ * and resources the catalog splits differently (`dataTableRow`/`dataTableColumn`
+ * against the catalog's single `dataTable`).
+ *
+ * The catalog and the `x-required-scope` values in
+ * `packages/cli/src/public-api/v1/**` must match exactly, in both directions —
+ * an entry no route requires is an orphan, and a scope a route requires but the
+ * catalog omits can never be granted to a key, so the route 403s for everyone.
+ * The public API scope-parity test enforces both.
  */
 export const API_KEY_RESOURCES = {
-	credential: ['create', 'list', 'read', 'delete', 'move'],
+	communityPackage: ['install', 'list', 'uninstall', 'update'],
+	credential: ['create', 'list', 'read', 'update', 'delete', 'move'],
+	dataTable: ['create', 'delete', 'list', 'read', 'update'],
+	dataTableColumn: ['create', 'delete', 'read', 'update'],
+	dataTableRow: ['create', 'delete', 'read', 'update', 'upsert'],
 	eventBusDestination: ['create', 'read', 'update', 'delete', 'list', 'test'],
-	execution: ['delete', 'list', 'read'],
+	execution: ['delete', 'list', 'read', 'retry', 'stop'],
+	executionTags: ['list', 'update'],
 	folder: ['create', 'read', 'update', 'delete', 'list'],
+	insights: ['read'],
 	ldap: ['manage', 'sync'],
 	oidc: ['manage'],
 	otel: ['manage'],
 	testRun: ['list', 'read', 'create', 'cancel'],
-	project: ['create', 'delete', 'list', 'update'],
+	project: ['create', 'delete', 'export', 'list', 'update'],
+	role: ['manage', 'manageProject'],
 	saml: ['manage'],
 	securityAudit: ['generate'],
 	securitySettings: ['manage'],
@@ -139,7 +154,18 @@ export const API_KEY_RESOURCES = {
 	tag: ['create', 'delete', 'list', 'read', 'update'],
 	user: ['changeRole', 'create', 'delete', 'list', 'read'],
 	variable: ['create', 'delete', 'list', 'update'],
-	workflow: ['activate', 'create', 'deactivate', 'delete', 'list', 'move', 'read', 'update'],
+	workflow: [
+		'activate',
+		'create',
+		'deactivate',
+		'delete',
+		'export',
+		'import',
+		'list',
+		'move',
+		'read',
+		'update',
+	],
 	workflowTags: ['list', 'update'],
 } as const;
 
