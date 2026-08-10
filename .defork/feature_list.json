@@ -1,16 +1,16 @@
 {
   "project": "n8n de-fork: fair-code clean-room rebuild + AI-native features",
-  "iron_law": "One task per iteration. Memory is files, not context. Evidence before flipping passes:true. NEVER read .ee source from git history/other branches/upstream \u2014 clean-room only.",
+  "iron_law": "One task per iteration. Memory is files, not context. Evidence before flipping passes:true. NEVER read .ee source from git history/other branches/upstream — clean-room only.",
   "completion_promise": "DEFORK_LOOP_COMPLETE",
   "iteration_cap": 400,
   "policy": "User decision 2026-08-08: REBUILD EVERY enterprise subsystem fair-code (clean-room), do NOT drop. Clean sources only: the fair-code consumers that import the removed symbols, surviving fair-code tests, and public standards/specs (SAML, OIDC, LDAP, git). Log every rebuild in DEFORK_CHANGELOG.md with the clean-room source used.",
   "phases": {
-    "A": "Green build \u2014 clean-room fair-code replacements for purged .ee plumbing",
+    "A": "Green build — clean-room fair-code replacements for purged .ee plumbing",
     "E": "Enterprise subsystem fair-code rebuilds in packages/cli (clean-room)",
     "B": "Re-add chosen feature modules (fair-code)",
-    "C": "AI-native innovations (INNOVATIONS.md) \u2014 on innovation/<slug> branches, after green build"
+    "C": "AI-native innovations (INNOVATIONS.md) — on innovation/<slug> branches, after green build"
   },
-  "verify_notes": "Per-item greps MUST use `grep -ran` (forced text scan \u2014 a NUL byte or binary-flagged file makes plain grep silently skip it; this hid real references twice) and MUST cover packages/cli/src AND packages/cli/test, without filtering out test files. Orphaned specs that import a purged module are part of the item: rebuild them or delete them deliberately (A8d precedent) \u2014 never leave them unrunnable. The definitive gate is A10-cli-green.",
+  "verify_notes": "Per-item greps MUST use `grep -ran` (forced text scan — a NUL byte or binary-flagged file makes plain grep silently skip it; this hid real references twice) and MUST cover packages/cli/src AND packages/cli/test, without filtering out test files. Orphaned specs that import a purged module are part of the item: rebuild them or delete them deliberately (A8d precedent) — never leave them unrunnable. The definitive gate is A10-cli-green.",
   "items": [
     {
       "id": "A0-guardrails",
@@ -84,7 +84,7 @@
       "title": "Rebuild permissions.ee/check-access + permissions.ee/project-scope.service (RBAC access layer, ~45 consumers)",
       "passes": true,
       "verify": "grep -rnE \"permissions\\.ee/(check-access|project-scope)\" packages/cli/src | grep -v '\\.test\\.' | wc -l  # expect 0 after rename; then cli tsc has no check-access errors",
-      "notes": "MOST foundational cli item \u2014 do FIRST. Clean-room source: the 45 consumers' call sites (what functions/signatures they import & how they use them) + @n8n/permissions utilities (hasScope/hasGlobalScope/getResourcePermissions) + db repositories (SharedWorkflow/SharedCredentials/ProjectRelation). Rebuild the access checks (userHasScopes / project-scope guards) in a fair-code path (drop the .ee suffix). Do NOT read the purged .ee. Log source in DEFORK_CHANGELOG.md."
+      "notes": "MOST foundational cli item — do FIRST. Clean-room source: the 45 consumers' call sites (what functions/signatures they import & how they use them) + @n8n/permissions utilities (hasScope/hasGlobalScope/getResourcePermissions) + db repositories (SharedWorkflow/SharedCredentials/ProjectRelation). Rebuild the access checks (userHasScopes / project-scope guards) in a fair-code path (drop the .ee suffix). Do NOT read the purged .ee. Log source in DEFORK_CHANGELOG.md."
     },
     {
       "id": "A7-project-service",
@@ -192,7 +192,7 @@
       "title": "Rebuild modules/dynamic-credentials.ee (entities, repositories, storage, resolver, config, module) fair-code",
       "passes": true,
       "verify": "grep -ran 'dynamic-credentials\\.ee' packages/cli/src packages/cli/test --include='*.ts' | wc -l  # expect 0 (forced text scan, INCLUDING tests)",
-      "notes": "REOPENED 2026-08-09: the earlier flip was verified with a grep that excluded test files and never scanned packages/cli/test \u2014 only services/shared-fields.ts (the one build-blocking consumer surface) was actually rebuilt. 8 surviving spec files pin a whole module: DynamicCredentialEntry + DynamicCredentialUserEntry entities, DynamicCredentialResolverRepository / DynamicCredentialEntryRepository / DynamicCredentialUserEntryRepository, the *Storage classes, DynamicCredentialsConfig, constants, and credential-resolver (N8NIdentifier). Specs: test/integration/dynamic-credentials/** (6), credentials/credentials.resolvable.api.test.ts, manual-execution-credential-context.test.ts, src/__tests__/credentials-helper.test.ts.",
+      "notes": "REOPENED 2026-08-09: the earlier flip was verified with a grep that excluded test files and never scanned packages/cli/test — only services/shared-fields.ts (the one build-blocking consumer surface) was actually rebuilt. 8 surviving spec files pin a whole module: DynamicCredentialEntry + DynamicCredentialUserEntry entities, DynamicCredentialResolverRepository / DynamicCredentialEntryRepository / DynamicCredentialUserEntryRepository, the *Storage classes, DynamicCredentialsConfig, constants, and credential-resolver (N8NIdentifier). Specs: test/integration/dynamic-credentials/** (6), credentials/credentials.resolvable.api.test.ts, manual-execution-credential-context.test.ts, src/__tests__/credentials-helper.test.ts.",
       "verified": "2026-08-09 (REBUILT PROPERLY after the earlier false green): grep -ran dynamic-credentials.ee across src AND test = 0 (was 19). All 9 previously-unrunnable gates now RUN: dynamic-credentials specs 43/43 (5 files), credentials.resolvable.api 37/37, manual-execution-credential-context 5/5, credentials-helper 49/49 (was 47/2-fail - the 2 failures were a real transferOne defect in surviving code, fixed here). Regression: credentials.api 80/80, sso+provisioning+main-only 205/205, eslint clean, scoped tsc 0. UNDER-PINNED (built, NOT spec-verified, labelled in DEFORK_CHANGELOG): SYSTEM_RESOLVER_NAME/TYPE values, CredentialResolutionError inheritance, resolution merge rule + encryption envelope, custom-resolver type-specific validation (NOT built), resolvableAllowFallback semantics (NOT built), /credential-resolvers CRUD controller (no gate exercises it), two CORS env var names, licenseFlag. DELIBERATELY NOT BUILT (contract warns against inventing): /workflows/:id/execution-status, credentials authorize/revoke endpoints. resolveIfNeeded/storeIfNeeded and CredentialCheckService have no end-to-end gate coverage. SQLite only."
     },
     {
@@ -258,6 +258,14 @@
       "notes": "Discovered 2026-08-10 by the A11 frontend agent + a corrected .ee audit (my earlier audit regex used a char class excluding '/', so '@/controllers/annotation-tags.controller.ee' never matched - THIRD miss of this family). Blocks BOTH A10 (server.ts imports the controller) and A11 (4 editor-ui .ee.vue components). SURVIVING PINS: migrations 1724753530828-CreateExecutionAnnotationTables + 1728659839644-AddMissingPrimaryKeyOnAnnotationTagMapping (authoritative schema); annotationTags/vote remnants on ExecutionSummaries.Query in types-db.ts; the 4 editor-ui components pin the API contract (same pattern as E18, where DTOs+frontend client sufficed). NO surviving backend specs and NO api-types DTOs. SCOPE ALSO INCLUDES restoring what A8b stripped from @n8n/db execution.repository.ts: serializeAnnotation, includeAnnotation across 4 findSingleExecution overloads + impl + findIfShared, the annotation exclusion subquery in softDeletePrunableExecutions, and the raw-SQL WithAnnotations list flow (annotationFields, reduceExecutionsWithAnnotations, toQueryBuilderWithAnnotations, the vote/annotationTags join in toQueryBuilder). Per standing policy (rebuild every enterprise subsystem, do NOT drop) the answer is rebuild; Greg can override to drop. DONE 2026-08-10, merged as #29 (backend) + #22 (frontend). BOTH verify clauses checked: the .ee grep returns 0, and the editor-ui annotation components resolve (AnnotationTagsDropdown, AnnotationTagsManager, WorkflowExecutionAnnotationTags, WorkflowExecutionAnnotationPanel all present, importing the shared ExecutionSummary from n8n-workflow). Traced the note path end to end: the panel reads annotation.note off activeExecution, which WorkflowExecutionsView sets from fetchExecution(id) - a single-execution GET, which carries note. This matters because list summaries deliberately carry only {tags, vote}; a panel fed from a list row would have shown an empty note. E19 does NOT unblock A10: start.test.ts still collects 0 tests, now on @n8n/ai-workflow-builder (item C2), so the earlier 'solely because of annotation-tags' claim was wrong."
     },
     {
+      "id": "E20-ai-workflow-builder-pkg",
+      "phase": "E",
+      "title": "Rebuild the purged @n8n/ai-workflow-builder package fair-code (tool descriptors, SDK constants, parse/validate, session storage, builder service behind feat:aiBuilder)",
+      "passes": false,
+      "verify": "pnpm --filter n8n build   # imports of @n8n/ai-workflow-builder must resolve; gates A10",
+      "notes": "Split out 2026-08-10. progress.md previously filed this under C2, which is WRONG and created a dependency cycle: C2 is blocked_by A12, A12 needs A10, and A10 cannot build until this package exists. Two different things were fused -- this is the PURGE GAP (a licensed package removed while its fair-code consumers survived), whereas C2 is the NEW capability (fair-code AI Workflow Composer on innovation/ai-workflow-composer) and is correctly downstream. CONTRACT SOURCE: the ~12 vi.mock('@n8n/ai-workflow-builder', ...) blocks in packages/cli/src/**/__tests__ enumerate every export and its shape; each test file carries the real toolName/displayTitle for the tool it covers and placeholders for the rest, so the authoritative value for each descriptor comes from its own test. Tool names are independently corroborated by the public n8n MCP surface. FOUR LAYERS: (1) tool descriptors + SDK_IMPORT_STATEMENT (pure data); (2) ParseValidateHandler/stripImportStatements/getWarningKey/ValidationWarning; (3) session storage (ISessionStorage, LangchainMessage, StoredSession, isLangchainMessagesArray, map*StoredMessages*); (4) AiWorkflowBuilderService + ChatPayload + createPassthroughSsrfGuard + ResourceLocatorCallbackFactory -- the LLM agent, gated on feat:aiBuilder/feat:aiGateway in ai.controller.ts. Layer 4 must fail loudly when unavailable, never return a silent stub."
+    },
+    {
       "id": "A10-cli-green",
       "phase": "A",
       "title": "packages/cli typechecks & builds (all .ee consumers rewired to fair-code)",
@@ -266,7 +274,8 @@
       "notes": "Gate for the whole E phase. Also sweep cli test files that import purged .ee (delete or repoint like A8d).",
       "closes_issues": [
         "#8"
-      ]
+      ],
+      "blocked_by": "E20-ai-workflow-builder-pkg"
     },
     {
       "id": "A11-frontend-green",
@@ -292,7 +301,7 @@
     {
       "id": "B-eval-node",
       "phase": "B",
-      "title": "Rebuild the Evaluation node classes (fair-code) \u2014 classes were .ee",
+      "title": "Rebuild the Evaluation node classes (fair-code) — classes were .ee",
       "passes": true,
       "verified": "2026-08-09: PR #1 (d70b5cfea7) rebuilt both node classes + re-registered in package.json; nodes/Evaluation/test 6 files / 92 tests pass.",
       "notes": "Node CLASSES were .ee and purged (Evaluation.node.ee.ts, EvaluationTrigger.node.ee.ts); deregistered from package.json in A-nodesbase-green. Rebuild the 2 node classes clean-room from surviving helpers (nodes/Evaluation/{Evaluation/Description.node.ts, methods/*, utils/*, Evaluation/CannedMetricPrompts.ts}) + the 3 orphaned .node.ee tests (spec). Re-register in package.json. Per user policy, rebuild (do not drop)."

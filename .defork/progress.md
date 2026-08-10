@@ -1224,15 +1224,17 @@ load-bearing.
 
 **CORRECTION TO THE LAST SESSION'S NOTE.** E19 does **not** unblock A10 on its
 own. `start.test.ts` still collects 0 tests — the second blocker is
-`@n8n/ai-workflow-builder` via `ai.controller.ts` (item C2). There were two
-blockers; this closed one.
+`@n8n/ai-workflow-builder` via `ai.controller.ts`. There were two blockers; this
+closed one. (Filed as **E20** on 2026-08-10 — I originally wrote "item C2" here,
+which was wrong and created a cycle: C2 is `blocked_by` A12, which needs A10,
+which needs this package. See E20's note.)
 
 **DOC BUG WORTH FIXING:** `AGENTS.md` says a single test file runs with
 `pnpm test <file>`. Integration specs need `pnpm test:integration <file>`;
 `pnpm test` reports "No test files found" for them.
 
-**NEXT:** C2 (`@n8n/ai-workflow-builder`) is now the thing standing between here
-and A10-cli-green. Then #24.
+**NEXT:** rebuilding `@n8n/ai-workflow-builder` is the thing standing between here
+and A10-cli-green — tracked as **E20**, not C2 (see the correction above). Then #24.
 
 ## Agent-comms channel — where it is and how to write to it
 
