@@ -118,6 +118,13 @@ dependencies.
 Running a particular test file requires going to the directory of that test
 and running: `pnpm test <test-file>`.
 
+Integration specs are a separate vitest project and are **not** matched by
+`pnpm test` — it reports "No test files found" for them. Run those with
+`pnpm test:integration <test-file>` (e.g. in `packages/cli`, anything under
+`test/integration/`). `pnpm test:postgres` runs the same suite against Postgres,
+which is worth doing for anything touching upsert or raw SQL, where SQLite and
+Postgres diverge.
+
 When changing directories, use `pushd` to navigate into the directory and
 `popd` to return to the previous directory. When in doubt, use `pwd` to check
 your current directory.
