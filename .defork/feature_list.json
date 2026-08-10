@@ -240,12 +240,13 @@
       "id": "E18-workflow-reviews",
       "phase": "E",
       "title": "Rebuild modules/workflow-reviews.ee (workflow review requests) fair-code",
-      "passes": false,
+      "passes": true,
       "verify": "grep -ran 'workflow-reviews\\.ee' packages/cli/src packages/cli/test --include='*.ts' | wc -l  # expect 0",
       "notes": "Discovered 2026-08-09 by a corrected full-repo .ee audit; was never in the feature list. Currently 1 reference: test/integration/shared/utils/test-server.ts imports workflow-reviews.module. A8d deleted the orphaned @n8n/db workflow-review-request tests, so check what fair-code survives (api-types DTOs, WorkflowPublishHistory review states) before deciding rebuild vs remove-and-unwire. ALSO OWNS issue #15: ownership-transfer.manifest.json still lists WorkflowReviewRequest -> workflow-review-request.ee.ts (purged), making ownership-transfer.manifest.test.ts fail 2/6 on master. Decide rebuild-vs-remove and fix the manifest accordingly.",
       "closes_issues": [
         "#15"
-      ]
+      ],
+      "verified": "2026-08-09: REBUILT (contract recommended rebuild over remove: removal would need a new forward migration since the existing one may have run in deployed DBs, plus unwinding DTOs/frontend/settings/publish-guards). No backend spec survived, so tests were AUTHORED: 31 unit + 77 integration, all passing on BOTH sqlite and Postgres. Mutation-tested (9 invariants broken, each caught). Regression: ownership-transfer 11/11 (closes #15, was 2-fail), history+collaboration 23/23, credentials 80/80, workflows integration 292/292, src/workflows 496/496, agent-evals+provisioning 283/283, db 409/409, migrations 218+1skip on both drivers, api-types DTO 40/40. Codex adversarial review: 5 findings, ALL fixed (decision/pin binding, DB-boundary single-open-review sentinel + migration, (workflowId,versionId) pair validation, transfer closure moved INTO the ownership transaction, deletion orphan sweep). Review CLEARED the hand-rolled inbox access filter as matching WorkflowFinderService/userHasScopes, plus cursor tampering, route authz, author-self-approval, pruning SQL. RESIDUAL LIVE DEFECT -> issue #18: expectedVersionId is optional, so a non-racing re-pin can still approve an unreviewed version until the frontend echoes it back. BEHAVIOUR CHANGE: a review-closure failure now fails the enclosing transfer/delete instead of being swallowed."
     },
     {
       "id": "A10-cli-green",

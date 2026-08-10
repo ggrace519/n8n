@@ -1017,3 +1017,57 @@ relations are wired normally.
 written.
 
 **NEXT.** E18 (workflow-reviews, owns #15), E10 (multi-main), then A10.
+
+## 2026-08-09 — E18 DONE (workflow-reviews rebuilt + hardened)
+
+**DECISION: rebuild, not remove.** Contract §8 argued it and I agreed: removal
+would mean unwinding 7 DTOs, the whole frontend feature, settings surfaces,
+policy store, push message, collaboration helper, publish/mutation proxies,
+blocked-publication error contract, publication-state API, a repo integration
+test, and ownership metadata — AND authoring a new forward migration because
+the existing one may already have run in deployed DBs. That's a product
+deprecation with a data migration, not de-fork cleanup.
+
+**NO BACKEND SPEC SURVIVED — so the tests were AUTHORED.** 31 unit + 77
+integration, green on BOTH sqlite and Postgres. The agent mutation-tested them
+twice (before and after hardening): 9 invariants broken, each caught. That is
+the mitigation for self-authored gates; it is not a substitute for the
+independent review.
+
+**CODEX REVIEW: 5 findings, all fixed.**
+1. BLOCKER: decisions weren't bound to the reviewed version (approve V1 -> V2
+   published unreviewed). Server race fixed: whole transition in ONE
+   transaction, link taken with a conditional write re-asserting the pin,
+   auto-publish uses the version returned BY that transaction. Lock order
+   unified link-then-request across create/re-pin/decide/closure (an ABBA
+   deadlock appeared once the sentinel existed).
+2. single-open-review was check-then-insert -> nullable openWorkflowId
+   sentinel + plain UNIQUE (NULLs distinct on both drivers, so no partial
+   index), new migration that resolves pre-existing duplicates then backfills.
+3. a pin from ANOTHER workflow was accepted (FK only checks globally-unique
+   versionId) -> (workflowId, versionId) validated on create AND re-pin;
+   zero-row metadata update is now an error.
+4. transfer cleanup moved INTO the ownership transaction (not merely earlier);
+   required threading OperationContext through SharedWorkflowRepository
+   .transferOwnership + FolderRepository (promoted to BaseRepository).
+5. deletion orphans -> pre-delete failures propagate, post-delete sweeps
+   linkless requests.
+
+**REVIEW CLEARED** the hand-rolled inbox EXISTS filter (matches
+WorkflowFinderService/userHasScopes incl. personal-project semantics), cursor
+tampering, all 8 routes' authz, author-self-approval, and the pruning SQL.
+
+**RESIDUAL LIVE DEFECT -> #18.** expectedVersionId is OPTIONAL so the existing
+frontend keeps working; a NON-racing re-pin can therefore still approve an
+unreviewed version. Framed as a live defect, not a caveat. Backend needs
+nothing more — both responses already carry the value to echo back.
+
+**BEHAVIOUR CHANGE worth knowing:** a review-closure failure now FAILS the
+enclosing transfer/delete instead of being swallowed (project deletion and
+user deletion loop WorkflowService.delete).
+
+**PRE-EXISTING BUG FOUND+FIXED:** an inline `await` inside a `.send()` payload
+literal in the api spec — the request starts during the await so the body is
+empty. SQLite was fast enough to hide it; Postgres wasn't.
+
+**NEXT.** E10 (multi-main) is the LAST Phase-E item, then A10.
