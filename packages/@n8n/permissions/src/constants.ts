@@ -124,18 +124,20 @@ export const RESOURCES = {
  * and resources the catalog splits differently (`dataTableRow`/`dataTableColumn`
  * against the catalog's single `dataTable`).
  *
- * Every entry must be required by at least one public API route — the
- * `x-required-scope` in `packages/cli/src/public-api/v1/**` — or the public API
- * scope-parity test reports it as an orphan.
+ * The catalog and the `x-required-scope` values in
+ * `packages/cli/src/public-api/v1/**` must match exactly, in both directions —
+ * an entry no route requires is an orphan, and a scope a route requires but the
+ * catalog omits can never be granted to a key, so the route 403s for everyone.
+ * The public API scope-parity test enforces both.
  */
 export const API_KEY_RESOURCES = {
 	communityPackage: ['install', 'list', 'uninstall', 'update'],
-	credential: ['create', 'list', 'read', 'delete', 'move'],
+	credential: ['create', 'list', 'read', 'update', 'delete', 'move'],
 	dataTable: ['create', 'delete', 'list', 'read', 'update'],
 	dataTableColumn: ['create', 'delete', 'read', 'update'],
 	dataTableRow: ['create', 'delete', 'read', 'update', 'upsert'],
 	eventBusDestination: ['create', 'read', 'update', 'delete', 'list', 'test'],
-	execution: ['delete', 'list', 'read'],
+	execution: ['delete', 'list', 'read', 'retry'],
 	executionTags: ['list', 'update'],
 	folder: ['create', 'read', 'update', 'delete', 'list'],
 	insights: ['read'],
@@ -143,7 +145,8 @@ export const API_KEY_RESOURCES = {
 	oidc: ['manage'],
 	otel: ['manage'],
 	testRun: ['list', 'read', 'create', 'cancel'],
-	project: ['create', 'delete', 'list', 'update'],
+	project: ['create', 'delete', 'export', 'list', 'update'],
+	role: ['manage', 'manageProject'],
 	saml: ['manage'],
 	securityAudit: ['generate'],
 	securitySettings: ['manage'],
@@ -151,7 +154,18 @@ export const API_KEY_RESOURCES = {
 	tag: ['create', 'delete', 'list', 'read', 'update'],
 	user: ['changeRole', 'create', 'delete', 'list', 'read'],
 	variable: ['create', 'delete', 'list', 'update'],
-	workflow: ['activate', 'create', 'deactivate', 'delete', 'list', 'move', 'read', 'update'],
+	workflow: [
+		'activate',
+		'create',
+		'deactivate',
+		'delete',
+		'export',
+		'import',
+		'list',
+		'move',
+		'read',
+		'update',
+	],
 	workflowTags: ['list', 'update'],
 } as const;
 

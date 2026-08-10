@@ -16,6 +16,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-10 — Eight public API routes were requiring scopes no key could hold
+
+**Fixed — `@n8n/permissions` `constants.ts`**
+
+The API-key catalog and the public API's own `x-required-scope` declarations had
+drifted apart in the direction nothing was checking. Diffed mechanically against
+every `x-required-scope` in `packages/cli/src/public-api/v1/**`: 88 scopes are
+required by routes, 80 were declared, **8 were missing** — `credential:update`,
+`execution:retry`, `project:export`, `role:manage`, `role:manageProject`,
+`workflow:export`, `workflow:import` (and `execution:stop`, below). There were
+zero orphans in the other direction, which is why the existing parity test —
+it only asserts catalog ⊆ required — stayed green.
+
+This was not merely cosmetic. A key's scopes are validated against
+`getApiKeyScopesForRole` at creation and enforced with a strict
+`apiKeyScopes.includes(endpointScope)` at request time, so a required scope
+absent from the catalog can never be granted and its route answers 403 to
+everyone, owner included. Each of the eight was also already a hard type error at
+its handler, which is why `packages/cli` could not compile.
+
+`packages/cli` `tsc -p tsconfig.build.json --noEmit`: **40 → 32 errors**, one per
+scope closed, 0 new. Catalog ↔ spec diff is now exact in both directions
+(0 missing, 0 orphans).
+
+**Clean-room source:** the surviving public API OpenAPI specs
+(`x-required-scope`) and the fair-code handlers/controllers that declare them.
+
 ### 2026-08-10 — Shared role/scope types made honest about the runtime
 
 The Tier-0 `@n8n/permissions` rebuild under-approximated four shared contracts.
@@ -111,8 +138,7 @@ controllers, the public API `x-required-scope` specs), the surviving
 **Verification:** `@n8n/permissions` **105/105**, build exit 0, no snapshot
 changed; `@n8n/api-types` **1775/1775**; `@n8n/db` build exit 0 and **409/409**;
 `@n8n/i18n` build exit 0; `packages/cli` `tsc -p tsconfig.build.json --noEmit`
-**66 → 40 errors, 0 new** (the 40 remaining are pre-existing purge gaps —
-`@n8n/ai-workflow-builder`, annotation-tag entities); cli role/project/api-key unit
+**66 → 40 errors, 0 new**; cli role/project/api-key unit
 tests **61/61**; integration `role.service` + `custom-roles-functionality`
 **97/97**; `role.controller` **51/51** and `built-in-roles` **7/7**;
 `role.api`/`project.api` show the same 8 pre-existing failures as master (per-role
