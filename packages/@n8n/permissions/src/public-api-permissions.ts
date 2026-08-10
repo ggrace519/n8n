@@ -8,6 +8,37 @@ export const API_KEY_SCOPES: ApiKeyScope[] = Object.entries(API_KEY_RESOURCES).f
 );
 
 /**
+ * The RBAC scope that backs an API-key scope whose slug does not exist in
+ * {@link RESOURCES}. The public API catalog names some resources differently
+ * from the RBAC catalog (`dataTableRow` against `dataTable`'s row operations)
+ * and exposes a few operations the RBAC catalog has no entry for at all
+ * (`testRun:create`). Since a key may only hold what its principal's role
+ * holds, and that check is an exact slug match, such a scope would otherwise be
+ * grantable to nobody and its routes would answer 403 to everyone.
+ *
+ * Each entry is taken from the route that requires it: every one of these
+ * endpoints already pairs its `publicApiScope(...)` with the `projectScope(...)`
+ * it enforces, so the backing scope here is the one the request is checked
+ * against anyway. This grants nothing extra — it only makes the key-level gate
+ * reachable for a principal that holds the underlying permission.
+ */
+export const API_KEY_SCOPE_BACKED_BY: Partial<Record<ApiKeyScope, Scope>> = {
+	'dataTableColumn:read': 'dataTable:readColumn',
+	'dataTableColumn:create': 'dataTable:writeColumn',
+	'dataTableColumn:update': 'dataTable:writeColumn',
+	'dataTableColumn:delete': 'dataTable:writeColumn',
+	'dataTableRow:read': 'dataTable:readRow',
+	'dataTableRow:create': 'dataTable:writeRow',
+	'dataTableRow:update': 'dataTable:writeRow',
+	'dataTableRow:upsert': 'dataTable:writeRow',
+	'dataTableRow:delete': 'dataTable:writeRow',
+	'executionTags:list': 'workflow:read',
+	'executionTags:update': 'workflow:update',
+	'testRun:create': 'workflow:execute',
+	'testRun:cancel': 'workflow:execute',
+};
+
+/**
  * Scopes an instance owner's API key carries by default. Not quite the full set:
  * community-package management is opt-in and has to be granted explicitly, so a
  * key holding only these scopes is refused by the `/community-packages` routes.
@@ -32,7 +63,10 @@ export const getApiKeyScopesForRole = (principal: {
 	>) {
 		if (held.has(coupledTo)) held.add(hidden);
 	}
-	return API_KEY_SCOPES.filter((scope) => held.has(scope));
+	return API_KEY_SCOPES.filter((scope) => {
+		const backingScope = API_KEY_SCOPE_BACKED_BY[scope];
+		return held.has(backingScope ?? scope);
+	});
 };
 
 /** Scopes that only an instance owner's API key may hold (none in fair-code). */
