@@ -148,7 +148,11 @@ export class ExecutionsController {
 			throw new BadRequestError('Execution ID is not a number');
 		}
 
-		const workflowIds = await this.getAccessibleWorkflowIds(req.user, 'workflow:read');
+		// This route writes: it stores a vote, note and tags against the execution.
+		// Scoped on `workflow:update` to match the editor, which only offers the
+		// annotation controls to users holding it. Reading the result back below
+		// is covered by the same scope, which is a superset of read access here.
+		const workflowIds = await this.getAccessibleWorkflowIds(req.user, 'workflow:update');
 
 		// Fail fast if no workflows are accessible
 		if (workflowIds.length === 0) throw new NotFoundError('Execution not found');
