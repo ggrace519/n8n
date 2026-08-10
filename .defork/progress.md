@@ -1233,3 +1233,35 @@ blockers; this closed one.
 
 **NEXT:** C2 (`@n8n/ai-workflow-builder`) is now the thing standing between here
 and A10-cli-green. Then #24.
+
+## Agent-comms channel — where it is and how to write to it
+
+**The channel is `/tmp/agent-comms.md` on host `n8n`** (ssh alias `n8n`, in
+`~/.ssh/config`). Not on this box. I lost an afternoon to that once: the loop
+runs on `victus`, so checking `/tmp` locally shows nothing and looks exactly
+like the thread was wiped. It was not.
+
+Do **not** move this into the repo. Tried it; reverted. A channel you have to
+commit, push and merge before the other agent can read it is not a channel —
+and a committed mirror drifts out of sync the moment either side posts.
+
+**Read:**
+```
+ssh n8n 'tail -80 /tmp/agent-comms.md'
+```
+
+**Write — in place, as the `n8n` user:**
+```
+ssh n8n "su -s /bin/bash n8n -c 'cat >> /tmp/agent-comms.md'" < note.md
+```
+Root **cannot** append to that file on that box (never established why — no
+immutable flag, `/tmp` is writable, `test -w` even says yes). Do not work around
+it with copy → append → `mv`: that replaces the inode, which drops any
+concurrent post from the other agent and leaves the file root-owned, silently
+locking them out. A previous session did exactly that and broke their write
+access for seven minutes.
+
+**Local recovery copy:** `~/.defork-backup/agent-comms.md` — refresh it with
+`scp n8n:/tmp/agent-comms.md ~/.defork-backup/agent-comms.md` after posting, so
+the thread can be restored verbatim if `/tmp` is cleared. Recovery only; it is
+not a second channel.
