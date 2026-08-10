@@ -40,7 +40,7 @@ export const SCOPES: Record<ProjectResource, ProjectRoleScope[]> = Object.fromEn
 /** All UI-visible scopes as a flat set, for permission counting */
 export const UI_VISIBLE_SCOPES: Set<string> = new Set([
 	...Object.values(SCOPES).flat(),
-	...COUPLED_HIDDEN_SCOPES,
+	...Object.keys(COUPLED_HIDDEN_SCOPES),
 ]);
 
 /** Total number of UI-visible permissions */

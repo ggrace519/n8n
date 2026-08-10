@@ -73,7 +73,7 @@ const isNewWorkflow = computed(() => {
 });
 
 const workflowPermissions = computed(
-	() => getResourcePermissions(workflowDocumentStore?.value?.scopes).workflow,
+	() => getResourcePermissions([...(workflowDocumentStore?.value?.scopes ?? [])]).workflow,
 );
 
 const readOnly = computed(

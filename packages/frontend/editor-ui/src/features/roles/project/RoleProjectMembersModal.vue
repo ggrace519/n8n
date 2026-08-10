@@ -57,7 +57,7 @@ const roleDisplayNameMap = computed(() => {
 		...rolesStore.roles.credential,
 		...rolesStore.roles.workflow,
 	];
-	return new Map(allRoles.map((r) => [r.slug, r.displayName]));
+	return new Map<string, string>(allRoles.map((r) => [r.slug, r.displayName]));
 });
 
 function getRoleDisplayName(slug: string): string {

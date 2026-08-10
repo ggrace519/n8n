@@ -46,7 +46,7 @@ export function useNodeCommands(options: {
 	const isArchived = computed(() => workflowDocumentStore.value.isArchived);
 
 	const workflowPermissions = computed(
-		() => getResourcePermissions(workflowDocumentStore.value.scopes).workflow,
+		() => getResourcePermissions([...workflowDocumentStore.value.scopes]).workflow,
 	);
 
 	const hasPermission = (permission: keyof typeof workflowPermissions.value) =>

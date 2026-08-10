@@ -4,7 +4,7 @@ import type {
 	TriggerPanelDefinition,
 } from 'n8n-workflow';
 import { nodeConnectionTypes } from 'n8n-workflow';
-import type { ProjectRole, TeamProjectRole } from '@n8n/permissions';
+import type { ProjectRole, AssignableProjectRole } from '@n8n/permissions';
 import type {
 	NewCredentialsModal,
 	CredentialsResource,
@@ -156,8 +156,8 @@ export function isProjectRole(role: string): role is ProjectRole {
 	return role.startsWith('project:');
 }
 
-// Type guard to check if a role is a valid TeamProjectRole (ProjectRole excluding personalOwner)
-export function isTeamProjectRole(role: string): role is TeamProjectRole {
+// Type guard to check if a role is a valid AssignableProjectRole (ProjectRole excluding personalOwner)
+export function isTeamProjectRole(role: string): role is AssignableProjectRole {
 	return isProjectRole(role) && role !== 'project:personalOwner';
 }
 

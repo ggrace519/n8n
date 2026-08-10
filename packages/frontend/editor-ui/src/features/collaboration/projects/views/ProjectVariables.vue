@@ -166,8 +166,6 @@ const handleDeleteVariable = async (variable: EnvironmentVariable) => {
 
 		await environmentsStore.deleteVariable({
 			id: variable.id,
-			value: variable.value,
-			key: variable.key,
 		});
 		showMessage({
 			title: i18n.baseText('variables.delete.successful.message', {

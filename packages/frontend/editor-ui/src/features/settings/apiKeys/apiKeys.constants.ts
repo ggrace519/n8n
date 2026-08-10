@@ -7,7 +7,7 @@ type ApiKeyResource = keyof typeof API_KEY_RESOURCES;
 export const API_KEY_SCOPE_GROUPS: Array<{ key: string; resources: ApiKeyResource[] }> = [
 	{
 		key: 'workflowsAndExecutions',
-		resources: ['workflow', 'execution', 'workflowTags', 'executionTags'],
+		resources: ['workflow', 'execution', 'workflowTags'],
 	},
 	{ key: 'credentialsAndVariables', resources: ['credential', 'variable'] },
 	{ key: 'dataTables', resources: ['dataTable', 'dataTableRow', 'dataTableColumn'] },

@@ -463,7 +463,7 @@ describe('WorkflowsView', () => {
 			renderComponent({ pinia });
 			await waitAllPromises();
 
-			await sourceControl.pullWorkfolder(true, 'none');
+			await sourceControl.pullWorkfolder({ force: true, autoPublish: 'none' });
 		});
 	});
 });

@@ -128,7 +128,7 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 		const workflowDocumentStore = useWorkflowDocumentStore(
 			createWorkflowDocumentId(workflowId.value),
 		);
-		const workflowPermissions = getResourcePermissions(workflowDocumentStore.scopes).workflow;
+		const workflowPermissions = getResourcePermissions([...workflowDocumentStore.scopes]).workflow;
 
 		try {
 			const wfId = workflowId.value;

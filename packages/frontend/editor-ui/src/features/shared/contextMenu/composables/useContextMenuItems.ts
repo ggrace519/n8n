@@ -95,7 +95,7 @@ export function useContextMenuItems(
 	const { aiAssistant, aiBuilder, instanceAi } = useEditorContext();
 
 	const workflowPermissions = computed(
-		() => getResourcePermissions(workflowDocumentStore?.value?.scopes).workflow,
+		() => getResourcePermissions([...(workflowDocumentStore?.value?.scopes ?? [])]).workflow,
 	);
 
 	const isReadOnly = computed(
