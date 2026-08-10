@@ -3883,6 +3883,7 @@
 	"settings.externalSecrets.provider.buttons.cancel": "Cancel",
 	"settings.externalSecrets.provider.buttons.save": "Save",
 	"settings.externalSecrets.provider.buttons.saving": "Saving",
+	"settings.externalSecrets.provider.buttons.test": "Test connection",
 	"settings.externalSecrets.card.connectedSwitch.title": "Enable {provider}",
 	"settings.externalSecrets.provider.save.success.title": "Provider settings saved successfully",
 	"settings.externalSecrets.provider.connected.success.title": "Provider connected successfully",

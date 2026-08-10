@@ -88,13 +88,11 @@ const SettingsExternalSecrets = async () => {
 
 	if (moduleConfig?.multipleConnections || moduleConfig?.forProjects) {
 		return await import(
-			'@/features/integrations/secretsProviders.ee/views/SettingsSecretsProviders.ee.vue'
+			'@/features/integrations/secretsProviders/views/SettingsSecretsProviders.vue'
 		);
 	}
 
-	return await import(
-		'@/features/integrations/externalSecrets.ee/views/SettingsExternalSecrets.vue'
-	);
+	return await import('@/features/integrations/externalSecrets/views/SettingsExternalSecrets.vue');
 };
 const WorkerView = async () =>
 	await import('@/features/settings/orchestration.ee/views/WorkerView.vue');

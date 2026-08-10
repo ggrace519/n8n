@@ -94,9 +94,9 @@ import DeleteFolderModal from '@/features/core/folders/components/DeleteFolderMo
 import MoveToFolderModal from '@/features/core/folders/components/MoveToFolderModal.vue';
 import DeleteUserModal from '@/features/settings/users/components/DeleteUserModal.vue';
 import DuplicateWorkflowDialog from '@/app/components/DuplicateWorkflowDialog.vue';
-import ExternalSecretsProviderModal from '@/features/integrations/externalSecrets.ee/components/ExternalSecretsProviderModal.ee.vue';
-import SecretsProviderConnectionModal from '@/features/integrations/secretsProviders.ee/components/SecretsProviderConnectionModal.ee.vue';
-import DeleteSecretsProviderModal from '@/features/integrations/secretsProviders.ee/components/DeleteSecretsProviderModal.ee.vue';
+import ExternalSecretsProviderModal from '@/features/integrations/externalSecrets/components/ExternalSecretsProviderModal.vue';
+import SecretsProviderConnectionModal from '@/features/integrations/secretsProviders/components/SecretsProviderConnectionModal.vue';
+import DeleteSecretsProviderModal from '@/features/integrations/secretsProviders/components/DeleteSecretsProviderModal.vue';
 import FromAiParametersModal from '@/app/components/FromAiParametersModal.vue';
 import ImportCurlModal from '@/features/ndv/parameters/components/ImportCurlModal.vue';
 import BinaryDataViewModal from '@/features/ndv/runData/components/BinaryDataViewModal.vue';
