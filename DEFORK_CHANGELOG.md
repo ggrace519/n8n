@@ -43,6 +43,28 @@ scope closed, 0 new. Catalog ↔ spec diff is now exact in both directions
 **Clean-room source:** the surviving public API OpenAPI specs
 (`x-required-scope`) and the fair-code handlers/controllers that declare them.
 
+### 2026-08-10 — `execution:stop` added to the RBAC catalog so the stop routes work
+
+The eighth missing scope needed more than a catalog entry. `execution:stop` is
+required by `POST /executions/{id}/stop` and `POST /executions/stop` (both
+surviving fair-code routes, both declaring it in their OpenAPI spec), but it did
+not exist as an RBAC scope at all — so even once declared as an API-key scope, no
+role could hold it and the routes would have kept returning 403 to everyone.
+
+`execution:stop` is therefore now a scope in its own right. Consequences worth
+knowing:
+
+- `ALL_SCOPES` gains an entry, so `AuthRolesService` writes one new `scope` row on
+  each instance's next boot (the table is synced from `ALL_SCOPES`, so no
+  migration is needed). The snapshot test that guards catalog changes was updated
+  deliberately — it caught this, which is what it is for.
+- Instance owner and admin hold it automatically (both are the full visible
+  catalog). Custom roles do not, unless granted; it is not added to the custom
+  role editor's scope groups.
+- Nothing else enforces it: the internal REST stop route and the public API
+  handler both authorize on `workflow:execute` against the workflow. The scope
+  gates *which API keys* may reach the route, layered on top of that.
+
 ### 2026-08-10 — Shared role/scope types made honest about the runtime
 
 The Tier-0 `@n8n/permissions` rebuild under-approximated four shared contracts.
