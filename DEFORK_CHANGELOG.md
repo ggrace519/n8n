@@ -40,6 +40,12 @@ its handler, which is why `packages/cli` could not compile.
 scope closed, 0 new. Catalog ↔ spec diff is now exact in both directions
 (0 missing, 0 orphans).
 
+**Added — public API scope-parity test**
+
+The parity test asserted only that every declared API-key scope is required by
+some route. It never asserted the converse, which is the direction that breaks
+routes — so the eight missing scopes were invisible to it. It now checks both.
+
 **Clean-room source:** the surviving public API OpenAPI specs
 (`x-required-scope`) and the fair-code handlers/controllers that declare them.
 
