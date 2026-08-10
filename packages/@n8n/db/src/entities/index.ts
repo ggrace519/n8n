@@ -1,3 +1,7 @@
+import { AgentEvalDataset, type AgentEvalDatasetSource } from './agent-eval-dataset';
+import { AgentEvalRating } from './agent-eval-rating';
+import { AgentEvalResult } from './agent-eval-result';
+import { AgentEvalRun } from './agent-eval-run';
 import { AiBuilderTemporaryWorkflow } from './ai-builder-temporary-workflow';
 import { ApiKey } from './api-key';
 import { AuthIdentity } from './auth-identity';
@@ -139,6 +143,11 @@ export {
 	ProjectSecretsProviderAccess,
 	type SecretsProviderAccessRole,
 	SecretsProviderConnection,
+	AgentEvalDataset,
+	type AgentEvalDatasetSource,
+	AgentEvalRun,
+	AgentEvalResult,
+	AgentEvalRating,
 };
 
 export const entities = {
@@ -187,4 +196,8 @@ export const entities = {
 	ScheduledTask,
 	ProjectSecretsProviderAccess,
 	SecretsProviderConnection,
+	AgentEvalDataset,
+	AgentEvalRun,
+	AgentEvalResult,
+	AgentEvalRating,
 };

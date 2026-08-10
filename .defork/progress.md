@@ -985,3 +985,35 @@ pre-empt that item's rebuild-vs-remove decision.
 
 **NEXT.** E10 (multi-main), E17 (agent-eval db), E18 (workflow-reviews, owns
 #15), then A10. A11 is the other agent's.
+
+## 2026-08-09 — E17 DONE (agent-eval db substrate)
+
+**WHAT.** 4 entities + 4 repositories in @n8n/db, rebuilt from the
+CreateAgentEvalTables migration (authoritative schema) + the surviving
+fair-code call sites in modules/agent-evals. Registered in BOTH the export
+block and the `entities` map (the map's keys are what testDb.truncate's
+EntityName union derives from — specs depend on it).
+
+**GATES.** agent-evals unit 228/228 (7 files — could not run at all before);
+integration 22/22 (4 files); db build + 409/409 unchanged; scoped tsc 0;
+eslint clean. Agent verified on BOTH drivers: 17/17 sqlite AND 17/17 Postgres
+via testcontainers, migration spec 4/4 on both.
+
+**I PROMOTED THE AGENT'S THROWAWAY PROBE INTO A KEPT SPEC.** It had verified
+markAllIncompleteAsError / markAsError / countByStatus with a temporary file
+then deleted it. That path matters: markAllIncompleteAsError uses In() inside
+update() criteria, and cleanupInterruptedRuns() SWALLOWS ITS OWN THROW — a
+regression would surface only as runs polling 'running' forever. New spec
+agent-eval-run-transitions.integration.test.ts, 5/5.
+
+**KEY DESIGN CALL.** agentId is a DB-level FK only, NOT a @ManyToOne: Agent is
+registered by the agents MODULE, so a relation from an always-loaded @n8n/db
+entity would break TypeORM metadata whenever that module is off (the surviving
+assertRequiredModulesActive guard exists for exactly this class of failure).
+Intra-db relations (run->dataset, result->run, rating->result) and User
+relations are wired normally.
+
+**NO defects found in surviving code** — every call site was satisfiable as
+written.
+
+**NEXT.** E18 (workflow-reviews, owns #15), E10 (multi-main), then A10.

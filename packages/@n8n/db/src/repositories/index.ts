@@ -1,3 +1,21 @@
+export {
+	AgentEvalDatasetRepository,
+	type CreateAgentEvalDatasetAttrs,
+} from './agent-eval-dataset.repository';
+export {
+	AgentEvalRatingRepository,
+	type CreateAgentEvalRatingAttrs,
+} from './agent-eval-rating.repository';
+export {
+	AgentEvalResultRepository,
+	type AgentEvalResultStatusCounts,
+	type SeedAgentEvalResultAttrs,
+} from './agent-eval-result.repository';
+export {
+	AgentEvalRunRepository,
+	type AgentEvalPageParams,
+	type CreateAgentEvalRunAttrs,
+} from './agent-eval-run.repository';
 export { AiBuilderTemporaryWorkflowRepository } from './ai-builder-temporary-workflow.repository';
 export { ApiKeyRepository } from './api-key.repository';
 export { AuthIdentityRepository } from './auth-identity.repository';
