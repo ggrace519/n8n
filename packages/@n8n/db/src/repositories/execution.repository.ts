@@ -526,7 +526,10 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 		const [timeBasedWhere, countBasedWhere] = toPrune;
 
 		// An annotated execution is one somebody deliberately kept, so pruning
-		// must skip it however old or far down the list it is.
+		// must skip it however old or far down the list it is. Safe as `NOT IN`
+		// only because `execution_annotations.executionId` is NOT NULL: a single
+		// NULL from this subquery would make the predicate unknown for every row
+		// and silently stop pruning altogether. Use NOT EXISTS if that changes.
 		const annotatedExecutionIds = this.manager
 			.createQueryBuilder()
 			.subQuery()
