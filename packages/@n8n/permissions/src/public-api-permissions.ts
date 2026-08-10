@@ -7,8 +7,14 @@ export const API_KEY_SCOPES: ApiKeyScope[] = Object.entries(API_KEY_RESOURCES).f
 	([resource, operations]) => operations.map((op) => `${resource}:${op}` as ApiKeyScope),
 );
 
-/** Scopes available to an instance owner's API key (the full set). */
-export const OWNER_API_KEY_SCOPES: ApiKeyScope[] = [...API_KEY_SCOPES];
+/**
+ * Scopes an instance owner's API key carries by default. Not quite the full set:
+ * community-package management is opt-in and has to be granted explicitly, so a
+ * key holding only these scopes is refused by the `/community-packages` routes.
+ */
+export const OWNER_API_KEY_SCOPES: ApiKeyScope[] = API_KEY_SCOPES.filter(
+	(scope) => !scope.startsWith('communityPackage:'),
+);
 
 /**
  * API-key scopes available for a given principal: the scopes of its global

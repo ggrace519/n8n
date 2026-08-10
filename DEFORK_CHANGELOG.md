@@ -81,6 +81,17 @@ history or upstream was read.
   from `RESOURCES`, not a subset — `dataTableRow`/`dataTableColumn`/`executionTags`
   exist only here.
 
+**Fixed — `public-api-permissions.ts`**
+
+- `OWNER_API_KEY_SCOPES` was rebuilt as "the full set" of API-key scopes. The
+  surviving `community-packages` public API test disproves that: it unions
+  `communityPackage:*` onto `OWNER_API_KEY_SCOPES` to build a working key, and
+  asserts a key holding only `OWNER_API_KEY_SCOPES` gets a 403 from
+  `GET /community-packages`. Community-package management is therefore opt-in, and
+  the constant now excludes it. Surfaced by this work (adding `communityPackage` to
+  the API-key catalog made the too-broad owner set observable); no runtime
+  authorization changes, as `OWNER_API_KEY_SCOPES` has no `src` consumer.
+
 **Changed — `@n8n/i18n` `en.json`**
 
 - Added the three missing project-role tooltips (`workflow:share`,
