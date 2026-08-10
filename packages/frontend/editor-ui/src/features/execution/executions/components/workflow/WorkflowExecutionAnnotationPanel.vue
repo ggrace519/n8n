@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import type { AnnotationVote, ExecutionSummary } from 'n8n-workflow';
+import type { ExecutionSummary } from 'n8n-workflow';
 import { useI18n } from '@n8n/i18n';
 import { useToast } from '@n8n/composables/useToast';
 import { getResourcePermissions } from '@n8n/permissions';
@@ -10,14 +10,8 @@ import { useExecutionsStore } from '../../executions.store';
 
 import { N8nIconButton, N8nInput, N8nPopover, N8nText } from '@n8n/design-system';
 
-type ExecutionAnnotation = {
-	vote: AnnotationVote | null;
-	tags: Array<{ id: string; name: string }>;
-	note?: string;
-};
-
 const props = defineProps<{
-	execution: ExecutionSummary & { annotation?: ExecutionAnnotation };
+	execution: ExecutionSummary;
 }>();
 
 const i18n = useI18n();
