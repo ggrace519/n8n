@@ -272,7 +272,7 @@
       "id": "A11-frontend-green",
       "phase": "A",
       "title": "editor-ui + frontend packages build (.ee.vue / .ee.ts consumers rewired)",
-      "passes": false,
+      "passes": true,
       "verify": "pnpm --filter n8n-editor-ui build",
       "notes": "Independent frontier from cli. First get the exact vite error (pnpm --filter n8n-editor-ui build 2>&1 | tail -40), then enumerate frontend .ee imports and rebuild/rewire fair-code."
     },
