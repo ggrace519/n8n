@@ -53,7 +53,12 @@ export class WorkerStatusService {
 	 * connection actually delivers anything.
 	 */
 	@OnPubSubEvent('response-to-get-worker-status', { instanceType: 'main' })
-	handleWorkerStatusResponse(status: WorkerStatusResponse): void {
+	handleWorkerStatusResponse(response: WorkerStatusResponse): void {
+		// `requestingUserId` is our routing field, not part of the worker's status.
+		// The push payload is typed as a plain `WorkerStatus`, so strip it here
+		// rather than echoing an internal id back into the browser.
+		const { requestingUserId, ...status } = response;
+
 		this.push.sendToUsers(
 			{
 				type: 'sendWorkerStatusMessage',
@@ -62,7 +67,7 @@ export class WorkerStatusService {
 					status,
 				},
 			},
-			[status.requestingUserId],
+			[requestingUserId],
 		);
 	}
 

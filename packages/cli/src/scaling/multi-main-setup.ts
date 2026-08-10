@@ -1,4 +1,4 @@
-import { Logger, TypedEmitter } from '@n8n/backend-common';
+import { inTest, Logger, TypedEmitter } from '@n8n/backend-common';
 import { GlobalConfig } from '@n8n/config';
 import {
 	LEADER_STEPDOWN_EVENT_NAME,
@@ -10,7 +10,7 @@ import { Container, Service } from '@n8n/di';
 import { InstanceSettings } from 'n8n-core';
 import { OperationalError, UserError } from 'n8n-workflow';
 
-import { LeaderElectionClient } from './leader-election-client';
+import { LEADER_COMMAND_TIMEOUT_MS, LeaderElectionClient } from './leader-election-client';
 
 export type MultiMainEvents = {
 	[LEADER_TAKEOVER_EVENT_NAME]: never;
@@ -18,17 +18,29 @@ export type MultiMainEvents = {
 };
 
 /**
- * Smallest leader-key TTL we accept. Every leader-election command has a 5s
- * timeout, so a shorter TTL cannot be renewed reliably and would flap.
- */
-const MIN_TTL_SECONDS = 2;
-
-/**
  * A leader must get at least this many renewal attempts inside one TTL window.
  * With only one attempt, a single dropped renewal expires the key and silently
  * hands leadership to another main.
  */
 const MIN_RENEWALS_PER_TTL = 2;
+
+/**
+ * How much of the lease this instance refuses to spend. Leadership is given up
+ * once less than this remains of the last *proven* lease, so leader-only work
+ * always stops before the key can expire and be claimed by another main.
+ */
+const LEASE_SAFETY_MARGIN_MS = 1_000;
+
+/**
+ * How often the lease deadline is re-evaluated.
+ *
+ * Deliberately much shorter than {@link LEASE_SAFETY_MARGIN_MS}: the check has
+ * to fire *inside* the margin to demote before the deadline, so a slower timer
+ * would push demotion past the very deadline it protects. The election interval
+ * cannot serve this purpose — it is coarser, and it is skipped entirely while a
+ * Redis command hangs, which is exactly when the lease is running out.
+ */
+const LEASE_WATCHDOG_INTERVAL_MS = 500;
 
 /**
  * Elects one `main` instance as the leader in a multi-main setup and keeps the
@@ -42,10 +54,20 @@ const MIN_RENEWALS_PER_TTL = 2;
  * Every ambiguous outcome fails closed — the process demotes itself rather than
  * optimistically retaining leadership — because two instances believing they
  * lead means schedules, triggers and webhooks run twice.
+ *
+ * Local leadership is bounded by the lease: the role is only ever held while a
+ * renewal has recently *proven* ownership, never merely because a read once said
+ * so. Note that this bound is enforced by this process's own clock, so a long
+ * process pause or a Redis failover can still open a window in which this
+ * instance believes it leads after the key has moved. Closing that window needs
+ * fencing tokens threaded through leader-only work, which this class cannot do
+ * on its own.
  */
 @Service()
 export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 	private leaderCheckTimer: NodeJS.Timeout | undefined;
+
+	private leaseWatchdogTimer: NodeJS.Timeout | undefined;
 
 	/** Set once shutdown starts, so no further check can re-acquire leadership. */
 	private isShuttingDown = false;
@@ -53,8 +75,25 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 	/** In-flight periodic check, used to prevent overlap and to drain on shutdown. */
 	private inFlightCheck: Promise<void> | undefined;
 
+	/** Tail of the serialized transition queue, used to drain handlers on shutdown. */
+	private inFlightTransition: Promise<void> | undefined;
+
+	/**
+	 * Absolute time until which this instance has *proven* it holds the lease.
+	 * Zero when nothing is proven. Derived from the moment a renewal or claim was
+	 * sent, never from when it resolved, because Redis started the TTL at some
+	 * point at or after that — so this deadline is always at or before the real one.
+	 */
+	private leaseProvenUntilMs = 0;
+
 	/** Decorator-registered handlers, awaited on each transition. */
 	private readonly leadershipHandlers = new Map<MultiMainEvent, Array<() => Promise<unknown>>>();
+
+	/**
+	 * Whether an unrecoverable transition failure may stop the process. Disabled
+	 * under test so a deliberately throwing handler does not kill the test worker.
+	 */
+	private readonly exitOnUnrecoverableError = !inTest;
 
 	private leaderElectionClientInstance: LeaderElectionClient | undefined;
 
@@ -101,16 +140,27 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 		this.validateConfig();
 
 		this.isShuttingDown = false;
+		this.leaseProvenUntilMs = 0;
 
 		await this.checkLeader({ isInitial: true });
 
+		// Subscribe before any timer can fire. A transition that reaches zero
+		// handlers is silently lost: leader-only work either keeps running after a
+		// stepdown or never starts after a takeover, with nothing left to correct it.
+		this.registerEventHandlers();
+
 		this.leaderCheckTimer = setInterval(() => {
-			void this.runPeriodicCheck();
+			this.runPeriodicCheck();
 		}, this.intervalSeconds * 1_000);
 
+		this.leaseWatchdogTimer = setInterval(() => {
+			this.enforceLeaseDeadline();
+		}, LEASE_WATCHDOG_INTERVAL_MS);
+
 		// Never hold the event loop open on our account; the HTTP server keeps the
-		// process alive, and a lingering interval would delay a clean exit.
+		// process alive, and lingering intervals would delay a clean exit.
 		this.leaderCheckTimer.unref?.();
+		this.leaseWatchdogTimer.unref?.();
 
 		this.logger.debug(
 			`Leader election started as ${this.instanceSettings.instanceRole}, checking every ${this.intervalSeconds}s`,
@@ -120,14 +170,15 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 	/**
 	 * Wire up every method decorated with `@OnLeaderTakeover` / `@OnLeaderStepdown`.
 	 *
-	 * Deliberately separate from {@link init}: `Start` elects a leader early (the
-	 * license check needs the role) but only registers handlers after all modules
-	 * have loaded, so late-loading services still get their handlers wired.
-	 *
 	 * Handlers are collected here rather than registered via `on()` so transitions
 	 * can await them; `on()` stays available for plain observers.
+	 *
+	 * Subscribing this early is safe for late-loading services:
+	 * `MultiMainMetadata.subscribe()` replays everything registered so far and
+	 * keeps notifying on each later registration, so modules that load after
+	 * `init()` still get their handlers wired.
 	 */
-	registerEventHandlers() {
+	private registerEventHandlers() {
 		this.multiMainMetadata.subscribe(({ eventHandlerClass, methodName, eventName }) => {
 			const handlers = this.leadershipHandlers.get(eventName) ?? [];
 
@@ -156,10 +207,17 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 			this.leaderCheckTimer = undefined;
 		}
 
-		// Drain any check still running, so it cannot transition state behind us.
-		await this.inFlightCheck;
+		if (this.leaseWatchdogTimer) {
+			clearInterval(this.leaseWatchdogTimer);
+			this.leaseWatchdogTimer = undefined;
+		}
 
-		if (this.instanceSettings.isLeader) await this.releaseLeadership();
+		// Drain the check first: a check that is still running is what enqueues the
+		// newest transition, so reading the queue before it settles would miss one.
+		await this.inFlightCheck;
+		await this.inFlightTransition;
+
+		await this.releaseLeadership();
 
 		this.leaderElectionClient.destroy();
 	}
@@ -188,7 +246,7 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 			});
 		}
 
-		return result.result;
+		return result.result?.hostId ?? null;
 	}
 
 	// #endregion
@@ -213,6 +271,7 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 
 	/** Renew our own leadership, or demote if we can no longer prove we hold it. */
 	private async renewLeadership() {
+		const renewalSentAt = Date.now();
 		const renewal = await this.leaderElectionClient.tryRenewLeaderTtl();
 
 		if (!renewal.ok) {
@@ -222,27 +281,32 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 			this.logger.error('Failed to renew leader key, stepping down', {
 				error: renewal.error,
 			});
-			await this.stepDown();
+			this.stepDown();
 			return;
 		}
 
 		const result = renewal.result;
 
-		if (result.id === 'success') return; // unchanged state emits no event
+		if (result.id === 'success') {
+			this.recordLeaseProof(renewalSentAt);
+			return; // unchanged state emits no event
+		}
 
 		if (result.id === 'other-host-is-leader') {
 			this.logger.warn('Another instance is now the leader, stepping down', {
 				currentLeaderId: result.currentLeaderId,
 			});
-			await this.stepDown();
+			this.stepDown();
 			return;
 		}
 
 		// The key expired (e.g. a renewal was slow enough for Redis to drop it).
 		// Only an atomic NX claim proves we may keep leading.
+		const claimSentAt = Date.now();
 		const claim = await this.leaderElectionClient.setLeaderIfNotExists();
 
 		if (claim.ok && claim.result) {
+			this.recordLeaseProof(claimSentAt);
 			this.logger.debug('Leader key had expired and was reacquired');
 			return; // still leader, no transition
 		}
@@ -255,10 +319,10 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 			this.logger.warn('Leader key had expired and was claimed by another instance');
 		}
 
-		await this.stepDown();
+		this.stepDown();
 	}
 
-	/** Claim leadership if it is free or already recorded as ours. */
+	/** Claim leadership if it is free, or re-prove a key that still carries our token. */
 	private async contestLeadership({ isInitial }: { isInitial: boolean }) {
 		const leader = await this.leaderElectionClient.getLeader();
 
@@ -279,21 +343,44 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 			return;
 		}
 
-		const currentLeaderId = leader.result;
+		if (leader.result !== null) {
+			if (!leader.result.isOurs) {
+				this.settleAsFollower();
+				return;
+			}
 
-		if (currentLeaderId === this.instanceSettings.hostId) {
-			// Remote says we lead but local state disagrees — e.g. we stepped down on a
-			// transient Redis error while our key survived. Reconcile towards Redis.
-			await this.takeOver({ isInitial });
-			return;
+			/**
+			 * The key still carries our ownership token — e.g. we demoted on a transient
+			 * Redis error while the key survived.
+			 *
+			 * A read is *not* proof that we still hold it: the key can expire
+			 * milliseconds later, another main can claim it, and we would already have
+			 * promoted ourselves on the strength of a stale read. Only an atomic
+			 * compare-and-renew, which both verifies ownership and pushes the deadline
+			 * out, justifies promotion.
+			 */
+			const outcome = await this.reclaimOwnKey({ isInitial });
+
+			if (this.isShuttingDown) return;
+
+			if (outcome === 'reclaimed') {
+				this.takeOver({ isInitial });
+				return;
+			}
+
+			if (outcome === 'lost') {
+				this.settleAsFollower();
+				return;
+			}
+
+			// `expired`: the key went away between the read and the renewal. Fall
+			// through to the atomic claim, the only thing that can prove we lead.
 		}
 
-		if (currentLeaderId !== null) {
-			this.settleAsFollower();
-			return;
-		}
-
+		const claimSentAt = Date.now();
 		const claim = await this.leaderElectionClient.setLeaderIfNotExists();
+
+		if (this.isShuttingDown) return;
 
 		if (!claim.ok) {
 			if (isInitial) {
@@ -308,11 +395,59 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 		}
 
 		// A failed NX claim is never proof that we lead — another main won the race.
-		if (claim.result) await this.takeOver({ isInitial });
-		else this.settleAsFollower();
+		if (claim.result) {
+			this.recordLeaseProof(claimSentAt);
+			this.takeOver({ isInitial });
+		} else {
+			this.settleAsFollower();
+		}
 	}
 
-	private async runPeriodicCheck() {
+	/**
+	 * Compare-and-renew a key that reads as ours, reporting whether ownership was
+	 * actually re-proven, lost to another owner, or the key expired meanwhile.
+	 */
+	private async reclaimOwnKey({
+		isInitial,
+	}: {
+		isInitial: boolean;
+	}): Promise<'reclaimed' | 'lost' | 'expired'> {
+		const renewalSentAt = Date.now();
+		const renewal = await this.leaderElectionClient.tryRenewLeaderTtl();
+
+		if (!renewal.ok) {
+			if (isInitial) {
+				throw new OperationalError('Failed to renew our own leader key during startup', {
+					cause: renewal.error,
+				});
+			}
+
+			this.logger.error('Failed to renew our own leader key, staying follower', {
+				error: renewal.error,
+			});
+			return 'lost';
+		}
+
+		if (renewal.result.id === 'success') {
+			this.recordLeaseProof(renewalSentAt);
+			return 'reclaimed';
+		}
+
+		if (renewal.result.id === 'other-host-is-leader') {
+			this.logger.warn('Our leader key was taken over by another instance, staying follower', {
+				currentLeaderId: renewal.result.currentLeaderId,
+			});
+			return 'lost';
+		}
+
+		return 'expired';
+	}
+
+	private runPeriodicCheck() {
+		// Evaluated before the overlap guard, so a hung Redis command — precisely
+		// when the lease is running out — cannot suppress the deadline check.
+		this.enforceLeaseDeadline();
+
 		// Skip rather than queue: an older check completing after a newer transition
 		// could resurrect a stale role.
 		if (this.inFlightCheck !== undefined || this.isShuttingDown) return;
@@ -323,20 +458,43 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 
 		this.inFlightCheck = check;
 
-		try {
-			await check;
-		} finally {
+		void check.finally(() => {
 			this.inFlightCheck = undefined;
-		}
+		});
+	}
+
+	/** Record how long ownership is proven for, from when the proof was *sent*. */
+	private recordLeaseProof(sentAtMs: number) {
+		this.leaseProvenUntilMs = sentAtMs + this.ttlSeconds * 1_000;
+	}
+
+	/**
+	 * Give up leadership before the proven lease runs out.
+	 *
+	 * Without this, local leadership outlives the Redis key whenever renewals stop
+	 * landing — a hung command, a partition, a stalled event loop — and this
+	 * instance keeps running schedules and triggers while another main, having seen
+	 * the key expire, starts running them too.
+	 */
+	private enforceLeaseDeadline() {
+		if (this.isShuttingDown || !this.instanceSettings.isLeader) return;
+
+		if (Date.now() < this.leaseProvenUntilMs - LEASE_SAFETY_MARGIN_MS) return;
+
+		this.logger.error('Leader lease is expiring without a proven renewal, stepping down', {
+			leaseProvenUntil: new Date(this.leaseProvenUntilMs).toISOString(),
+		});
+
+		this.stepDown();
 	}
 
 	// #endregion
 
 	// #region Transitions
 
-	private async takeOver({ isInitial }: { isInitial: boolean }) {
+	private takeOver({ isInitial }: { isInitial: boolean }) {
 		// Backstop for a claim that resolved as shutdown began: never promote an
-		// exiting process. The key we may have just won expires on its own TTL.
+		// exiting process. Shutdown releases the key we may have just won.
 		if (this.isShuttingDown) {
 			this.logger.debug('Skipping leader takeover because shutdown is in progress');
 			return;
@@ -347,9 +505,9 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 		this.instanceSettings.markAsLeader();
 
 		/**
-		 * The initial assignment emits nothing. `Start` calls `registerEventHandlers()`
-		 * only after `init()` resolves, so an event here would reach zero handlers, and
-		 * every leader-only consumer already self-initializes from `isLeader`.
+		 * The initial assignment emits nothing: every leader-only consumer
+		 * self-initializes from `isLeader` during startup, so an event here would
+		 * duplicate that work.
 		 */
 		if (isInitial) {
 			this.logger.info('Starting as leader');
@@ -357,14 +515,15 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 		}
 
 		this.logger.info('Leader key acquired, taking over as leader');
-		await this.runLeadershipHandlers(LEADER_TAKEOVER_EVENT_NAME);
+		this.enqueueTransition(LEADER_TAKEOVER_EVENT_NAME);
 	}
 
-	private async stepDown() {
+	private stepDown() {
 		this.instanceSettings.markAsFollower();
+		this.leaseProvenUntilMs = 0;
 
 		this.logger.info('Stepped down as leader');
-		await this.runLeadershipHandlers(LEADER_STEPDOWN_EVENT_NAME);
+		this.enqueueTransition(LEADER_STEPDOWN_EVENT_NAME);
 	}
 
 	/**
@@ -380,34 +539,133 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 	}
 
 	/**
-	 * Run every handler for an event and wait for all of them.
+	 * Queue a transition's handlers and return immediately.
 	 *
-	 * Handlers run concurrently and in no guaranteed order: stepdown teardown is
-	 * time-sensitive, so one slow handler must not delay the rest. A throwing
-	 * handler is logged and does not abort the transition or the other handlers —
-	 * the role has already changed, and aborting would leave the instance
-	 * half-transitioned.
+	 * Deliberately not awaited by the election check: renewal has to keep proving
+	 * the lease while handlers run. Awaiting them inside the check meant one slow
+	 * handler suppressed every renewal until it settled, so the key expired while
+	 * this instance still believed it led.
+	 *
+	 * Batches run one after another rather than concurrently, so a stepdown queued
+	 * behind a takeover tears down only what that takeover finished setting up. The
+	 * trade-off is that a superseded takeover's handlers can observe
+	 * `isLeader === false`; the role is authoritative at decision time, and the
+	 * queued stepdown then undoes whatever they started.
+	 */
+	private enqueueTransition(eventName: MultiMainEvent) {
+		const previous = this.inFlightTransition ?? Promise.resolve();
+
+		this.inFlightTransition = previous
+			.then(async () => await this.runLeadershipHandlers(eventName))
+			.catch((error: unknown) => {
+				// Nothing above can await this queue, so a rejection has to end here.
+				this.logger.error(`Leadership transition "${eventName}" failed`, { error });
+			});
+	}
+
+	/**
+	 * Run one transition's handlers and act on any that failed.
+	 *
+	 * A failure is not a log line: whichever way it falls, leader-only work is left
+	 * running on an instance that should not be doing it.
 	 */
 	private async runLeadershipHandlers(eventName: MultiMainEvent) {
 		// During shutdown consumers tear down through `@OnShutdown` instead; running
 		// these as well would duplicate that work on an exiting process.
 		if (this.isShuttingDown) return;
 
+		const failures = await this.runHandlers(eventName);
+
+		if (failures.length === 0) {
+			// Notify plain `on()` observers only after the registered work has settled.
+			this.emit(eventName);
+			return;
+		}
+
+		if (eventName === LEADER_STEPDOWN_EVENT_NAME) {
+			// Stepdown handlers are what stop leader-only work. If one fails, triggers,
+			// pollers or timers stay live here alongside the main that now holds the
+			// lease, and every schedule runs twice. Nothing local can recover that.
+			this.failStop('Leader stepdown teardown failed', failures);
+			return;
+		}
+
+		this.logger.error('Leader takeover failed, demoting and releasing the lease', {
+			errors: failures,
+		});
+
+		// Holding the lease while half-initialized starves the cluster of a working
+		// leader. Give it up so another main can take over cleanly.
+		this.instanceSettings.markAsFollower();
+		this.leaseProvenUntilMs = 0;
+
+		await this.releaseLeadership();
+
+		// Run teardown inline rather than through the queue: this already executes on
+		// the transition queue, so enqueueing behind ourselves would deadlock.
+		const teardownFailures = await this.runHandlers(LEADER_STEPDOWN_EVENT_NAME);
+
+		if (teardownFailures.length > 0) {
+			this.failStop('Leader stepdown teardown failed after a failed takeover', teardownFailures);
+			return;
+		}
+
+		this.emit(LEADER_STEPDOWN_EVENT_NAME);
+	}
+
+	/**
+	 * Run every handler for an event and wait for all of them, collecting failures.
+	 *
+	 * Handlers run concurrently and in no guaranteed order: stepdown teardown is
+	 * time-sensitive, so one slow handler must not delay the rest. A throwing
+	 * handler does not abort the others — the role has already changed, and the
+	 * remaining teardown is still worth running.
+	 */
+	private async runHandlers(eventName: MultiMainEvent): Promise<unknown[]> {
 		const handlers = this.leadershipHandlers.get(eventName) ?? [];
 
 		const outcomes = await Promise.allSettled(handlers.map(async (handler) => await handler()));
 
+		const failures: unknown[] = [];
+
 		for (const outcome of outcomes) {
 			if (outcome.status === 'rejected') {
 				this.logger.error(`Handler for "${eventName}" failed`, { error: outcome.reason });
+				failures.push(outcome.reason);
 			}
 		}
 
-		// Notify plain `on()` observers only after the registered work has settled.
-		this.emit(eventName);
+		return failures;
+	}
+
+	/**
+	 * Stop the process, because leader-only work may still be running here while
+	 * another main holds the lease.
+	 *
+	 * Duplicated schedules, triggers and webhooks corrupt data; an exit that a
+	 * supervisor restarts into a clean follower does not.
+	 */
+	private failStop(reason: string, errors: unknown[]) {
+		this.logger.error(reason, { errors });
+		this.logger.error(
+			'Exiting process: leader-only work cannot be confirmed stopped after stepping down',
+		);
+
+		if (this.exitOnUnrecoverableError) process.exit(1);
 	}
 
 	private async releaseLeadership() {
+		const wasLeader = this.instanceSettings.isLeader;
+
+		/**
+		 * Attempted unconditionally, not only when we believe we lead. A claim that
+		 * was still in flight when shutdown began can succeed after `takeOver()` has
+		 * already refused to promote; the local role then says `follower` while this
+		 * exiting process owns the key, blocking takeover until the TTL expires.
+		 *
+		 * For an instance that genuinely holds nothing this is one extra
+		 * compare-and-delete that matches nothing and changes nothing.
+		 */
 		const release = await this.leaderElectionClient.releaseLeaderIfOwner();
 
 		if (!release.ok) {
@@ -417,9 +675,16 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 
 		if (release.result.id === 'released') {
 			this.logger.debug('Released leader key on shutdown');
-		} else {
-			// Never force the delete: the key may already belong to a newer leader.
+			return;
+		}
+
+		// Never force the delete: the key may already belong to a newer leader.
+		if (wasLeader) {
 			this.logger.warn('Leader key was not ours on shutdown, left untouched', {
+				result: release.result.id,
+			});
+		} else {
+			this.logger.debug('No leader key of ours to release on shutdown', {
 				result: release.result.id,
 			});
 		}
@@ -435,15 +700,26 @@ export class MultiMainSetup extends TypedEmitter<MultiMainEvents> {
 	private validateConfig() {
 		const { ttlSeconds, intervalSeconds } = this;
 
-		if (ttlSeconds < MIN_TTL_SECONDS) {
-			throw new UserError(
-				`N8N_MULTI_MAIN_SETUP_KEY_TTL must be at least ${MIN_TTL_SECONDS} seconds, but is ${ttlSeconds}.`,
-			);
-		}
-
 		if (intervalSeconds < 1) {
 			throw new UserError(
 				`N8N_MULTI_MAIN_SETUP_CHECK_INTERVAL must be at least 1 second, but is ${intervalSeconds}.`,
+			);
+		}
+
+		/**
+		 * A renewal that starts one interval late and then blocks for the full
+		 * command timeout must still land inside the TTL, with the safety margin left
+		 * over. Without this, a configuration like TTL 2s / interval 1s is accepted
+		 * even though a single command may wait 5s — the key expires, another main
+		 * takes over, and this one only finds out seconds later.
+		 */
+		const commandTimeoutSeconds = LEADER_COMMAND_TIMEOUT_MS / 1_000;
+		const marginSeconds = LEASE_SAFETY_MARGIN_MS / 1_000;
+		const requiredHeadroom = intervalSeconds + commandTimeoutSeconds + marginSeconds;
+
+		if (requiredHeadroom >= ttlSeconds) {
+			throw new UserError(
+				`N8N_MULTI_MAIN_SETUP_KEY_TTL (${ttlSeconds}s) is too short for N8N_MULTI_MAIN_SETUP_CHECK_INTERVAL (${intervalSeconds}s): a renewal may take up to ${commandTimeoutSeconds}s, so the TTL must exceed ${requiredHeadroom}s to leave a ${marginSeconds}s safety margin.`,
 			);
 		}
 

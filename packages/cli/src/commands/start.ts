@@ -291,9 +291,9 @@ export class Start extends BaseCommand<z.infer<typeof flagsSchema>> {
 		const { AuthHandlerRegistry } = await import('@/auth/auth-handler.registry.js');
 		await Container.get(AuthHandlerRegistry).init();
 
-		if (this.instanceSettings.isMultiMain) {
-			Container.get(MultiMainSetup).registerEventHandlers();
-		}
+		// Leadership handlers are deliberately *not* wired here: `MultiMainSetup.init()`
+		// subscribes before it starts electing, so a transition fired during module
+		// loading cannot reach zero handlers. Late-loading modules are still picked up.
 
 		await this.executionContextHookRegistry.init();
 		await Container.get(LoadNodesAndCredentials).postProcessLoaders();

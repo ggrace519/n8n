@@ -66,6 +66,7 @@ describe('WorkerStatusService', () => {
 		it('should send worker status only to requesting user', () => {
 			const requestingUserId = 'user-123';
 			const mockWorkerStatus = createMockWorkerStatus({ requestingUserId });
+			const { requestingUserId: _routingField, ...expectedStatus } = mockWorkerStatus;
 
 			workerStatusService.handleWorkerStatusResponse(mockWorkerStatus);
 
@@ -74,14 +75,16 @@ describe('WorkerStatusService', () => {
 					type: 'sendWorkerStatusMessage',
 					data: {
 						workerId: 'test-worker-1',
-						status: mockWorkerStatus,
+						status: expectedStatus,
 					},
 				},
 				[requestingUserId],
 			);
 		});
 
-		it('should include worker status data in push message', () => {
+		it('should route by requesting user without echoing that id back to the browser', () => {
+			// `requestingUserId` is an internal routing field. The push payload is
+			// typed as a plain `WorkerStatus`, so it must not carry the id.
 			const requestingUserId = 'user-456';
 			const mockWorkerStatus = createMockWorkerStatus({
 				requestingUserId,
@@ -96,14 +99,15 @@ describe('WorkerStatusService', () => {
 					type: 'sendWorkerStatusMessage',
 					data: expect.objectContaining({
 						workerId: 'worker-2',
-						status: expect.objectContaining({
-							freeMem: 2000000,
-							requestingUserId,
-						}),
+						status: expect.objectContaining({ freeMem: 2000000 }),
 					}),
 				}),
 				[requestingUserId],
 			);
+
+			const [message] = mockPush.sendToUsers.mock.calls[0];
+
+			expect(message.data.status).not.toHaveProperty('requestingUserId');
 		});
 	});
 });

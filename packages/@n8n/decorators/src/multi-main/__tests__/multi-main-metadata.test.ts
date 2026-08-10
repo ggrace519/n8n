@@ -70,4 +70,14 @@ describe('MultiMainMetadata', () => {
 
 		expect(listener).not.toHaveBeenCalled();
 	});
+
+	it('should reject a second listener', () => {
+		// Two listeners would double-register every handler, so each transition
+		// would run the same teardown or startup twice.
+		metadata.subscribe(vi.fn());
+
+		expect(() => metadata.subscribe(vi.fn())).toThrow(
+			'A listener is already subscribed to handler registrations',
+		);
+	});
 });

@@ -49,4 +49,10 @@ export const IMMEDIATE_COMMANDS = new Set<PubSub.Command['command']>([
 	'display-workflow-activation-error',
 	'display-workflow-publication-status',
 	'workflow-publish-wake-up',
+	/**
+	 * Debouncing is keyed only by command name, so two users asking within the
+	 * debounce window would collapse into one request and only the last one's
+	 * `requestingUserId` would survive — leaving the other user with no answer.
+	 */
+	'get-worker-status',
 ]);
