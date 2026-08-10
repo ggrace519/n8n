@@ -16,6 +16,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-10 — 13 more API-key scopes were ungrantable, taking three public APIs down (#24)
+
+Follow-up to the eight below, and the larger half of the same defect. A public
+API key may only hold scopes its principal's role holds, matched by **exact
+slug**. But `API_KEY_RESOURCES` deliberately names some resources differently
+from the RBAC catalog (`dataTableRow:read` against `dataTable:readRow`) and
+exposes operations the RBAC catalog has no entry for at all (`testRun:create`).
+Nothing bridged the two namespaces, so 13 scopes could be granted to nobody —
+the instance owner included — and every route behind them answered 403 to
+everyone. The whole evaluations API, data-table row and column CRUD, and
+execution-tag list/update were dead.
+
+**Fixed.** `API_KEY_SCOPE_BACKED_BY` maps each such API-key scope to the RBAC
+scope that backs it, and `getApiKeyScopesForRole` consults it. Every entry is
+read off the route that requires it: each of these endpoints already pairs its
+`publicApiScope(...)` with the `projectScope(...)` it enforces, so the backing
+scope is the one the request is checked against anyway. This grants nothing
+extra — it only makes the key-level gate reachable for a principal that already
+holds the underlying permission. Owner and admin now reach **88/88** API-key
+scopes, up from 75.
+
+**Measured on the real suites**, each compared against the same run with
+`public-api-permissions.ts` reverted:
+
+| Public API suite | Before | After |
+|---|---|---|
+| `evaluations` | 12 failed / 11 passed | **1 failed / 22 passed** |
+| `data-tables` | 67 failed / 55 passed | **8 failed / 114 passed** |
+| `executions` | 37 failed / 38 passed | **29 failed / 46 passed** |
+
+78 specs fixed, no regressions. `@n8n/permissions` **110/110** (105 + 5 new).
+
+**Added — the assertion that would have caught it.** A new
+`public-api-permissions` spec requires every scope in `API_KEY_RESOURCES` to be
+grantable to the owner and to an admin, every backing scope to exist in
+`ALL_SCOPES`, and the bridge to cover only scopes the RBAC catalog does not
+already name (a bridge over an existing scope would silently redirect it to a
+different permission).
+
+**Still failing, and not this bug → follow-up.** The residual 38 failures share
+one root cause: `getApiKeyScopesForRole` derives a key's scopes from the
+principal's **global** role, but a member holds authority through their
+**project** roles — by design, per `GLOBAL_MEMBER_SCOPES`. So a member's key
+resolves to 7 of 88 scopes and every "member should be able to…" public API spec
+403s. That needs project-derived scopes in key issuance, which is a design change
+rather than a catalog fix.
 ### 2026-08-10 — Review fixes on the annotation rebuild
 
 A three-model review panel (codex, grok, a Claude reviewer) over the stacked
