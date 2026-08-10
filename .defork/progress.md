@@ -1173,3 +1173,63 @@ origin/master and will auto-resume.
 
 **AWAITING GREG:** the annotations (A) drop override — standing policy is
 rebuild, which is what both agents are doing; cheapest to reverse before E19.
+
+## 2026-08-10 — E19 DONE (backend) + a scope-catalog bug found on the way
+
+**BRANCH HYGIENE FIRST.** `fix/shared-role-types` sat on stale master behind a
+commit titled "wip … UNVERIFIED". `fix/shared-role-types-verified` was NOT a
+second implementation — the reflog shows it is a changelog-only commit made by
+accident on master. Rebuilt as `fix/shared-role-types-v2` on current master, two
+clean signed commits, permissions 105/105 re-run on the new base → **PR #23**.
+Old refs left for Greg to delete.
+
+**FOUND WHILE MEASURING THE BASELINE (→ PR #23, 3 more commits).** The API-key
+catalog and the public API's own `x-required-scope` had drifted: 88 scopes
+required by routes, 80 declared, **8 missing**. Not cosmetic — `getApiKeyScopesForRole`
+filters by the catalog, so an undeclared scope can never be granted and its route
+403s for everyone. The parity test only asserted catalog ⊆ required, never the
+converse, which is why it stayed green. Fixed both directions; `execution:stop`
+needed a second commit because it was not an RBAC scope at all (adding it writes
+one new `scope` row on each instance's next boot — no migration, the table syncs
+from ALL_SCOPES).
+
+**AND A BIGGER ONE → ISSUE #24.** 13 further API-key scopes (`dataTableRow:*`,
+`dataTableColumn:*`, `executionTags:*`, `testRun:create|cancel`) have no exact-slug
+counterpart in `RESOURCES`, so they are ungrantable and their routes 403 for
+everyone. Proven, not theorised: `public-api/evaluations.test.ts` is 12 failed /
+11 passed, every failure an unexpected 403, and it reproduces identically with
+`constants.ts` reverted to the branch base. Needs a deliberate
+`ApiKeyScope -> Scope` bridge, so it got its own issue rather than being absorbed.
+
+**E19 (branch `feat/defork-e19-execution-annotations`).** 3 entities + 3
+repositories in `@n8n/db`, the `execution.repository.ts` paths A8b stripped, a
+fair-code `annotation-tags.controller.ts`, and `note` threaded end to end.
+cli tsc **32 → 16, 0 new**. Everything green: db 411/411, workflow 5510/5510,
+cli executions 231/231, `execution.service.integration` 37/37 (was 32/37 — the 5
+failures were the annotated-list specs, which pinned the contract better than any
+note could), executions.controller 15/15, pruning 22/22, new annotation-tags api
+9/9.
+
+**TWO THINGS THE SURVIVING TESTS TAUGHT ME, both of which I had guessed wrong:**
+1. Every summary must carry `annotation: {tags, vote}` even when unannotated, and
+   the list annotation carries **no** `note` (the specs use `toEqual`, so adding
+   one breaks them). My first design only attached annotations when filtering.
+2. Attaching annotations must NOT be a join on the list query — a tag join
+   multiplies rows and `LIMIT` would truncate executions instead of tags. It is a
+   second query keyed on the already-paginated ids.
+
+**MUTATION-TESTED** the two behaviours with no natural failure signal: removing
+the prune exclusion fails 2 specs; reverting the field-wise upsert fails 2. Both
+load-bearing.
+
+**CORRECTION TO THE LAST SESSION'S NOTE.** E19 does **not** unblock A10 on its
+own. `start.test.ts` still collects 0 tests — the second blocker is
+`@n8n/ai-workflow-builder` via `ai.controller.ts` (item C2). There were two
+blockers; this closed one.
+
+**DOC BUG WORTH FIXING:** `AGENTS.md` says a single test file runs with
+`pnpm test <file>`. Integration specs need `pnpm test:integration <file>`;
+`pnpm test` reports "No test files found" for them.
+
+**NEXT:** C2 (`@n8n/ai-workflow-builder`) is now the thing standing between here
+and A10-cli-green. Then #24.
