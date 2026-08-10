@@ -82,9 +82,14 @@ export type ProjectRole =
 	| 'project:viewer'
 	| 'project:chatUser';
 
-/** Project roles assignable to a team-project member (excludes the fixed
- * personal-project owner). Mirrors `assignableProjectRoleSchema`. */
-export type AssignableProjectRole = Exclude<ProjectRole, 'project:personalOwner'>;
+/**
+ * A project role slug assignable to a team-project member — any built-in project
+ * role except the fixed personal-project owner, or a custom role. Custom role
+ * slugs are free-form, so this is `string` at the type level; the namespace and
+ * the personal-owner exclusion are enforced at runtime (`teamRoleSchema`,
+ * `assignableProjectRoleSchema`, `RoleService.checkRolesExist`).
+ */
+export type AssignableProjectRole = string;
 
 export type CredentialSharingRole = 'credential:owner' | 'credential:user';
 
@@ -112,13 +117,25 @@ export type RoleNamespace =
 
 /** A fully described role, as surfaced to the frontend. */
 export interface RoleObject {
-	slug: AllRoleTypes;
+	/**
+	 * Built-in slugs are listed for autocompletion, but custom roles are saved
+	 * under free-form generated slugs (`${roleType}:${name}-${suffix}`), so any
+	 * string is valid here — see `RoleService.createCustomRole`.
+	 */
+	slug: AllRoleTypes | (string & {});
 	displayName: string;
 	scopes: Scope[];
-	description: string;
+	/** Custom roles may be created without one; the column is nullable. */
+	description: string | null;
 	licensed: boolean;
 	systemRole: boolean;
 	roleType: RoleNamespace;
+	/** Only present when the role was requested with `?withUsageCount=true`. */
+	usedByUsers?: number;
+	usedByProjects?: number;
+	/** Carried through from the role row; absent on the built-in role constants. */
+	createdAt?: Date;
+	updatedAt?: Date;
 }
 
 /** All built-in roles grouped by namespace. */

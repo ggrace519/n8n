@@ -119,14 +119,26 @@ export const RESOURCES = {
 
 /**
  * Catalog of resources/operations addressable via public API keys. This is a
- * deliberately narrower surface than {@link RESOURCES} and may expose operations
- * (e.g. `testRun:create`) that are managed differently in the UI RBAC catalog.
+ * separate surface from {@link RESOURCES}, not a subset of it: it may expose
+ * operations managed differently in the UI RBAC catalog (e.g. `testRun:create`)
+ * and resources the catalog splits differently (`dataTableRow`/`dataTableColumn`
+ * against the catalog's single `dataTable`).
+ *
+ * Every entry must be required by at least one public API route — the
+ * `x-required-scope` in `packages/cli/src/public-api/v1/**` — or the public API
+ * scope-parity test reports it as an orphan.
  */
 export const API_KEY_RESOURCES = {
+	communityPackage: ['install', 'list', 'uninstall', 'update'],
 	credential: ['create', 'list', 'read', 'delete', 'move'],
+	dataTable: ['create', 'delete', 'list', 'read', 'update'],
+	dataTableColumn: ['create', 'delete', 'read', 'update'],
+	dataTableRow: ['create', 'delete', 'read', 'update', 'upsert'],
 	eventBusDestination: ['create', 'read', 'update', 'delete', 'list', 'test'],
 	execution: ['delete', 'list', 'read'],
+	executionTags: ['list', 'update'],
 	folder: ['create', 'read', 'update', 'delete', 'list'],
+	insights: ['read'],
 	ldap: ['manage', 'sync'],
 	oidc: ['manage'],
 	otel: ['manage'],

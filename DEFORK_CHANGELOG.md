@@ -16,6 +16,100 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-10 — Shared role/scope types made honest about the runtime
+
+The Tier-0 `@n8n/permissions` rebuild under-approximated four shared contracts.
+Nothing was wrong at runtime; the *types* claimed less than the code already does,
+which blocked the `editor-ui` typecheck and left 26 real errors in `packages/cli`.
+Each correction below is pinned by surviving fair-code evidence — no `.ee` source,
+history or upstream was read.
+
+**Changed — `types.ts`**
+
+- `RoleObject.slug` widened from `AllRoleTypes` to `AllRoleTypes | (string & {})`.
+  Custom roles are saved under generated slugs
+  (`${roleType}:${name}-${suffix}`, `RoleService.createCustomRole`) and the `role`
+  table types `slug` as `string`.
+- `RoleObject.description` `string` → `string | null` (the column is nullable and
+  `CreateRoleDto.description` is optional).
+- Added `usedByUsers?`/`usedByProjects?` — `RoleService.dbRoleToRoleDTO` has always
+  returned them for `?withUsageCount=true`, and `useRoleDeleteGuard`,
+  `useRoleDeletion` and `ProjectRoleView` read them.
+- Added `createdAt?: Date`/`updatedAt?: Date` — the entity extends `WithTimestamps`
+  and is spread into the DTO; `roles.public.controller.ts` already calls
+  `role.createdAt!.toISOString()` (the `!` pins them as optional `Date`), and
+  `RolesTable.vue` renders `updatedAt`.
+- `AssignableProjectRole` `Exclude<ProjectRole, 'project:personalOwner'>` → `string`,
+  mirroring `AssignableGlobalRole`. The runtime validator `teamRoleSchema` accepts
+  `/^(project|custom):.+/`, so custom project roles are assignable and the old type
+  contradicted it. No consumer relied on exhaustiveness (`isRoleLicensed`'s switch
+  has a `default`).
+
+**Changed — `roles/custom-role-scopes.ts`**
+
+- `PROJECT_CUSTOM_ROLE_OPERATIONS` is now the editor's *visible* checkbox map,
+  reconstructed one-for-one from the surviving `projectRoles.<resource>:<operation>`
+  i18n keys and `SCOPE_TYPES` in `projectRoleScopes.ts`. This adds the four
+  project resources the rebuild missed (`project`, `sourceControl`,
+  `externalSecretsProvider`, `externalSecret`) and drops the operations that were
+  swept in wholesale from `RESOURCES` but have no label, no checkbox and no
+  translation.
+- The scopes a project role may actually *hold* moved to a new
+  `PROJECT_CUSTOM_ROLE_HIDDEN_OPERATIONS` map, so `PROJECT_CUSTOM_ROLE_SCOPES`
+  stays a superset of the editor surface — as the surviving test requires
+  (`workflow:list`, `credential:list`, `dataTable:listProject`). Verified
+  mechanically: **87 → 102 scopes, 0 removed**, the 15 additions being exactly the
+  four new resources plus their implicit `:list` twins. No existing custom role
+  loses a grant.
+- `GLOBAL_CUSTOM_ROLE_SCOPE_GROUPS` gained the four groups the instance role editor
+  indexes but the rebuild never defined: `role`, `apiKey`, `tag`, `insights`. Their
+  option sets are pinned by the `instanceRoles.description.*` strings, by
+  `SUPERSEDED_BY` (each "Manage" is a strict superset of the option it supersedes)
+  and by the controllers that enforce them (`apiKey:manage` is what reaches other
+  users' keys; the roles list is gated on `role:read`).
+- Both operation maps now `satisfies { [R in Resource]?: ReadonlyArray<ResourceOperation<R>> }`,
+  so an operation that does not exist for its resource is a compile error rather
+  than a silently dead scope string.
+
+**Changed — `constants.ts`**
+
+- `API_KEY_RESOURCES` gained `communityPackage`, `dataTable`, `dataTableColumn`,
+  `dataTableRow`, `executionTags` and `insights`. Every operation added is required
+  by a live public API route (`x-required-scope` in `public-api/v1/**`), and each
+  was already a hard `packages/cli` type error where the handler passes the scope to
+  `apiKeyHasScopeWithGlobalScopeFallback`. `API_KEY_RESOURCES` is a separate surface
+  from `RESOURCES`, not a subset — `dataTableRow`/`dataTableColumn`/`executionTags`
+  exist only here.
+
+**Changed — `@n8n/i18n` `en.json`**
+
+- Added the three missing project-role tooltips (`workflow:share`,
+  `sourceControl:pull`, `sourceControl:manage`); the required key set was derived
+  from the operations map, not from a report.
+- Removed `projectRoles.workflow:updateRedactionSetting` (+ tooltip): migration
+  `1784000000013` split that scope into `enableRedaction`/`disableRedaction`, so the
+  keys were stale and named a scope absent from the catalog.
+- Removed a duplicate `projectRoles.credential:createEndUser` key pair.
+
+**Clean-room sources:** the surviving fair-code consumers
+(`projectRoleScopes.ts`, `instanceRoleScopes.ts`, `ProjectRoleView.vue`,
+`RolesTable.vue`, `apiKeys.constants.ts`, the role/api-key/tags/insights
+controllers, the public API `x-required-scope` specs), the surviving
+`custom-role-scopes.test.ts`, the `role` entity and migrations, and `en.json`.
+
+**Verification:** `@n8n/permissions` **105/105**, build exit 0, no snapshot
+changed; `@n8n/api-types` **1775/1775**; `@n8n/db` build exit 0 and **409/409**;
+`@n8n/i18n` build exit 0; `packages/cli` `tsc -p tsconfig.build.json --noEmit`
+**66 → 40 errors, 0 new** (the 40 remaining are pre-existing purge gaps —
+`@n8n/ai-workflow-builder`, annotation-tag entities); cli role/project/api-key unit
+tests **61/61**; integration `role.service` + `custom-roles-functionality`
+**97/97**; `role.controller` **51/51** and `built-in-roles` **7/7**;
+`role.api`/`project.api` show the same 8 pre-existing failures as master (per-role
+scope sets, project listing — unchanged by this work); public API `scope-parity`
+keeps 3/4 with the same pre-existing `users.handler.ee` load failure, and the
+"no orphan API-key scopes" assertion still passes. `eslint` on every touched file:
+0 errors, no rule disables.
+
 ### 2026-08-09 — E10 hardening: split-brain fixes in multi-main leadership
 
 Follow-up to the E10 rebuild below, closing eight defects found in an adversarial
