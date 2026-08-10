@@ -32,7 +32,7 @@ import type { FrontendService } from '@/services/frontend.service';
 import { Telemetry } from '@/telemetry';
 
 import '@/controllers/active-workflows.controller';
-import '@/controllers/annotation-tags.controller.ee';
+import '@/controllers/annotation-tags.controller';
 import '@/controllers/auth.controller';
 import '@/controllers/binary-data.controller';
 import '@/controllers/ai.controller';

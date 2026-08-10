@@ -4015,7 +4015,10 @@ export interface ExecutionSummary {
 	};
 	usedPrivateCredentials?: boolean;
 	annotation?: {
-		vote: AnnotationVote;
+		/** `null` when the execution is unannotated or the reviewer cleared their vote. */
+		vote: AnnotationVote | null;
+		/** Free-text reviewer note; column is nullable and the field is optional. */
+		note?: string;
 		tags: Array<{
 			id: string;
 			name: string;

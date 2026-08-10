@@ -114,7 +114,14 @@ export interface IExecutionResponse extends IExecutionBase {
 	workflowData: IWorkflowBase | WorkflowWithSharingsAndCredentials;
 	workflowVersionId?: string | null;
 	customData: Record<string, string>;
+	/**
+	 * Shape matches what `ExecutionPersistence.serializeAnnotation` returns. The
+	 * fields beyond `tags` are optional because the summary list omits them.
+	 */
 	annotation: {
+		id?: string;
+		vote?: AnnotationVote | null;
+		note?: string | null;
 		tags: ITagBase[];
 	};
 	/**

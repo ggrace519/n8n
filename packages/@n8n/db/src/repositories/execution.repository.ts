@@ -37,6 +37,8 @@ import {
 } from 'n8n-workflow';
 
 import {
+	AnnotationTagMapping,
+	ExecutionAnnotation,
 	ExecutionData,
 	ExecutionDataStorageLocation,
 	ExecutionEntity,
@@ -242,6 +244,7 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 		id: string,
 		options?: {
 			includeData: true;
+			includeAnnotation?: boolean;
 			unflattenData: true;
 			where?: FindOptionsWhere<ExecutionEntity>;
 		},
@@ -250,6 +253,7 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 		id: string,
 		options?: {
 			includeData: true;
+			includeAnnotation?: boolean;
 			unflattenData?: false | undefined;
 			where?: FindOptionsWhere<ExecutionEntity>;
 		},
@@ -258,6 +262,7 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 		id: string,
 		options?: {
 			includeData?: boolean;
+			includeAnnotation?: boolean;
 			unflattenData?: boolean;
 			where?: FindOptionsWhere<ExecutionEntity>;
 		},
@@ -266,6 +271,7 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 		id: string,
 		options?: {
 			includeData?: boolean;
+			includeAnnotation?: boolean;
 			unflattenData?: boolean;
 			where?: FindOptionsWhere<ExecutionEntity>;
 		},
@@ -278,6 +284,12 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 		};
 		if (options?.includeData) {
 			findOptions.relations = { executionData: true, metadata: true };
+		}
+		if (options?.includeAnnotation) {
+			findOptions.relations = {
+				...findOptions.relations,
+				annotation: { tags: true },
+			};
 		}
 
 		const execution = await this.findOne(findOptions);
@@ -513,6 +525,18 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 
 		const [timeBasedWhere, countBasedWhere] = toPrune;
 
+		// An annotated execution is one somebody deliberately kept, so pruning
+		// must skip it however old or far down the list it is. Safe as `NOT IN`
+		// only because `execution_annotations.executionId` is NOT NULL: a single
+		// NULL from this subquery would make the predicate unknown for every row
+		// and silently stop pruning altogether. Use NOT EXISTS if that changes.
+		const annotatedExecutionIds = this.manager
+			.createQueryBuilder()
+			.subQuery()
+			.select('annotation.executionId')
+			.from(ExecutionAnnotation, 'annotation')
+			.getQuery();
+
 		return await this.createQueryBuilder()
 			.update(ExecutionEntity)
 			.set({ deletedAt: new Date() })
@@ -521,6 +545,7 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 				// Only mark executions as deleted if they are in an end state
 				status: Not(In(['new', 'running', 'waiting'])),
 			})
+			.andWhere(`id NOT IN ${annotatedExecutionIds}`)
 			.andWhere(
 				new Brackets((qb) =>
 					countBasedWhere
@@ -702,8 +727,42 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 	};
 
 	async findManyByRangeQuery(query: ExecutionSummaries.RangeQuery): Promise<ExecutionSummary[]> {
-		const executions: ExecutionSummary[] = await this.toQueryBuilder(query).getRawMany();
-		return executions.map((execution) => this.toSummary(execution));
+		const rawExecutions: ExecutionSummary[] = await this.toQueryBuilder(query).getRawMany();
+		const executions = rawExecutions.map((execution) => this.toSummary(execution));
+
+		return await this.attachAnnotations(executions);
+	}
+
+	/**
+	 * Attach each execution's annotation to its summary. Loaded in a second query
+	 * keyed on the already-paginated ids rather than joined into the list query:
+	 * a tag join multiplies rows, which would make `LIMIT` truncate executions
+	 * instead of tags. Every summary gets an annotation, empty when there is none,
+	 * because the editor renders the vote and tag controls unconditionally.
+	 */
+	private async attachAnnotations(executions: ExecutionSummary[]): Promise<ExecutionSummary[]> {
+		if (executions.length === 0) return executions;
+
+		const annotations = await this.manager.find(ExecutionAnnotation, {
+			where: { executionId: In(executions.map(({ id }) => id)) },
+			relations: { tags: true },
+		});
+
+		const byExecutionId = new Map(
+			annotations.map((annotation) => [annotation.executionId, annotation]),
+		);
+
+		return executions.map((execution) => {
+			const annotation = byExecutionId.get(execution.id);
+
+			return {
+				...execution,
+				annotation: {
+					vote: annotation?.vote ?? null,
+					tags: annotation?.tags?.map(({ id, name }) => ({ id, name })) ?? [],
+				},
+			};
+		});
 	}
 
 	// @tech_debt: These transformations should not be needed
@@ -804,6 +863,8 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 			startedBefore,
 			startedAfter,
 			metadata,
+			annotationTags,
+			vote,
 			projectId,
 			workflowVersionId,
 			isArchived,
@@ -871,6 +932,37 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 
 			qb.setParameter('key', key);
 			qb.setParameter('value', exactMatch ? value : `%${value}%`);
+		}
+
+		// Annotation filters join through the annotation rather than selecting it,
+		// so the common (unfiltered) list query keeps its existing plan.
+		if (vote ?? annotationTags?.length) {
+			// One annotation per execution (unique index on executionId), so this
+			// join cannot multiply rows.
+			qb.innerJoin(ExecutionAnnotation, 'annotation', 'annotation.executionId = execution.id');
+
+			if (vote) qb.andWhere('annotation.vote = :vote', { vote });
+
+			if (annotationTags?.length) {
+				// Selecting several tags means "has all of them", matching how the
+				// workflow list filters by its own tags. Expressed as a grouped
+				// subquery rather than a join so the outer query keeps one row per
+				// execution: a join here would need SELECT DISTINCT, which Postgres
+				// then rejects because the ORDER BY expressions (the COALESCE and
+				// CASE forms above) are not in the select list.
+				const taggedAnnotations = qb
+					.subQuery()
+					.select('atm.annotationId')
+					.from(AnnotationTagMapping, 'atm')
+					.where('atm.tagId IN (:...annotationTags)')
+					.groupBy('atm.annotationId')
+					.having('COUNT(DISTINCT atm.tagId) = :annotationTagCount');
+
+				qb.andWhere(`annotation.id IN (${taggedAnnotations.getQuery()})`).setParameters({
+					annotationTags,
+					annotationTagCount: annotationTags.length,
+				});
+			}
 		}
 
 		if (workflowVersionId) {

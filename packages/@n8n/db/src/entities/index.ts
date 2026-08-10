@@ -3,6 +3,8 @@ import { AgentEvalRating } from './agent-eval-rating';
 import { AgentEvalResult } from './agent-eval-result';
 import { AgentEvalRun } from './agent-eval-run';
 import { AiBuilderTemporaryWorkflow } from './ai-builder-temporary-workflow';
+import { AnnotationTagEntity } from './annotation-tag-entity';
+import { AnnotationTagMapping } from './annotation-tag-mapping';
 import { ApiKey } from './api-key';
 import { AuthIdentity } from './auth-identity';
 import { AuthProviderSyncHistory } from './auth-provider-sync-history';
@@ -19,6 +21,7 @@ import {
 	type EvaluationConfigStatus,
 	type EvaluationDatasetSource,
 } from './evaluation-config';
+import { ExecutionAnnotation } from './execution-annotation';
 import { ExecutionData } from './execution-data';
 import { ExecutionEntity } from './execution-entity';
 import type { ExecutionDataStorageLocation } from './execution-entity';
@@ -147,6 +150,9 @@ export {
 	type WorkflowReviewRequestState,
 	type WorkflowReviewRequestDecision,
 	WorkflowReviewRequestWorkflow,
+	AnnotationTagEntity,
+	AnnotationTagMapping,
+	ExecutionAnnotation,
 	ExecutionData,
 	ExecutionMetadata,
 	ExecutionEntity,
@@ -200,6 +206,9 @@ export const entities = {
 	WorkflowPublishHistory,
 	WorkflowReviewRequest,
 	WorkflowReviewRequestWorkflow,
+	AnnotationTagEntity,
+	AnnotationTagMapping,
+	ExecutionAnnotation,
 	ExecutionData,
 	ExecutionMetadata,
 	ExecutionEntity,

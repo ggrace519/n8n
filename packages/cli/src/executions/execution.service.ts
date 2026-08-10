@@ -757,9 +757,15 @@ export class ExecutionService {
 			throw new NotFoundError('Execution not found');
 		}
 
-		// Create or update execution annotation
+		// Create or update execution annotation. Only the fields the caller sent
+		// are written, so a vote-only PATCH does not erase an existing note and
+		// vice versa.
 		await this.executionAnnotationRepository.upsert(
-			{ execution: { id: executionId }, vote: updateData.vote },
+			{
+				execution: { id: executionId },
+				...(updateData.vote !== undefined && { vote: updateData.vote }),
+				...(updateData.note !== undefined && { note: updateData.note }),
+			},
 			['execution'],
 		);
 
@@ -772,7 +778,16 @@ export class ExecutionService {
 		});
 
 		if (updateData.tags) {
-			await this.annotationTagMappingRepository.overwriteTags(annotation.id, updateData.tags);
+			try {
+				await this.annotationTagMappingRepository.overwriteTags(annotation.id, updateData.tags);
+			} catch (error) {
+				// A tag id that does not exist trips the foreign key. Reported the same
+				// way as the public API path below, rather than as a 500.
+				if (error instanceof QueryFailedError) {
+					throw new NotFoundError('Some tags not found');
+				}
+				throw error;
+			}
 		}
 	}
 

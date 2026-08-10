@@ -17,6 +17,8 @@ export {
 	type CreateAgentEvalRunAttrs,
 } from './agent-eval-run.repository';
 export { AiBuilderTemporaryWorkflowRepository } from './ai-builder-temporary-workflow.repository';
+export { AnnotationTagMappingRepository } from './annotation-tag-mapping.repository';
+export { AnnotationTagRepository } from './annotation-tag.repository';
 export { ApiKeyRepository } from './api-key.repository';
 export { AuthIdentityRepository } from './auth-identity.repository';
 export { AuthProviderSyncHistoryRepository } from './auth-provider-sync-history.repository';
@@ -40,6 +42,7 @@ export {
 	type EvaluationCollectionWithRunCount,
 } from './evaluation-collection.repository';
 export { EvaluationConfigRepository } from './evaluation-config.repository';
+export { ExecutionAnnotationRepository } from './execution-annotation.repository';
 export { ExecutionDataRepository } from './execution-data.repository';
 export { ExecutionMetadataRepository } from './execution-metadata.repository';
 export {

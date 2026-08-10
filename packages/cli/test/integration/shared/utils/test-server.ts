@@ -180,7 +180,7 @@ export const setupTestServer = ({
 			for (const group of endpointGroups) {
 				switch (group) {
 					case 'annotationTags':
-						await import('@/controllers/annotation-tags.controller.ee.js');
+						await import('@/controllers/annotation-tags.controller.js');
 						break;
 
 					case 'credentials':
