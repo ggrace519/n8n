@@ -16,6 +16,79 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-09 — E18 hardening: publication-integrity fixes
+
+Follow-up to the E18 rebuild below, closing five defects found in an adversarial
+review of it. Same clean-room provenance: derived from the surviving DTOs, the
+fair-code consumers, and this repo's own fair-code — no `.ee` body was read.
+
+**Fixed — decisions are bound to the version the reviewer inspected.** A
+reviewer could load V1, have the author re-pin to V2, and approve — publishing a
+version nobody reviewed. `decide()` now resolves the pin inside its own
+transaction, takes the link row with a conditional write that re-asserts that
+pin, and auto-publishes the version that transaction returned rather than one
+read before it. **Partial by design:** this closes a re-pin that races the
+decision. A re-pin that lands *before* the decision arrives is caught only when
+the client sends the new optional `expectedVersionId` on
+`POST /workflow-review-requests/:id/decision`, which is CAS-checked and 409s on
+mismatch. The field is optional so existing clients keep working; the protection
+is complete only once the editor sends it (tracked separately).
+
+**Fixed — "at most one open review per workflow" is now a database invariant.**
+It was an unlocked check-then-insert, so two concurrent creates both committed
+and both blocked publication. A nullable `openWorkflowId` sentinel on
+`workflow_review_request_workflow`, cleared on every closure path and covered by
+a plain unique constraint, enforces it portably on SQLite and Postgres (a
+partial unique index is not portable). Contention returns 409.
+
+**Fixed — a pinned version is verified to belong to the linked workflow.** The
+foreign key only checks the globally unique `versionId`, so a caller could pin
+another workflow's version, producing a null review snapshot that blocked
+publication and then failed to publish. The `(workflowId, versionId)` pair is
+now validated before both create and re-pin, and a version-metadata update
+affecting zero rows is an error instead of being ignored.
+
+**Fixed — transfers close their reviews atomically.** Ownership changed before
+the best-effort `afterWorkflowsTransferred` hook, so a failure in the gap left
+the destination project's members able to see and decide the source project's
+still-open review. Closure now runs in the transaction that moves ownership,
+through a new `duringWorkflowsTransferred` hook that is allowed to throw;
+`afterWorkflowsTransferred` remains post-commit but only broadcasts. **Behaviour
+change:** a closure failure now fails the transfer instead of being swallowed.
+
+**Fixed — workflow deletion no longer orphans the review aggregate.** The
+cascade removed the child link but not its parent request, and a swallowed
+pre-delete failure left that parent `open`. `beforeWorkflowDeleted` now
+propagates failures so the delete is aborted, and `afterWorkflowDeleted` removes
+requests left without any workflow. **Behaviour change:** a review-closure
+failure now aborts a workflow delete, including the per-workflow loops in
+project deletion and user deletion.
+
+**Added (migration):**
+`packages/@n8n/db/src/migrations/common/1785913150000-AddOpenWorkflowSentinelToWorkflowReviews.ts`,
+reversible. Adds the nullable sentinel column, resolves any pre-existing
+duplicate open reviews (newest per workflow keeps the sentinel and stays open,
+older ones are closed), backfills the sentinel for open reviews, then creates
+the unique index. Both index files are generated, so they pick it up
+automatically.
+
+**Changed (persistence, `packages/@n8n/db/`):**
+`WorkflowReviewRequestWorkflowRepository` gains `takeLinkAtPin` (the locking
+pin CAS that also releases the sentinel) and reports a sentinel collision as a
+domain result rather than a driver error; `createWorkflowRow` now takes an
+explicit `open` flag. `WorkflowReviewRequestRepository` clears sentinels before
+the request-row write — the module's single lock order is link row before
+request row — and gains `deleteLinklessRequests`. `WorkflowHistoryRepository`
+gains `versionBelongsToWorkflow`. `SharedWorkflowRepository.transferOwnership`,
+`WorkflowRepository.updateParentFolder` and `FolderRepository.moveFoldersToProject`
+now run in the caller's transaction (`OperationContext`), so ownership, folder
+re-homing and module cleanup commit as one unit.
+
+**Verification:** 108 tests across the module (31 unit, 77 API integration), 4
+new migration tests covering the duplicate resolution and the reversal, all
+green on both SQLite and Postgres. Every new guard was mutation-tested: breaking
+it makes targeted tests fail.
+
 ### 2026-08-09 — E18: workflow-reviews module
 
 Rebuilds the purged workflow-reviews backend module clean-room: the two ORM
