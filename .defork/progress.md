@@ -1112,3 +1112,64 @@ of it. Branch was unpushed, so I split it: soft-reset, recommitted with EXPLICIT
 paths, and verified `git rev-parse HEAD^{tree}` matched byte-for-byte before and
 after. RULE: when a subagent is editing the same worktree, stage explicit paths —
 never `git add -A`.
+
+## 2026-08-10 — SESSION END — resume state
+
+**MASTER: 29/40 items pass, clean, synced.** Phase E complete except E19.
+
+**IN-FLIGHT WHEN STOPPED (nothing lost, but nothing verified):**
+- Branch `fix/shared-role-types`, commit `666ce906b0`, pushed, marked
+  **WIP/UNVERIFIED — DO NOT MERGE**. Partial Buckets 1-6 (shared role types).
+  4 files touched: permissions `types.ts`, `constants.ts`,
+  `roles/custom-role-scopes.ts`, i18n `en.json`. ZERO gates were run.
+  **Resume:** re-verify each bucket against fair-code evidence, then run
+  permissions 105/105, api-types 1773, db 409/409, cli tsc-count-not-increased
+  vs master, role.service + project/users role-assignment specs, eslint.
+  Reject any bucket whose evidence doesn't hold rather than applying it.
+
+**WHY THOSE BUCKETS MATTER (verified by me, these are MY bugs):**
+1. `AssignableProjectRole` = `Exclude<ProjectRole,'project:personalOwner'>`
+   CONTRADICTS its own runtime validator `teamRoleSchema` (schemas.ts:75),
+   which accepts `/^(project|custom):.+/`. Custom project roles ARE
+   assignable. Should mirror `AssignableGlobalRole` (already `string`).
+2. `RoleObject` (= `Role`, schemas.ts:108) lacks `usedByUsers`/`usedByProjects`,
+   but `RoleService.dbRoleToRoleDTO` (role.service.ts:61) ALREADY RETURNS them.
+   The backend sends fields the type denies.
+
+**NEXT TASK IN ORDER:**
+1. Finish + verify Buckets 1-6 (unblocks the other agent's editor-ui: their 166
+   remaining vue-tsc errors are ALL waiting on this).
+2. **E19-execution-annotations** — the last Phase-E item, and it also unblocks
+   A10: `start.test.ts` collects 0 tests solely because `server.ts:35` imports
+   the missing `annotation-tags.controller.ee`. FROZEN CONTRACT from the A11
+   agent is in `/tmp/agent-comms.md` on host `n8n` (message
+   "FROZEN annotation contract for E19"), key points:
+   - tags CRUD at `/rest/annotation-tags` (generic `createTagsStore` base),
+     name <= 24 chars
+   - `PATCH /rest/executions/:id` `{tags?: string[], vote?: 'up'|'down'|null,
+     note?: string}`, upsert ONE annotation per execution
+   - PATCH MUST return the FULL updated `ExecutionSummary` (scopes + embedded
+     annotation), NOT a bare annotation — the surviving store does
+     `addExecution(response)`
+   - `note` must appear in the embedded `annotation` on list/get AND PATCH
+   - ALSO MINE: add `note?: string` to `ExecutionSummary.annotation` in
+     `packages/workflow`
+   - the annotation store/api SURVIVED as fair-code (only the 4 Vue components
+     were purged), so those clients pin the routes exactly
+   - restore what A8b stripped from `@n8n/db` execution.repository.ts
+     (serializeAnnotation, includeAnnotation across 4 findSingleExecution
+     overloads + findIfShared, the softDeletePrunableExecutions exclusion
+     subquery, the raw-SQL WithAnnotations list flow)
+3. A10-cli-green sweep (also resolves issue #8).
+
+**AGREED WITH THE A11 AGENT:** merge **E19 before their A11 PR #22**, so
+annotations aren't dark on master. They are watching agent-comms AND
+origin/master and will auto-resume.
+
+**OPEN ISSUES:** #7 node-rsa override (needs Greg's call — repo-wide dep pin),
+#8 tags authz (A10), #13 unshare cleanup (@n8n/db + own gate), #18 decide
+`expectedVersionId` (A11 agent owns the FE half), #20 multi-main fencing
+(architectural).
+
+**AWAITING GREG:** the annotations (A) drop override — standing policy is
+rebuild, which is what both agents are doing; cheapest to reverse before E19.
