@@ -1407,10 +1407,11 @@ surviving fair-code leans the other way:
   cheap way to mint five distinct users. The sibling test at line 55 uses
   `owner` and passes.
 
-So the likely fix is to switch those two specs to an entitled role, **not** to
-widen `GLOBAL_MEMBER_SCOPES`. Do not add the scopes without deciding this:
-widening a role grant on the strength of a stale spec is the one change here
-that is genuinely hard to walk back.
+**SETTLED 2026-08-11 on `fix/mcp-api-key-spec-roles`** (stacked on E20): the
+specs were wrong, the role grant was not. Both now use entitled users
+(`createAdmin()` / `global:admin`) and keep their uniqueness intent, and a new
+test pins the real behaviour — a member gets **403** from `GET /mcp/api-key`.
+File is **29/29** (was 26/28). `GLOBAL_MEMBER_SCOPES` was left alone.
 
-**ORDER ON RESUME:** settle the 2 specs above (spec fix vs. grant) → A10's 31
-errors → A12 → A13. C2 (the actual agent) only after A12.
+**ORDER ON RESUME:** A10's 31 errors → A12 → A13. C2 (the actual agent) only
+after A12.

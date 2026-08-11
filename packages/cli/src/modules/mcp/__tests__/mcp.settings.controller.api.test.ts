@@ -19,17 +19,19 @@ import { Container } from '@n8n/di';
 
 import { McpSettingsService } from '@/modules/mcp/mcp.settings.service';
 import { createFolder } from '@test-integration/db/folders';
-import { createMember, createOwner, createUser } from '@test-integration/db/users';
+import { createAdmin, createMember, createOwner, createUser } from '@test-integration/db/users';
 import { setupTestServer } from '@test-integration/utils';
 
 const testServer = setupTestServer({ endpointGroups: ['mcp'] });
 
 let owner: User;
 let member: User;
+let admin: User;
 
 beforeAll(async () => {
 	owner = await createOwner();
 	member = await createMember();
+	admin = await createAdmin();
 });
 
 afterEach(async () => {
@@ -64,16 +66,25 @@ describe('GET /mcp/api-key', () => {
 		expect(secondApiKey.slice(-4)).toBe(firstApiKey.slice(-4));
 	});
 
+	// Both users must hold `mcpApiKey:create`, which is a settings-management
+	// scope — a member is refused here, and that is the subject of the
+	// authorization test below rather than a second case to cover in this one.
 	test('should return different API keys for different users', async () => {
 		const ownerResponse = await testServer.authAgentFor(owner).get('/mcp/api-key');
-		const memberResponse = await testServer.authAgentFor(member).get('/mcp/api-key');
+		const adminResponse = await testServer.authAgentFor(admin).get('/mcp/api-key');
 
 		expect(ownerResponse.statusCode).toBe(200);
-		expect(memberResponse.statusCode).toBe(200);
+		expect(adminResponse.statusCode).toBe(200);
 
-		expect(ownerResponse.body.data.apiKey).not.toBe(memberResponse.body.data.apiKey);
+		expect(ownerResponse.body.data.apiKey).not.toBe(adminResponse.body.data.apiKey);
 		expect(ownerResponse.body.data.userId).toBe(owner.id);
-		expect(memberResponse.body.data.userId).toBe(member.id);
+		expect(adminResponse.body.data.userId).toBe(admin.id);
+	});
+
+	test('should refuse a user without the mcpApiKey:create scope', async () => {
+		const response = await testServer.authAgentFor(member).get('/mcp/api-key');
+
+		expect(response.statusCode).toBe(403);
 	});
 
 	test('should require authentication', async () => {
@@ -177,7 +188,8 @@ describe('MCP API Key Security', () => {
 		const keys = new Set<string>();
 
 		for (let i = 0; i < 5; i++) {
-			const user = await createUser({ role: { slug: 'global:member' } });
+			// Admins, not members: minting a key needs `mcpApiKey:create`.
+			const user = await createUser({ role: { slug: 'global:admin' } });
 			const response = await testServer.authAgentFor(user).get('/mcp/api-key');
 			keys.add(response.body.data.apiKey);
 		}

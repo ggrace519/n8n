@@ -97,14 +97,29 @@ tests mock the module wholesale, so nothing else exercises it — confirming all
 26 named exports resolve across the CJS boundary and that real SDK code parses
 into workflow JSON.
 
-The 2 remaining failures are in `mcp.settings.controller.api.test.ts`, newly
-*exposed* rather than caused: that file could not load before. Both mint users
-with role `global:member` and 403 on `GET /mcp/api-key`, which requires
-`mcpApiKey:create`. Which side is wrong is unsettled and deliberately left
-alone — `custom-role-scopes.ts` files that scope under `settings.Manage`, and
-the editor-UI gates the whole MCP settings page on it, so the likely fix is the
-two specs (they are really asserting key uniqueness and pick `global:member`
-only to mint distinct users) rather than widening a role grant.
+### 2026-08-11 — Two MCP API-key specs asked the wrong role for a personal key
+
+Newly *exposed* by the rebuild above rather than caused by it:
+`mcp.settings.controller.api.test.ts` could not load at all while
+`@n8n/ai-workflow-builder` was missing. With it back, two of its 28 specs failed
+— both mint users with role `global:member` and get 403 from
+`GET /mcp/api-key`, which is guarded by `@GlobalScope('mcpApiKey:create')`.
+
+**The specs were wrong, not the role grant.** `mcpApiKey:create`/`rotate` are
+filed under `settings.Manage` in `custom-role-scopes.ts`, and editor-UI's
+`features/ai/mcpAccess/module.descriptor.ts` gates the entire MCP settings page
+on holding one of them — so a plain member is never offered an MCP key in the
+first place. Both specs are really asserting key **uniqueness**; `global:member`
+was just a cheap way to mint distinct users, and their sibling test uses `owner`
+and passed throughout.
+
+Switched both to entitled users (`createAdmin()` / `global:admin`), preserving
+what they actually test, and **added the assertion that was missing**: a member
+gets 403 from `GET /mcp/api-key`. That authorization boundary was previously
+unpinned in either direction, which is why a spec could drift onto the wrong
+role unnoticed. `GLOBAL_MEMBER_SCOPES` is untouched — widening a role grant on
+the strength of a stale spec is the one change here that would have been hard to
+walk back. File now **29/29**.
 
 **A10 is still red, and not because of this.** `pnpm --filter n8n build` now
 gets past module resolution and fails on **31 pre-existing `src/` errors** in
