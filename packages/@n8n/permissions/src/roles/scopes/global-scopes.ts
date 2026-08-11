@@ -33,7 +33,12 @@ export const GLOBAL_ADMIN_SCOPES: Scope[] = [...VISIBLE_SCOPES];
  * resources through their personal project's scopes.
  */
 export const GLOBAL_MEMBER_SCOPES: Scope[] = [
-	...pick(['tag', 'annotationTag'], ['create', 'read', 'update', 'delete', 'list']),
+	// Workflow tags are instance-wide: a member may add and rename them, but
+	// deleting one strips it from every workflow on the instance, so that stays
+	// with owners/admins. Annotation tags keep `delete` — they belong to the
+	// execution-annotation flow members own.
+	...pick(['tag'], ['create', 'read', 'update', 'list']),
+	...pick(['annotationTag'], ['create', 'read', 'update', 'delete', 'list']),
 	// Only GLOBAL variables: project-variable visibility comes from project
 	// roles, so members never see variables of projects they are not in.
 	...pick(['variable'], ['read', 'list']),
