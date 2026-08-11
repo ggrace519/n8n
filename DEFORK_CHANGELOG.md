@@ -16,6 +16,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-11 — `packages/cli` builds green (A10); member tag deletion revoked (#8)
+
+**Fixed — `packages/cli` could not build.** The fair-code rebuild of the
+sharing-aware workflow service (E14) gave
+`EnterpriseWorkflowService.addOwnerAndSharings` a generic constraint of
+`shared?: Array<{ role: string; project: ProjectSummary & Record<string, unknown> }>`.
+A TypeORM entity instance is not assignable to an index signature, so passing a
+`WorkflowEntity` failed the constraint and `pnpm --filter n8n build` stopped at
+`tsc`. The intersection was never used — `toProjectSummary` reads only
+`id`/`type`/`name`/`icon` — and removing it clears all five errors in
+`workflows.controller.ts`. `pnpm --filter n8n build` now completes all four
+steps; `build:data` reached `createRole.generated.yml` for the first time and
+filled in its scope enum (checked-in generated output, deterministic).
+
+*Clean-room source:* the fair-code consumer (`workflows.controller.ts`), the
+`@n8n/db` entity definitions, and a type probe against this repo's own code.
+
+**Fixed — a member could delete any workflow tag on the instance (#8).** The
+fair-code `@n8n/permissions` rebuild (A1–A6) picked the full CRUD bundle for
+`tag` and `annotationTag` in a single call, so `GLOBAL_MEMBER_SCOPES` carried
+`tag:delete`. Because workflow tags are instance-wide, a member could remove a
+tag from every workflow on the instance via `DELETE /tags/:id`. The two
+resources are now picked separately and only `tag:delete` is revoked;
+`tag:create`/`tag:update` and all of `annotationTag` stay with members.
+
+*Clean-room source:* the surviving fair-code consumer tests
+(`public-api/tags.test.ts`, which already asserted 403 for a non-owner) and
+editor-ui's `useAnnotationTagPermissions` gate.
+
+**Known gap recorded (E21):** the public API `users` handler is still purged.
+`src/public-api/v1/handlers/users/` carries its `spec/` but no handler, and the
+spec still declares `x-eov-operation-handler: …/users.handler.ee` — the last
+`.ee` specifier left in the public API. The router's containment logic keeps the
+failure scoped to `/users`, which returns 500 until the handler is rebuilt.
+
 ### 2026-08-11 — Rebuilt the purged `@n8n/ai-workflow-builder` package (E20)
 
 The purge removed `@n8n/ai-workflow-builder.ee` but left its fair-code consumers

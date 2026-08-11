@@ -1415,3 +1415,74 @@ File is **29/29** (was 26/28). `GLOBAL_MEMBER_SCOPES` was left alone.
 
 **ORDER ON RESUME:** A10's 31 errors → A12 → A13. C2 (the actual agent) only
 after A12.
+
+## 2026-08-11 — A10 DONE: cli builds green; #8 fixed; users handler gap found
+
+**Board: 33/42** (E21 added, see below).
+
+**A10's real error count was 5, not 31.** The prior session measured 31 before
+E20 landed; with module resolution restored, `source-control-import.service.ts`
+(12 × TS6138), `test-runner.service.ts` and `source-control-status.service.ts`
+are all clean. Every remaining error sat in `workflows.controller.ts`.
+
+**Root cause — one dead type, on `fix/cli-build-green`.**
+`EnterpriseWorkflowService.addOwnerAndSharings` constrained its generic to
+`shared?: Array<{ role: string; project: ProjectSummary & Record<string, unknown> }>`.
+A TypeORM entity instance is **not assignable to an index signature**, so
+`WorkflowEntity` failed the constraint. A three-way probe isolated it: `role:
+string` accepts `WorkflowEntity`, a bare `ProjectSummary` accepts it, only the
+`& Record<string, unknown>` half rejects. The intersection was never
+load-bearing — `toProjectSummary` reads `id`/`type`/`name`/`icon` only.
+
+Deleting it cleared all 5 at once, and the two "unused `@ts-expect-error`"
+TS2578s resolved **the opposite way to how they look**: once `T` infers as
+`WorkflowEntity`, `shared` is non-optional, so `delete` needs those directives
+again. They were never stale.
+
+`pnpm --filter n8n build` now exits 0 through all four steps. `build:data` had
+never run in this tree; it filled in the scope enum in
+`createRole.generated.yml` (tracked, deterministic across repeat runs).
+
+**A10's other two clauses, which the build does not cover:**
+- `.ee` sweep clean — 0 files/dirs; the 3 textual hits are provenance comments.
+- **#8 fixed** on `fix/tags-member-delete-scope` (stacked).
+
+**#8 root cause: `GLOBAL_MEMBER_SCOPES` picked `tag` and `annotationTag` in one
+`pick`**, handing members `tag:delete` — an instance-wide delete. The surviving
+fair-code test already pinned the contract (`non-owner should not delete tag`,
+403 + row survives) and was failing 200. Split the pick; dropped `delete` from
+`tag` only.
+
+**`annotationTag:delete` was a forced call, not a side effect** — same `pick`.
+Kept for members: editor-ui gates its delete control on that scope
+(`useAnnotationTagPermissions`), and annotation tags belong to the
+execution-annotation flow members own. Revoking it would have broken a live
+flow with **no test to catch it**. `tag:create`/`update` also stay — the same
+spec requires a member to create a tag (201).
+
+**Why nothing caught this:** the `scope-information` snapshot enumerates the
+scope *catalog*, not per-role sets. 110/110 permissions tests passed before and
+after, with no snapshot change.
+
+**E21 ADDED — the public API users handler is still purged.**
+`src/public-api/v1/handlers/users/` has `spec/` but **no `users.handler.ts`** —
+the only one of 24 resources missing its handler. Its spec paths still declare
+`x-eov-operation-handler: v1/handlers/users/users.handler.ee`, the **last
+remaining `.ee` specifier in the public API**. A prior session's
+`isContainableHandlerLoadError` contains the load failure on purpose, so
+`/users` routes 500 in isolation rather than poisoning the whole v1 router —
+working as designed, but the rebuild never happened and was tracked nowhere.
+Symptom: `endpoints-with-scopes-enabled.test.ts` **12 failed / 60 passed**,
+every failure in the users block, 500 regardless of scope.
+**Proven pre-existing** — identical 12/60 with the tag change stashed.
+
+**VERIFIED:** cli typecheck 5 → 0; `pnpm --filter n8n build` exit 0 (twice,
+before and after the scope change); `pnpm test src/workflows` 496/496 across 29
+files; `public-api/tags.test.ts` 24/24 (was 23/24); `tags.api` +
+`annotation-tags.api` 15/15; `@n8n/permissions` 110/110; eslint 0 errors.
+
+**Neither branch is pushed.** `fix/cli-build-green` → `fix/tags-member-delete-scope`,
+both stacked on `fix/mcp-api-key-spec-roles`.
+
+**ORDER ON RESUME:** A12 (full build + boot smoke) → A13. E21 whenever the
+public API users routes are wanted; C2 only after A12.

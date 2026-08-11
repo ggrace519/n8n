@@ -267,15 +267,21 @@
       "verified": "2026-08-11: REBUILT as packages/@n8n/ai-workflow-builder (no .ee). Layers 1-3 fully functional; layer 4 is a loud-failing seam by Greg's decision -- real class shape/constructor/lifecycle, chat() and getBuilderInstanceCredits() throw AiBuilderUnavailableError, session ops that can answer truthfully from storage do so, and getSessions throws rather than reporting [] when a conversation exists it cannot render. Routes stay registered behind @Licensed('feat:aiBuilder') (403 by default); ai.controller.ts already re-emits mid-stream errors so the editor renders the explanation. VERIFIED against the same tree with the package removed: cli 'Cannot find module' errors 10 -> 0; cli typecheck total 80 -> 68 with ZERO new errors and 2 pre-existing cascading ones fixed; start.test.ts 0 tests collected -> 9 passed (the recorded symptom); mcp-scopes.test.ts (NOT mocked -- the real layer-1 check) file-failed -> 15 passed, its two drift guards confirming toolName values; mcp.settings.controller.api.test.ts file-failed/28-skipped -> 26 passed; cli MCP+workflow-builder+builder-service 1224/1226. New package 62 tests, typecheck+lint clean. CORRECTED THE MOCKS: several give CODE_BUILDER_VALIDATE_TOOL.toolName as 'validate_workflow_code' but the registered name is 'validate_workflow' (mcp-scopes.ts grants by it); taking the mock at face value would have made the tool unreachable for every scoped credential. VERIFY CLAUSE CORRECTED: was 'pnpm --filter n8n build', which this item can never satisfy alone -- that build now fails on 31 PRE-EXISTING src errors (source-control-import.service.ts x12 unused injected deps, workflows.controller.ts x5, evaluation/test-runner, source-control-status.service.ts) that belong to A10. NEWLY EXPOSED, UNRESOLVED (not a regression -- this file could not load before): 2 specs in mcp.settings.controller.api.test.ts fail. Mechanism is certain: they mint users with role global:member, GET /mcp/api-key is guarded by @GlobalScope('mcpApiKey:create'), and GLOBAL_MEMBER_SCOPES does not carry it, so they 403. WHICH SIDE IS WRONG IS NOT SETTLED, and the evidence leans toward the specs: custom-role-scopes.ts files mcpApiKey:create/rotate under settings.Manage (admin-level), and editor-ui's mcp module.descriptor.ts gates the whole MCP settings page on ['mcp:manage','mcp:oauth','mcpApiKey:create','mcpApiKey:rotate'], so no personal MCP-key control is surfaced to a plain member. Both specs are really asserting key UNIQUENESS and use global:member only as a cheap way to mint distinct users -- the sibling test at line 55 uses owner and passes. Likely fix is to switch those two to an entitled role, NOT to widen GLOBAL_MEMBER_SCOPES; do not add the scopes without deciding this, since widening a role grant on a stale spec is hard to walk back."
     },
     {
+      "id": "E21-public-api-users-handler",
+      "phase": "E",
+      "title": "Rebuild the purged public API users handler fair-code",
+      "passes": false,
+      "verify": "cd packages/cli && pnpm test:integration test/integration/public-api/endpoints-with-scopes-enabled.test.ts",
+      "notes": "`src/public-api/v1/handlers/users/` has spec/ but NO users.handler.ts — the only resource of 24 missing one. Its spec paths still declare `x-eov-operation-handler: v1/handlers/users/users.handler.ee`, the last remaining .ee specifier in the public API. `isContainableHandlerLoadError` contains the load failure by design, so /users routes 500 in isolation instead of poisoning the v1 router. Symptom: endpoints-with-scopes-enabled.test.ts 12 failed / 60 passed, every failure in the users block returning 500 regardless of scope. PROVEN PRE-EXISTING (identical 12/60 with the tag-scope change stashed). Rebuild clean-room from the spec yml + the sibling handlers; repoint the two x-eov-operation-handler lines off .ee. WHY IT STAYED INVISIBLE: `no-import-enterprise-edition` only inspects TS/JS import/re-export/dynamic-import nodes, so a `.ee` specifier inside a YAML `x-eov-operation-handler` is not linted. Worth a guard (grep or rule) when E21 lands."
+    },
+    {
       "id": "A10-cli-green",
       "phase": "A",
       "title": "packages/cli typechecks & builds (all .ee consumers rewired to fair-code)",
-      "passes": false,
+      "passes": true,
       "verify": "pnpm --filter n8n build",
-      "notes": "Gate for the whole E phase. Also sweep cli test files that import purged .ee (delete or repoint like A8d).",
-      "closes_issues": [
-        "#8"
-      ],
+      "notes": "Gate met: `pnpm --filter n8n build` exits 0 (all four steps; `build:data` reached `createRole.generated.yml` for the first time). Root cause was a dead `& Record<string, unknown>` in `addOwnerAndSharings`' generic constraint — a TypeORM entity is not assignable to an index signature. .ee sweep clean (0 files/dirs; 3 textual hits are provenance comments). #8 fixed separately on fix/tags-member-delete-scope. NOTE: the public-API users handler is still purged — see E21; that is spec-level, not a cli build failure.",
+      "closes_issues": [],
       "blocked_by": "E20-ai-workflow-builder-pkg"
     },
     {
