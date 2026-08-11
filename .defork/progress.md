@@ -1389,15 +1389,28 @@ the code that used them was almost certainly `.ee`), `workflows.controller.ts`
 `source-control-status.service.ts`. **E20's verify clause was corrected** — it
 was `pnpm --filter n8n build`, a gate this item can never satisfy alone.
 
-**BUG FOUND, ROOT CAUSE PROVEN, NOT YET FIXED.** `GLOBAL_MEMBER_SCOPES`
-(`packages/@n8n/permissions/src/roles/scopes/global-scopes.ts`) lacks
-`mcpApiKey:create` and `mcpApiKey:rotate`, so a member cannot mint their own MCP
-API key — `GET /mcp/api-key` is guarded by `@GlobalScope('mcpApiKey:create')`.
-Two surviving specs assert members get distinct keys; both fail. The key is a
-personal resource, so this is a missing grant, not an over-grant. Never present
-in post-rewrite history, so it is a gap in the fair-code `@n8n/permissions`
-rebuild (`719c876ab4`), same family as **#26**. Fix is two scopes; awaiting
-Greg's call on issue-then-stacked-branch.
+**2 SPECS NEWLY EXPOSED — MECHANISM CERTAIN, VERDICT NOT.** Not a regression:
+`mcp.settings.controller.api.test.ts` could not load at all before this change
+(28 skipped), and now runs 26/28. The two failures mint users with role
+`global:member`; `GET /mcp/api-key` is guarded by
+`@GlobalScope('mcpApiKey:create')`, and `GLOBAL_MEMBER_SCOPES` does not carry
+it, so they 403.
 
-**ORDER ON RESUME:** the member-scope fix (stacked) → A10's 31 errors → A12 →
-A13. C2 (the actual agent) only after A12.
+**I first recorded this as a proven missing grant. That was overstated** — the
+surviving fair-code leans the other way:
+- `custom-role-scopes.ts` files `mcpApiKey:create`/`rotate` under
+  **`settings.Manage`**, the admin bundle.
+- editor-ui's `features/ai/mcpAccess/module.descriptor.ts` gates the entire MCP
+  settings page on `['mcp:manage','mcp:oauth','mcpApiKey:create','mcpApiKey:rotate']`,
+  so no personal MCP-key control is surfaced to a plain member anyway.
+- Both specs are really asserting key **uniqueness**; `global:member` is just a
+  cheap way to mint five distinct users. The sibling test at line 55 uses
+  `owner` and passes.
+
+So the likely fix is to switch those two specs to an entitled role, **not** to
+widen `GLOBAL_MEMBER_SCOPES`. Do not add the scopes without deciding this:
+widening a role grant on the strength of a stale spec is the one change here
+that is genuinely hard to walk back.
+
+**ORDER ON RESUME:** settle the 2 specs above (spec fix vs. grant) → A10's 31
+errors → A12 → A13. C2 (the actual agent) only after A12.

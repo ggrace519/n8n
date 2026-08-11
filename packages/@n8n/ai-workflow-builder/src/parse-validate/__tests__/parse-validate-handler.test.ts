@@ -1,6 +1,6 @@
 import type { INodeType, INodeTypes } from 'n8n-workflow';
 
-import { WorkflowCodeParseError } from '../errors';
+import { WorkflowCodeParseError, WorkflowValidationError } from '../errors';
 import { ParseValidateHandler } from '../parse-validate-handler';
 import { getWarningKey } from '../warning-key';
 
@@ -9,6 +9,17 @@ const nodeTypesProvider: INodeTypes = {
 	getByName: () => ({}) as INodeType,
 	getByNameAndVersion: () => ({}) as INodeType,
 	getKnownTypes: () => ({}),
+};
+
+/** Declares a parameter that refuses `placeholder()`, which is a fatal error. */
+const strictNodeTypesProvider: INodeTypes = {
+	...nodeTypesProvider,
+	getByNameAndVersion: () =>
+		({
+			description: {
+				properties: [{ name: 'url', builderHint: { placeholderSupported: false } }],
+			},
+		}) as unknown as INodeType,
 };
 
 const handler = new ParseValidateHandler({ generatePinData: false, nodeTypesProvider });
@@ -35,6 +46,25 @@ describe('ParseValidateHandler', () => {
 			);
 
 			expect(result.warnings.map((w) => w.code)).toContain('MISSING_TRIGGER');
+		});
+
+		/**
+		 * The branch that matters most: `create_workflow_from_code` reads only
+		 * `result.workflow` and persists it. If a workflow with fatal errors came
+		 * back as a value instead of a throw, that caller would write it to the
+		 * database without ever looking at the errors.
+		 */
+		it('throws rather than returning a workflow that failed validation', async () => {
+			const strict = new ParseValidateHandler({
+				generatePinData: false,
+				nodeTypesProvider: strictNodeTypesProvider,
+			});
+			const code = `export default workflow('wf-id', 'My Workflow').add(${TRIGGER}.to(node({ type: 'n8n-nodes-base.httpRequest', version: 1, config: { parameters: { url: placeholder('the endpoint') } } })))`;
+
+			const error = await strict.parseAndValidate(code).catch((e: Error) => e);
+
+			expect(error).toBeInstanceOf(WorkflowValidationError);
+			expect((error as WorkflowValidationError).errors.join(' ')).toContain('placeholder()');
 		});
 
 		it('throws rather than returning a partial workflow for unparseable code', async () => {

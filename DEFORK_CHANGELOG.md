@@ -87,10 +87,24 @@ upstream MCP surface calls `get_sdk_reference`.
 | `mcp.settings.controller.api.test.ts` | file failed, 28 skipped | **26 passed** |
 | `mcp-scopes.test.ts` (unmocked drift guards) | file failed | **15 passed** |
 
-`packages/cli` MCP + workflow-builder + builder-service suites: **1224/1226**
-(the 2 remaining are a pre-existing member-scope gap, unrelated — see below).
-New package: **62 tests**, typecheck and lint clean. No new typecheck errors
+`packages/cli` MCP + workflow-builder + builder-service suites: **1224/1226**.
+New package: **63 tests**, typecheck and lint clean. No new typecheck errors
 introduced anywhere, and two pre-existing cascading ones fixed.
+
+The parse path was also driven end-to-end through the same
+`await import('@n8n/ai-workflow-builder')` the MCP tools use — those tools' own
+tests mock the module wholesale, so nothing else exercises it — confirming all
+26 named exports resolve across the CJS boundary and that real SDK code parses
+into workflow JSON.
+
+The 2 remaining failures are in `mcp.settings.controller.api.test.ts`, newly
+*exposed* rather than caused: that file could not load before. Both mint users
+with role `global:member` and 403 on `GET /mcp/api-key`, which requires
+`mcpApiKey:create`. Which side is wrong is unsettled and deliberately left
+alone — `custom-role-scopes.ts` files that scope under `settings.Manage`, and
+the editor-UI gates the whole MCP settings page on it, so the likely fix is the
+two specs (they are really asserting key uniqueness and pick `global:member`
+only to mint distinct users) rather than widening a role grant.
 
 **A10 is still red, and not because of this.** `pnpm --filter n8n build` now
 gets past module resolution and fails on **31 pre-existing `src/` errors** in
