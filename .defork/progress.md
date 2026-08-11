@@ -1331,3 +1331,73 @@ needs Greg's call on a repo-wide pin).
 
 **ORDER ON RESUME:** E20 layers 1–3 → read the A11 reply → design layer 4 with
 Greg → A10 → A12 → A13. C2 only after A12.
+
+## 2026-08-11 — E20 DONE: `@n8n/ai-workflow-builder` rebuilt fair-code
+
+**Board: 32/41.** Branch `feat/e20-ai-workflow-builder`, not pushed.
+
+**Built `packages/@n8n/ai-workflow-builder`** (no `.ee`), single CJS build
+mirroring `@n8n/workflow-sdk` rather than `ai-utilities`' dual ESM/CJS — the
+only consumer is `packages/cli`, which is CJS, and the SDK it depends on is
+CJS-only. Deps kept to four: `@langchain/core`, `@n8n/utils`,
+`@n8n/workflow-sdk`, `n8n-workflow`.
+
+**Layers 1–3 are real.** The MCP builder tools parse and validate actual SDK
+code again; the session repository has its contract back. Layer 2 is
+orchestration over `@n8n/workflow-sdk` (`parseWorkflowCodeToBuilder`,
+`validateWorkflow`, `ValidationWarning`) — no parsing or validation was
+reimplemented.
+
+**Layer 4 is a loud-failing seam** (Greg's call, both options taken as
+recommended). Real 13-arg constructor and lifecycle; `chat()` and
+`getBuilderInstanceCredits()` throw `AiBuilderUnavailableError`; storage-only
+operations run for real. `getSessions` throws rather than reporting `[]` when a
+conversation exists — those turns are in the agent's encoding and telling a user
+their history is empty is a different, wrong statement. Routes stay registered.
+
+**THREE THINGS THE CONTRACT DERIVATION GOT WRONG, now proven:**
+- `CODE_BUILDER_VALIDATE_TOOL.toolName` is **`validate_workflow`**, not the
+  mocks' `validate_workflow_code`. `mcp-scopes.ts` grants by it and
+  `mcp-scopes.test.ts` (unmocked) has drift guards both ways. The mocks are
+  authoritative for `displayTitle` only — `mcp-scopes.ts` owns `toolName`.
+- `parseAndValidate` **throws** on invalid input; there is no `errors` field on
+  its result. Consumers report failures from their `catch`. Parse failures must
+  carry `name === 'WorkflowCodeParseError'` or `getSdkReferenceHint` silently
+  drops the hint that tells a failing client how to recover.
+- `reranker` is in the SDK's import line and in the AST interpreter's
+  `sdkFunctions` table, but is **not** re-exported from `@n8n/workflow-sdk`'s
+  index. A test written against package exports fails; the interpreter's table
+  is what actually resolves these names. Anchored the test to the SDK's own
+  `WORKFLOW_PATTERNS_DETAILED` instead.
+
+**VERIFIED** against the same tree with the package stashed out: cli
+`Cannot find module` 10 → **0**; cli typecheck total 80 → **68**, with a
+line-by-line diff showing **zero new errors** and 2 pre-existing cascading ones
+fixed; `start.test.ts` **0 → 9 tests** (the recorded symptom, closed);
+`mcp-scopes.test.ts` file-failed → **15 passed**;
+`mcp.settings.controller.api.test.ts` file-failed/28-skipped → **26 passed**;
+cli MCP + workflow-builder + builder-service **1224/1226**. New package **62
+tests**, typecheck and lint clean.
+
+**A10 IS RED FOR OTHER REASONS — this is the next real finding.**
+`pnpm --filter n8n build` now clears module resolution and fails on **31
+pre-existing `src/` errors** that have nothing to do with this package:
+`source-control-import.service.ts` (12 × TS6138, unused injected dependencies —
+the code that used them was almost certainly `.ee`), `workflows.controller.ts`
+(5 × `ProjectSummary`/`shared` mismatches plus 2 stale `@ts-expect-error`),
+`evaluation/test-runner/test-runner.service.ts`, and
+`source-control-status.service.ts`. **E20's verify clause was corrected** — it
+was `pnpm --filter n8n build`, a gate this item can never satisfy alone.
+
+**BUG FOUND, ROOT CAUSE PROVEN, NOT YET FIXED.** `GLOBAL_MEMBER_SCOPES`
+(`packages/@n8n/permissions/src/roles/scopes/global-scopes.ts`) lacks
+`mcpApiKey:create` and `mcpApiKey:rotate`, so a member cannot mint their own MCP
+API key — `GET /mcp/api-key` is guarded by `@GlobalScope('mcpApiKey:create')`.
+Two surviving specs assert members get distinct keys; both fail. The key is a
+personal resource, so this is a missing grant, not an over-grant. Never present
+in post-rewrite history, so it is a gap in the fair-code `@n8n/permissions`
+rebuild (`719c876ab4`), same family as **#26**. Fix is two scopes; awaiting
+Greg's call on issue-then-stacked-branch.
+
+**ORDER ON RESUME:** the member-scope fix (stacked) → A10's 31 errors → A12 →
+A13. C2 (the actual agent) only after A12.

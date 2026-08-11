@@ -16,6 +16,90 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-11 — Rebuilt the purged `@n8n/ai-workflow-builder` package (E20)
+
+The purge removed `@n8n/ai-workflow-builder.ee` but left its fair-code consumers
+in place — eight production files in `packages/cli` still imported it. The
+package therefore had to exist for `packages/cli` to compile at all, and its
+absence was why `start.test.ts` collected **0** tests.
+
+**Rebuilt fair-code as `packages/@n8n/ai-workflow-builder`** (no `.ee`), in four
+parts:
+
+1. **Tool descriptors** — the 11 `{ toolName, displayTitle }` constants naming
+   the workflow-builder tools, plus `SDK_IMPORT_STATEMENT`.
+2. **Parse / validate** — `ParseValidateHandler`, `stripImportStatements`,
+   `getWarningKey`, and a re-export of `ValidationWarning`. Orchestration only;
+   the parsing and validation themselves are `@n8n/workflow-sdk`'s.
+3. **Session storage** — `ISessionStorage`, `StoredSession`, `LangchainMessage`,
+   `isLangchainMessagesArray`.
+4. **Builder service** — `AiWorkflowBuilderService`, `ChatPayload`,
+   `ResourceLocatorCallbackFactory`, `createPassthroughSsrfGuard`.
+
+**Parts 1–3 are fully functional.** The MCP workflow-builder tools
+(`validate_workflow`, `create_workflow_from_code`, `update_workflow`, the SDK
+reference) parse and validate real SDK code again, and the builder session
+repository has its contract back.
+
+**Part 4 ships as a loud-failing seam, by decision.** The LLM agent is *not*
+rebuilt here — that is the AI Workflow Composer's job (item C2), which is
+correctly downstream. What is rebuilt is the real class shape, constructor, and
+lifecycle, so C2 drops an agent in rather than re-threading thirteen
+dependencies through `packages/cli`. Operations that need the agent — `chat`,
+`getBuilderInstanceCredits` — throw `AiBuilderUnavailableError`. Operations that
+can be answered truthfully from storage — `clearSession`, and `getSessions` /
+`truncateMessagesAfter` when there is no stored conversation — run for real.
+Where a stored conversation *does* exist, `getSessions` throws rather than
+report `[]`: those turns are in the agent's own encoding and cannot be rendered
+without it, and claiming a user's history is empty is a different, wrong
+statement. `/ai/build` stays registered behind `@Licensed('feat:aiBuilder')`
+(off by default → 403); if enabled, `ai.controller.ts` re-emits the error into
+the response stream, so the editor shows the explanation. Nothing returns an
+empty-but-successful result — the failure mode that made the
+`OWNER_API_KEY_SCOPES` defect above so hard to see.
+
+**Clean-room sources.** No `.ee` body, history, or upstream was read.
+`toolName` literals come from `packages/cli/src/modules/mcp/mcp-scopes.ts`,
+which grants access by them; `displayTitle` from each tool's own surviving test;
+the export list from the ~12 `vi.mock('@n8n/ai-workflow-builder', …)` blocks;
+`ISessionStorage`/`StoredSession` from `workflow-builder-session.repository.ts`,
+which declares `implements ISessionStorage`; `ChatPayload` from
+`ai.controller.ts`, which builds it inline, with field types from
+`@n8n/api-types`' `AiBuilderChatRequestDto`; parse/validate behaviour from
+`@n8n/workflow-sdk`'s public exports; and the stream framing from the surviving
+editor-UI client.
+
+**One mock was wrong and the drift guard proves it.** Several test mocks give
+`CODE_BUILDER_VALIDATE_TOOL.toolName` as `validate_workflow_code`. The registered
+name is `validate_workflow` — `mcp-scopes.ts` grants by that, and
+`mcp-scopes.test.ts` (which does *not* mock this package) fails if the two
+disagree. Taking the mock at face value would have made the tool unreachable for
+every scoped credential. Same for `get_workflow_sdk_reference`, which the live
+upstream MCP surface calls `get_sdk_reference`.
+
+**Verified**, each against the same tree with the package removed:
+
+| Check | Before | After |
+|---|---|---|
+| `packages/cli` typecheck, `Cannot find module` errors | 10 | **0** |
+| `packages/cli` typecheck, total errors | 80 | **68** |
+| `start.test.ts` tests collected | 0 | **9 passed** |
+| `mcp.settings.controller.api.test.ts` | file failed, 28 skipped | **26 passed** |
+| `mcp-scopes.test.ts` (unmocked drift guards) | file failed | **15 passed** |
+
+`packages/cli` MCP + workflow-builder + builder-service suites: **1224/1226**
+(the 2 remaining are a pre-existing member-scope gap, unrelated — see below).
+New package: **62 tests**, typecheck and lint clean. No new typecheck errors
+introduced anywhere, and two pre-existing cascading ones fixed.
+
+**A10 is still red, and not because of this.** `pnpm --filter n8n build` now
+gets past module resolution and fails on **31 pre-existing `src/` errors** in
+`source-control-import.service.ts` (12 unused injected dependencies),
+`workflows.controller.ts` (5), `evaluation/test-runner`, and
+`source-control-status.service.ts`. These are separate de-fork fallout and are
+A10's scope; E20's own verify clause has been corrected accordingly, since the
+whole-build gate was never something this item could satisfy alone.
+
 ### 2026-08-10 — 13 more API-key scopes were ungrantable, taking three public APIs down (#24)
 
 Follow-up to the eight below, and the larger half of the same defect. A public
