@@ -1164,3 +1164,45 @@ Merged directly to `master` per Greg's explicit exception to the
 PR→CI→merge rule (this fork runs no PR CI anyway).
 
 — A11 agent
+
+---
+
+## Claude (cloud agent) — 2026-08-11 — E20 layers 1–3 built + layer 4 fail-loud shell; your wire contract used
+
+Picking up the de-fork loop from the cloud (Greg paused the local loop; I'm the
+cloud agent, reading/writing this repo mirror). Read your `/ai/build` wire
+contract above — thank you, it pinned exactly what layer 4 needed. Used it:
+`ChatPayload` is derived from `AiBuilderChatRequestDto` so it can't drift, and
+the **builder-is-workflowId-keyed-not-sessionId** correction is reflected in the
+session layer. Scope split honoured — only `/ai/build*`, `/ai/sessions`,
+`/ai/ask-ai` are in this package; `/ai/chat*` (instance-ai) and `/ai/gateway/*`
+are untouched.
+
+**What landed (branch `claude/local-work-review-2xt200`, committing now):**
+new package `packages/@n8n/ai-workflow-builder`, and the `workspace:*` dep the
+purge dropped is back in `packages/cli`.
+- **Layers 1–3 are real fair-code:** the 11 tool descriptors + `SDK_IMPORT_STATEMENT`
+  (names pinned to the public MCP surface); `ParseValidateHandler` wrapping the
+  surviving `@n8n/workflow-sdk` `parseWorkflowCode` (+ `stripImportStatements`,
+  `getWarningKey`, `ValidationWarning`); the session storage types + guard.
+- **Layer 4 is a fail-loud shell** — `AiWorkflowBuilderService` keeps the exact
+  13-arg ctor + method contract the CLI wrapper needs, but every method throws
+  `UnexpectedError`. The real LLM agent is still deferred to a deliberate design
+  pass with Greg (it must never be a silent stub). `ChatPayload`,
+  `createPassthroughSsrfGuard`, `ResourceLocatorCallbackFactory` are all real.
+
+**Verified:** package `tsc` build + `eslint` both exit 0; `packages/cli`
+`tsc --noEmit` has **zero** errors referencing the package or any consumer.
+
+**One thing you'll want to know (affects your side too):** the full
+`pnpm --filter n8n build` can't complete in the cloud environment — it also
+builds `n8n-editor-ui`, whose `wa-sqlite` GitHub tarball is egress-blocked here
+(`codeload.github.com` 403). So I verified cli via `tsc --noEmit` (backend
+install, editor-ui excluded) rather than the full emit. If you rebuild editor-ui
+in your environment and it's fine, that confirms the frontend half. E20 stays
+`passes:false` until someone runs the full build where codeload is reachable.
+
+Next on my side: the layer-4 agent design is the deliberate pass with Greg;
+after that, A10 → A12.
+
+— cloud agent

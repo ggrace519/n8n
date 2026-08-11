@@ -2530,3 +2530,66 @@ sso-oidc errors; `eslint src/modules/sso-oidc
 src/public-api/v1/handlers/sso-oidc --quiet` exit 0, no rule disables.
 `oidc.instance-settings-loader.test.ts` remains blocked on the missing
 `modules/provisioning.ee/constants` import (provisioning rebuild scope).
+
+## 2026-08-11 — E20: `@n8n/ai-workflow-builder` package rebuilt fair-code (layers 1–3 + fail-loud layer 4)
+
+### Added
+Rebuilt the purged `@n8n/ai-workflow-builder` package clean-room, so every
+surviving fair-code consumer (`packages/cli`) resolves its imports again. New
+package at `packages/@n8n/ai-workflow-builder` (single `tsc` build, mirrors
+`@n8n/instance-ai`); re-added the `workspace:*` dependency to `packages/cli`
+that the purge had dropped. Four layers:
+
+- **Layer 1 — tool descriptors + SDK constant** (`src/constants.ts`): the 11
+  `{toolName, displayTitle}` descriptors and `SDK_IMPORT_STATEMENT`. Each MCP
+  tool registration sets its `name` to a descriptor's `toolName`, so those
+  values are pinned to the public n8n MCP surface (`search_nodes`,
+  `get_node_types`, `validate_workflow`, `validate_node_config`,
+  `get_sdk_reference`, `explore_node_resources`, `get_workflow_best_practices`,
+  `archive_workflow`, `update_workflow`, `create_workflow_from_code`);
+  `get_suggested_nodes` is the one code-builder-only tool with no public route.
+- **Layer 2 — parse/validate** (`src/parse-validate/`): `ParseValidateHandler`
+  (wraps the surviving fair-code `parseWorkflowCode` from `@n8n/workflow-sdk`;
+  `parseAndValidate` → `{workflow, warnings}`, `validateJSON` → warnings for
+  unrecognised node types), `stripImportStatements`, `getWarningKey`
+  (location key `code|nodeName|parameterPath`), `ValidationWarning`.
+- **Layer 3 — session storage** (`src/session/`): `ISessionStorage`,
+  `LangchainMessage` (`BaseMessage`), `StoredSession`, and
+  `isLangchainMessagesArray` (fully pinned by the CLI's
+  `WorkflowBuilderSessionRepository`).
+- **Layer 4 — builder agent surface** (`src/builder/`): `AiWorkflowBuilderService`
+  with the exact 13-arg constructor and method contract the CLI wrapper depends
+  on, plus `ChatPayload` (derived from `AiBuilderChatRequestDto` so it stays in
+  lockstep), `createPassthroughSsrfGuard`/`WebFetchSsrfGuard`, and
+  `ResourceLocatorCallbackFactory`. **The service is a deliberate fail-loud
+  placeholder**: every method throws `UnexpectedError`. The real LLM agent was
+  not rebuilt here — its design is deferred to a deliberate pass (it drives an
+  LLM behind `feat:aiBuilder` and must never be a silent stub). Reaching any
+  method means `feat:aiBuilder` was licensed against a build without the agent,
+  which surfaces as an error rather than pretending to work.
+
+**Clean-room sources:** the fair-code consumers only — the ~13
+`vi.mock('@n8n/ai-workflow-builder', …)` blocks and the src importers under
+`packages/cli/src/modules/mcp/tools/workflow-builder/`,
+`packages/cli/src/modules/workflow-builder/`,
+`packages/cli/src/services/ai-workflow-builder.service.ts`, and
+`packages/cli/src/controllers/ai.controller.ts`; the `/ai/*` wire contract the
+A11 frontend agent posted to `.defork/agent-comms.md`; the public n8n MCP tool
+surface; and this repo's own fair-code SDK (`@n8n/workflow-sdk`). No enterprise
+source or history was consulted.
+
+**Verification:** `@n8n/ai-workflow-builder` `tsc` build → exit 0 (compiles
+against the real dependency types); `eslint . --quiet` → exit 0, no rule
+disables; `packages/cli` `tsc --noEmit` → **zero** errors referencing the
+package or any consumer file (`ai.controller.ts`, the `workflow-builder` MCP
+tools, `ai-workflow-builder.service.ts`, `workflow-builder-session.repository.ts`
+all typecheck against it); `grep -ran '\.ee'` over `src` = 0. The consumer unit
+tests mock the module, so they specify the contract (which the compiler now
+enforces) but do not exercise the real implementation — there is no surviving
+behavioural spec for the package. The full `pnpm --filter n8n build` (the E20
+gate command) could not be run to completion **in this environment** because it
+also builds `n8n-editor-ui`, whose `wa-sqlite` GitHub-tarball dependency is
+blocked by the session's egress policy (`codeload.github.com` 403) — an
+unrelated frontend concern. E20 stays `passes:false` pending that full build in
+an environment with codeload access; the package's own deliverable (imports
+resolve, consumers typecheck, package builds + lints) is complete.

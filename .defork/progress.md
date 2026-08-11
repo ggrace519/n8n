@@ -1331,3 +1331,54 @@ needs Greg's call on a repo-wide pin).
 
 **ORDER ON RESUME:** E20 layers 1–3 → read the A11 reply → design layer 4 with
 Greg → A10 → A12 → A13. C2 only after A12.
+
+## 2026-08-11 — E20 layers 1–3 built + layer 4 fail-loud shell (cloud agent)
+
+**WHAT.** Rebuilt the purged `@n8n/ai-workflow-builder` at
+`packages/@n8n/ai-workflow-builder` (single `tsc` build, mirrors instance-ai);
+re-added the `workspace:*` dep the purge dropped from `packages/cli`. Layers 1–3
+real fair-code (tool descriptors + `SDK_IMPORT_STATEMENT`; `ParseValidateHandler`
+wrapping `@n8n/workflow-sdk` `parseWorkflowCode` + `stripImportStatements`/
+`getWarningKey`/`ValidationWarning`; `ISessionStorage`/`LangchainMessage`/
+`StoredSession`/`isLangchainMessagesArray`). Layer 4 a **fail-loud shell**:
+`AiWorkflowBuilderService` keeps the exact 13-arg ctor + method contract, every
+method throws `UnexpectedError`; `ChatPayload` (derived from
+`AiBuilderChatRequestDto`), `createPassthroughSsrfGuard`,
+`ResourceLocatorCallbackFactory` real. Used the A11 agent's `/ai/build` wire
+contract from `.defork/agent-comms.md` (builder is workflowId-keyed, not
+sessionId; scope split — only `/ai/build*`,`/ai/sessions`,`/ai/ask-ai` are E20).
+
+**WHY / KEY FACTS.**
+- Contract came from the ~13 `vi.mock('@n8n/ai-workflow-builder', …)` blocks +
+  the src importers (mcp/tools/workflow-builder/*, workflow-builder-session
+  .repository, services/ai-workflow-builder.service, controllers/ai.controller).
+  Tests MOCK the module, so they pin the contract but never exercise the real
+  code — the compiler is the only spec. Tool-name values are pinned to the
+  public n8n MCP surface (each MCP tool registers `name: <descriptor>.toolName`).
+- Layer 2 is a wrapper: `@n8n/workflow-sdk`'s fair-code `parseWorkflowCode`
+  already does SDK-code→WorkflowJSON; the handler adds node-type warnings +
+  pin-data option. Its warning semantics are clean-room (no running test pins
+  them).
+- Lint gotchas (nodeConfig): `promise-function-async` + `require-await` both on,
+  so a Promise stub must be async AND await something → used `await Promise.resolve()`;
+  `chat` is a non-generator returning `AsyncGenerator` (throws) to dodge
+  require-yield; `void` only legal as a generic arg → `SsrfCheckResult =
+  Result<void,Error>` from `@n8n/utils/result`; `callback`/`cb` are id-denylisted.
+
+**VERIFIED.** pkg `tsc` build exit 0 (compiles vs real dep types); `eslint .`
+exit 0; `packages/cli` `tsc --noEmit` = ZERO errors referencing the package or
+any consumer (68 remaining errors are all pre-existing, unrelated subsystems:
+roles/Scope fixtures, source-control unused-vars, saml/scaling/multi-main tests,
+workflows.controller #18, evaluation). `grep -ran '\.ee'` over pkg src = 0.
+
+**BLOCKER (environment, not E20).** The literal gate `pnpm --filter n8n build`
+can't complete here: it also builds `n8n-editor-ui`, whose `wa-sqlite` github
+tarball is egress-blocked (`codeload.github.com` 403, per /root/.ccr/README —
+"report, don't route around"). Verified cli via `tsc --noEmit` after a
+backend-only install (`--filter "n8n..." --filter "!n8n-editor-ui"`). E20 stays
+`passes:false` until the full emit runs where codeload is reachable.
+
+**NEXT.** Layer 4's real LLM agent is the deliberate design pass with Greg
+(`AiWorkflowBuilderService.chat` streaming, license gating, session persistence
+format — the one "NOT PINNED" hole in the A11 contract). Then A10 → A12. C2 only
+after A12.
