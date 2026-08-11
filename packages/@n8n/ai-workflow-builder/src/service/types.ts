@@ -1,3 +1,4 @@
+import type { AiBuilderChatRequestDto, SelectedNodeContext } from '@n8n/api-types';
 import type {
 	INodeCredentials,
 	INodeListSearchResult,
@@ -10,31 +11,27 @@ import type {
 } from 'n8n-workflow';
 
 /**
+ * A node the user selected or focused, so the builder can prioritise it.
+ *
+ * Re-exported from `@n8n/api-types` rather than redeclared: the request DTO
+ * exports this shape, so a local copy would be a second definition free to
+ * drift from the wire contract it is supposed to mirror.
+ */
+export type { SelectedNodeContext };
+
+/**
  * A resolved expression the editor evaluated for the user.
  *
- * Structurally mirrors the interface of the same name in `@n8n/api-types`,
- * which the request DTO uses but does not re-export. Kept local rather than
- * pulling in that package for one shape; the controller assigns the DTO value
- * straight into {@link ChatPayload}, so any drift fails `packages/cli`'s
- * typecheck at the call site rather than passing silently.
+ * Kept local because — unlike {@link SelectedNodeContext} — `@n8n/api-types`
+ * declares this interface but does **not** re-export it from the package root.
+ * The controller assigns the DTO value straight into {@link ChatPayload}, so
+ * any drift fails `packages/cli`'s typecheck at the call site rather than
+ * passing silently.
  */
 export interface ExpressionValue {
 	expression: string;
 	resolvedValue: unknown;
 	nodeType?: string;
-}
-
-/**
- * A node the user selected or focused, so the builder can prioritise it.
- *
- * Local for the same reason as {@link ExpressionValue}.
- */
-export interface SelectedNodeContext {
-	/** Display name; look the full node up in `currentWorkflow.nodes`. */
-	name: string;
-	issues?: Record<string, string[]>;
-	incomingConnections: string[];
-	outgoingConnections: string[];
 }
 
 /**
@@ -54,31 +51,37 @@ export interface ChatWorkflowContext {
 	selectedNodes?: SelectedNodeContext[];
 }
 
+/** The validated wire payload the `/ai/build` controller receives. */
+type BuilderRequestPayload = AiBuilderChatRequestDto['payload'];
+
 /**
  * One turn of a builder conversation, as the service receives it.
  *
  * The controller assembles this from `AiBuilderChatRequestDto`; it is not the
- * request body itself. Notably the request's `text` arrives here as `message`.
+ * request body itself. Notably the request's `text` arrives here as `message`,
+ * and transport-only fields (`role`, `type`) are dropped.
+ *
+ * Every field is **derived from the DTO** rather than restated, so the wire
+ * contract and this shape cannot drift apart: a change to the request schema
+ * either flows through here or fails the build.
  */
 export interface ChatPayload {
 	/** Client-generated message id, echoed back so the UI can match responses. */
-	id: string;
-	message: string;
+	id: BuilderRequestPayload['id'];
+	/** The user's message text — the DTO's `text`, renamed. */
+	message: BuilderRequestPayload['text'];
 	workflowContext: ChatWorkflowContext;
-	featureFlags?: {
-		pinData?: boolean;
-		mergeAskBuild?: boolean;
-	};
+	featureFlags?: BuilderRequestPayload['featureFlags'];
 	/** Workflow version current when the message was sent, for restore. */
-	versionId?: string;
+	versionId?: BuilderRequestPayload['versionId'];
 	/** `plan` proposes steps for approval first; `build` generates directly. */
-	mode?: 'build' | 'plan';
+	mode?: BuilderRequestPayload['mode'];
 	/**
 	 * Opaque value resuming an interrupted run (plan approval, an answered
 	 * question, a web-fetch decision). Deliberately untyped — the editor does not
 	 * pin an exhaustive schema, so narrowing it here would reject valid clients.
 	 */
-	resumeData?: unknown;
+	resumeData?: BuilderRequestPayload['resumeData'];
 }
 
 /**
