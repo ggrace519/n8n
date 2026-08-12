@@ -789,7 +789,8 @@ overrides:
   pg: 8.21.0
   file-type: 21.3.3
   linkify-it@<=5.0.1: 5.0.1
-  node-rsa: 2.0.0
+  '@n8n_io/license-sdk>node-rsa': 2.0.0
+  samlify>node-rsa: ^1.1.1
   '@turbo/darwin-64@<=2.9.18': 2.9.18
   '@turbo/linux-64@<=2.9.18': 2.9.18
   '@turbo/windows-64@<=2.9.18': 2.9.18
@@ -18972,6 +18973,9 @@ packages:
 
   node-releases@2.0.27:
     resolution: {integrity: sha512-nmh3lCkYZ3grZvqcCH+fjmQ7X+H0OeZgP40OierEaAptX4XofMh5kwNbWh7lBduUzCcV/8kZ+NDLCwm2iorIlA==}
+
+  node-rsa@1.1.1:
+    resolution: {integrity: sha512-Jd4cvbJMryN21r5HgxQOpMEqv+ooke/korixNNK3mGqfGJmy0M77WDDzo/05969+OkMy3XW1UuZsSmW9KQm7Fw==}
 
   node-rsa@2.0.0:
     resolution: {integrity: sha512-7yfzccmBd5rm7pALJf709tPwLL987WvdT7LC/QK5Oxa5S2aabdBPjxRDxhWKkbfCc9/FiC82lwSc+ulGZHH44g==}
@@ -37727,6 +37731,10 @@ snapshots:
 
   node-releases@2.0.27: {}
 
+  node-rsa@1.1.1:
+    dependencies:
+      asn1: 0.2.6
+
   node-rsa@2.0.0:
     dependencies:
       '@noble/hashes': 2.2.0
@@ -39648,7 +39656,7 @@ snapshots:
     dependencies:
       '@authenio/xml-encryption': 2.0.2
       '@xmldom/xmldom': 0.8.13
-      node-rsa: 2.0.0
+      node-rsa: 1.1.1
       xml: 1.0.1
       xml-crypto: 6.1.2
       xml-escape: 1.1.0
