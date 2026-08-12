@@ -16,6 +16,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-12 — Signed SAML requests fixed (#7); the app boots (A12); allowlist pruned
+
+**Fixed — signed outbound SAML requests produced a signature IdPs reject (#7).**
+The repo-wide `"node-rsa": "2.0.0"` override existed for `@n8n_io/license-sdk`
+v3, but overrides apply to every consumer, and `samlify@2.13.0` declares
+`^1.1.1`. Across that major boundary two things break its signing path:
+`sign()` returns a `Uint8Array` rather than a `Buffer`, so samlify's
+`.toString('base64')` yields a comma-separated decimal list; and the default
+signing scheme moved from PKCS#1 v1.5 to RSASSA-PSS, which is not what SAML
+redirect binding advertises. pnpm 10 per-parent overrides now satisfy both
+consumers at once (`samlify>node-rsa` on the v1 line, `@n8n_io/license-sdk>node-rsa`
+on v2). Affects the opt-in `N8N_ENV_FEAT_SIGNED_SAML_REQUESTS` feature; inbound
+verification was never affected, as samlify verifies through `xml-crypto`.
+
+*Note for future dependency work:* node-rsa's own `MIGRATION.md` states the
+Node return type is unchanged `Buffer`. That is inaccurate for the published
+v2.0.0 build — only executing it surfaced the difference.
+
+**Verified — the rebuilt application actually boots (A12).** A full `pnpm build`
+completes, and a real instance against SQLite serves `/healthz`, `/rest/settings`
+and the editor UI, with `/rest/login` and `/api/v1/workflows` correctly refusing
+unauthenticated callers.
+
+**Changed — pruned ESLint allowlist entries for files the purge removed.** Nine
+ratchet-allowlist entries in `packages/cli/eslint.config.mjs` pointed at files
+that no longer exist, which misleads readers into thinking a rule is still
+suppressed somewhere real. One of them carried no `.ee` in its name and so was
+invisible to a `.ee` search; an existence-based guard found it. Removing the
+exclusions unmasked one genuine pre-existing lint error in `project.service.ts`
+(a type assertion that changed nothing), now fixed.
+
 ### 2026-08-11 — `packages/cli` builds green (A10); member tag deletion revoked (#8)
 
 **Fixed — `packages/cli` could not build.** The fair-code rebuild of the
