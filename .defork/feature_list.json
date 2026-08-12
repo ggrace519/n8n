@@ -269,10 +269,10 @@
     {
       "id": "E21-public-api-users-handler",
       "phase": "E",
-      "title": "Rebuild the purged public API users handler fair-code",
-      "passes": false,
+      "title": "Rebuild the purged public API users handler fair-code (landed as a controller)",
+      "passes": true,
       "verify": "cd packages/cli && pnpm test:integration test/integration/public-api/endpoints-with-scopes-enabled.test.ts",
-      "notes": "`src/public-api/v1/handlers/users/` has spec/ but NO users.handler.ts — the only resource of 24 missing one. Its spec paths still declare `x-eov-operation-handler: v1/handlers/users/users.handler.ee`, the last remaining .ee specifier in the public API. `isContainableHandlerLoadError` contains the load failure by design, so /users routes 500 in isolation instead of poisoning the v1 router. Symptom: endpoints-with-scopes-enabled.test.ts 12 failed / 60 passed, every failure in the users block returning 500 regardless of scope. PROVEN PRE-EXISTING (identical 12/60 with the tag-scope change stashed). Rebuild clean-room from the spec yml + the sibling handlers; repoint the two x-eov-operation-handler lines off .ee. WHY IT STAYED INVISIBLE: `no-import-enterprise-edition` only inspects TS/JS import/re-export/dynamic-import nodes, so a `.ee` specifier inside a YAML `x-eov-operation-handler` is not linted. Worth a guard (grep or rule) when E21 lands."
+      "notes": "DONE by the cloud agent as a @PublicApiController migration rather than a tuple handler — the original brief was wrong to point at tags.handler.ts, which is a BASELINED LEGACY file, not a template: eslint.config.mjs says 'NEVER add to this list'. A controller carries no x-eov-operation-handler, so the 5 .ee specifier lines are GONE rather than repointed, and the hand-written spec is replaced by decorator-generated *.generated.yml. Verified by the lead: endpoints-with-scopes-enabled 72/72 (was 12 failed/60 passed), public-api/users 20/20, cli public-api unit 210/210 incl. generated-spec-drift, build exit 0, and ZERO .ee specifiers left in the public API. Both .ee provenance guards activated in the same change (they were held because they legitimately failed until this landed)."
     },
     {
       "id": "A10-cli-green",
