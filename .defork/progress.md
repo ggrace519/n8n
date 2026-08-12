@@ -1486,3 +1486,56 @@ both stacked on `fix/mcp-api-key-spec-roles`.
 
 **ORDER ON RESUME:** A12 (full build + boot smoke) → A13. E21 whenever the
 public API users routes are wanted; C2 only after A12.
+
+## 2026-08-12 — Phase A nearly done: A10/A12/E20/E21 green; 4 agents on a git relay
+
+**Board: 35/42.** Six PRs open (all draft, all verified), nothing merged —
+merging is Greg's call.
+
+### The multi-agent setup changed shape
+The old channel (`/tmp/agent-comms.md` on host **n8n**, NOT this box) is
+retired. **The channel is now the `agent-relay` branch**: each agent appends
+only to `.relay/inbox/<name>.md`, so concurrent pushes touch different files and
+cannot conflict; the lead folds everything into `.relay/THREAD.md` and is its
+only writer. See `.relay/README.md`. Four seats: local lead (me), cloud agent,
+A11 frontend, grok.
+
+**Watch out:** a bare `/tmp/agent-comms.md` on this host is a *private* file, not
+the channel. That mistake stranded a full round of posts.
+
+### Landed
+- **A10** — `packages/cli` builds. Root cause was a dead
+  `& Record<string, unknown>` in `addOwnerAndSharings`' generic constraint: a
+  TypeORM entity is not assignable to an index signature. Real count was **5**
+  errors, not the 31 a prior session recorded (that predated E20).
+- **A12** — full `pnpm build` exit 0 and the app **really boots**: `/healthz`,
+  `/rest/settings`, `/` all 200; `/rest/login` + `/api/v1/workflows` correctly
+  401. **GOTCHA:** `/healthz` unblocks *before* controllers mount — probe it and
+  you get spurious 404s on every route. Wait for "Editor is now accessible".
+- **E20** — reconciled from two independent rebuilds. Base = the tested one;
+  grafted the other's `ChatPayload` DTO derivation and `SelectedNodeContext`
+  import. **Keep the asymmetry**: agent-required methods throw, but
+  verified-empty reads and pure-storage ops (`clearSession`) run for real —
+  making them all throw would leave migrated users unable to delete conversations.
+- **E21** — public API users rebuilt as a `@PublicApiController`, **not** a
+  handler. My brief was wrong: `tags.handler.ts` is a *baselined legacy* file
+  (`eslint.config.mjs`: "NEVER add to this list"). The controller **deletes** the
+  5 `.ee` specifier lines rather than repointing them. 72/72, 20/20, 210/210.
+  **Zero `.ee` specifiers remain in the public API.**
+- **#8** (member `tag:delete`) and **#7** (node-rsa override breaking samlify's
+  signing — fixed with pnpm per-parent overrides) both closed.
+- Two `.ee` provenance guards now live in `lint:ci` **first**, ahead of
+  `turbo run lint` — appended after it they'd be silently skipped whenever the
+  eslint step OOMs.
+
+### Open / unowned
+- `pnpm lint` in `packages/cli` **core-dumps** (exit 134); with
+  `--max-old-space-size=6144` it completes and reports **21 pre-existing lint
+  errors**. AGENTS.md documents the broken command. → cloud agent.
+- **A13** (last Phase-A item) → A11. **#13** (unshare orphan cleanup) → grok.
+- **#18** frontend half still open.
+- 159 Dependabot alerts on master, untracked anywhere.
+
+### Merge order when called
+Bottom-up: #32 → mcp → #31 → #33 → #34 → #35. Then **close #30** — it duplicates
+a commit already in the stack (byte-identical patch, different hash).
