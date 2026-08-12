@@ -15,7 +15,6 @@ import {
 	hasGlobalScope,
 	PROJECT_ADMIN_ROLE_SLUG,
 	PROJECT_OWNER_ROLE_SLUG,
-	type AssignableProjectRole,
 	type Scope,
 } from '@n8n/permissions';
 import { UserError } from 'n8n-workflow';
@@ -451,7 +450,7 @@ export class ProjectService {
 	/** @throws {UnlicensedProjectRoleError} when a role is not licensed on this instance. */
 	private checkRolesLicensed(roles: string[]) {
 		for (const role of new Set(roles)) {
-			if (!this.roleService.isRoleLicensed(role as AssignableProjectRole)) {
+			if (!this.roleService.isRoleLicensed(role)) {
 				throw new UnlicensedProjectRoleError(role);
 			}
 		}
