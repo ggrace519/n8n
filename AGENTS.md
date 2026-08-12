@@ -135,6 +135,22 @@ range they name, so a vulnerable version outside it survives — after any
 security bump, verify the **resolved** versions in the lockfile rather than
 trusting the floor in the manifest.
 
+### Building in a fresh worktree: the error names the wrong culprit
+
+In a tree whose workspace deps aren't built yet, failures point at innocent
+code. Both of these were mistaken for regressions in an unrelated change:
+
+- `Rolldown failed to resolve import "n8n-workflow"` when building `editor-ui`
+  — means `packages/workflow/dist` doesn't exist, not a bundler problem.
+- `TS2353: 'level' does not exist in type 'ExecutionBaseErrorOptions'` in
+  `packages/workflow` — a knock-on of `TS2307: Cannot find module '@n8n/errors'`;
+  the options type resolves stale when `@n8n/errors` isn't built first.
+
+**Use `pnpm build` (turbo), which orders the dependency graph correctly.**
+`pnpm --filter <pkg> build` and even `pnpm --filter <pkg>... build` do not
+reliably build prerequisites here. Before blaming a diff for a build error in a
+fresh worktree, reproduce it on the base commit.
+
 ### Testing
 - `pnpm test` - Run all tests
 - `pnpm test:affected` - Runs tests based on what has changed since the last
