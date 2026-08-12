@@ -124,8 +124,6 @@ export default defineConfig(
 			'./src/public-api/v1/handlers/discover/discover.handler.ts',
 			'./src/public-api/v1/handlers/evaluations/evaluations.handler.ts',
 			'./src/public-api/v1/handlers/projects/projects.handler.ts',
-			'./src/public-api/v1/handlers/users/users.handler.ee.ts',
-			'./src/public-api/v1/handlers/users/users.service.ee.ts',
 			'./src/public-api/v1/handlers/workflows/workflows.handler.ts',
 		],
 		rules: {
@@ -158,7 +156,6 @@ export default defineConfig(
 			'./src/public-api/v1/handlers/sso-oidc/sso-oidc.handler.ts',
 			'./src/public-api/v1/handlers/sso-saml/sso-saml.handler.ts',
 			'./src/public-api/v1/handlers/tags/tags.handler.ts',
-			'./src/public-api/v1/handlers/users/users.handler.ee.ts',
 			'./src/public-api/v1/handlers/variables/variables.handler.ts',
 			'./src/public-api/v1/handlers/workflows/workflows.handler.ts',
 		],
@@ -242,7 +239,6 @@ export default defineConfig(
 			'./src/controllers/project.controller.ts',
 			'./src/eventbus/message-event-bus/message-event-bus.ts',
 			'./src/public-api/v1/handlers/tags/tags.handler.ts',
-			'./src/public-api/v1/handlers/users/users.service.ee.ts',
 			'./src/public-api/v1/handlers/workflows/workflows.handler.ts',
 			// modules/** non-persistence services surfaced by narrowing the exemption
 			'./src/modules/agents/agent-knowledge.service.ts',
