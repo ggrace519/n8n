@@ -27,6 +27,31 @@ const LICENSE_RENEWAL_DISABLED_WARNING =
 /** The license server rejects device fingerprints shorter than this. */
 const MIN_DEVICE_FINGERPRINT_LENGTH = 32;
 
+/**
+ * Features this de-forked build ships unconditionally. This fork removed the
+ * Enterprise (`.ee`) code these license gates once protected, so the gates now
+ * guard nothing — each listed feature is fully-functional fair-code, and leaving
+ * it gated would only hide a working feature behind a license nobody in this
+ * build can hold (A13). Folders and Insights both compute from local data, so
+ * they work the moment they're on. Kept as an explicit list, rather than
+ * deleting the gate at every call site, so the ungate is auditable in one place
+ * and trivially reversible. This is the true chokepoint: `@Licensed(...)` route
+ * enforcement, `LicenseState` (whose provider is this class), and the deprecated
+ * `is*Enabled()` shims all resolve through `isLicensed`/`getValue` here.
+ */
+const FAIR_CODE_LICENSED_FEATURES: readonly BooleanLicenseFeature[] = [
+	LICENSE_FEATURES.FOLDERS,
+	LICENSE_FEATURES.INSIGHTS_VIEW_SUMMARY,
+	LICENSE_FEATURES.INSIGHTS_VIEW_DASHBOARD,
+	LICENSE_FEATURES.INSIGHTS_VIEW_HOURLY_DATA,
+];
+
+/** Numeric quotas those fair-code features need to be fully usable (an ungated
+ * Insights dashboard capped at 7 days of history is only half-open). */
+const FAIR_CODE_UNLIMITED_QUOTAS: readonly NumericLicenseFeature[] = [
+	LICENSE_QUOTAS.INSIGHTS_MAX_HISTORY_DAYS,
+];
+
 export type FeatureReturnType = Partial<
 	{
 		planName: string;
@@ -278,6 +303,7 @@ export class License implements LicenseProvider {
 	}
 
 	isLicensed(feature: BooleanLicenseFeature) {
+		if (FAIR_CODE_LICENSED_FEATURES.includes(feature)) return true;
 		return this.manager?.hasFeatureEnabled(feature) ?? false;
 	}
 
@@ -409,6 +435,9 @@ export class License implements LicenseProvider {
 	}
 
 	getValue<T extends keyof FeatureReturnType>(feature: T): FeatureReturnType[T] {
+		if ((FAIR_CODE_UNLIMITED_QUOTAS as readonly string[]).includes(feature as string)) {
+			return UNLIMITED_LICENSE_QUOTA as FeatureReturnType[T];
+		}
 		return this.manager?.getFeatureValue(feature) as FeatureReturnType[T];
 	}
 

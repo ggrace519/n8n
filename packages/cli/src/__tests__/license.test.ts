@@ -1,5 +1,6 @@
 import type { Logger } from '@n8n/backend-common';
 import { mockLogger } from '@n8n/backend-test-utils';
+import type { BooleanLicenseFeature } from '@n8n/constants';
 import type { GlobalConfig } from '@n8n/config';
 import type { SettingsRepository } from '@n8n/db';
 import { LicenseManager } from '@n8n_io/license-sdk';
@@ -149,6 +150,42 @@ describe('License', () => {
 		license.getValue(MOCK_FEATURE_FLAG);
 
 		expect(LicenseManager.prototype.getFeatureValue).toHaveBeenCalledWith(MOCK_FEATURE_FLAG);
+	});
+
+	describe('fair-code features are licensed unconditionally (A13)', () => {
+		// These features have no enterprise (.ee) code in this fork, so the gate
+		// guards nothing — isLicensed must return true without a license manager.
+		test.each([
+			'feat:folders',
+			'feat:insights:viewSummary',
+			'feat:insights:viewDashboard',
+			'feat:insights:viewHourlyData',
+		])('isLicensed(%s) is true without consulting the license manager', (feature) => {
+			vi.mocked(LicenseManager.prototype.hasFeatureEnabled).mockReturnValue(false);
+
+			expect(license.isLicensed(feature as BooleanLicenseFeature)).toBe(true);
+			expect(LicenseManager.prototype.hasFeatureEnabled).not.toHaveBeenCalledWith(feature);
+		});
+
+		test('a non-fair-code feature still delegates to the license manager', () => {
+			vi.mocked(LicenseManager.prototype.hasFeatureEnabled).mockReturnValue(false);
+
+			expect(license.isLicensed(MOCK_FEATURE_FLAG)).toBe(false);
+			expect(LicenseManager.prototype.hasFeatureEnabled).toHaveBeenCalledWith(MOCK_FEATURE_FLAG);
+		});
+
+		test('getValue returns unlimited for the insights history quota, without delegating', () => {
+			expect(license.getValue('quota:insights:maxHistoryDays')).toBe(-1);
+			expect(LicenseManager.prototype.getFeatureValue).not.toHaveBeenCalledWith(
+				'quota:insights:maxHistoryDays',
+			);
+		});
+
+		test('getValue still delegates for other feature values', () => {
+			license.getValue(MOCK_FEATURE_FLAG);
+
+			expect(LicenseManager.prototype.getFeatureValue).toHaveBeenCalledWith(MOCK_FEATURE_FLAG);
+		});
 	});
 
 	test('check management jwt', async () => {
