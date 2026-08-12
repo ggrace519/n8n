@@ -49,6 +49,17 @@ from 65 to 61, high from 26 to 23, with none newly introduced (counted as unique
 keys in `pnpm audit --json`; the CLI's text output counts paths, not advisories,
 so it reports a higher figure for the same tree).
 
+**Fixed — the minimatch, svgo and vite advisory ranges.** Three more of the same
+scoped-pin pattern. `minimatch` had overrides for `<=5.1.8` and `@10` while the
+resolved tree also carried 8.0.4 and 9.0.1, outside either pin and both
+vulnerable — `minimatch@8`/`minimatch@9` entries close them (9.0.9 was already
+present, so that one consolidates). `svgo` 3.3.2 → 3.3.4. `vite` is a **catalog**
+entry rather than an override target: its `^8.0.2` floor already permitted the
+fix, but the lock had pinned 8.0.2, so the floor moved to `^8.0.16` and
+resolution lands 8.2.1. Advisories 61 → 48, high 23 → 12, none introduced;
+editor-ui builds on the new vite (8968 modules) and design-system (1423) and
+n8n-core (1987) are unchanged.
+
 **Known remaining — `showdown` has no upstream fix and is accepted risk.** Three
 XSS advisories cover `showdown` ≤2.1.0 (`packages/nodes-base`), and 2.1.0 is the
 latest version its maintainers have published — there is nothing to bump to, so
@@ -71,9 +82,9 @@ below are current → patched, from `pnpm audit --prod --json`:
 | `element-plus` | 2.4.3 | 2.14.4 | `frontend/@n8n/design-system` |
 
 *Dev/tooling only — does not ship:* `js-yaml` 4.3.0 → ≥4.3.1 and `postcss`
-8.5.10 → ≥8.5.12 (`@n8n/ai-utilities`), `vite` 8.0.2 → ≥8.0.5
-(`@n8n/backend-test-utils`), `@eslint/plugin-kit` 0.3.2 → ≥0.3.4
-(`@n8n/eslint-config`).
+8.5.10 → ≥8.5.12 (`@n8n/ai-utilities`), `@eslint/plugin-kit` 0.3.2 → ≥0.3.4
+(`@n8n/eslint-config`). (`vite`, `minimatch` and `svgo` were on this list and are
+now fixed above.)
 
 Notes on the awkward ones, for whoever picks these up:
 
