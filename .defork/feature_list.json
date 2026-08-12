@@ -296,8 +296,9 @@
       "id": "A12-app-smoke",
       "phase": "A",
       "title": "Full build green + app boots (expand init.sh to full smoke)",
-      "passes": false,
-      "verify": "pnpm build && (node packages/cli/bin/n8n --version || <boot smoke>)"
+      "passes": true,
+      "verify": "pnpm build && (node packages/cli/bin/n8n --version || <boot smoke>)",
+      "notes": "Gate met on the E20-reconciled chain: full `pnpm build` exit 0 (incl. n8n-editor-ui, 19.41s); `node packages/cli/bin/n8n --version` -> 2.34.0 exit 0; and a real boot against a scratch sqlite serves /healthz 200, /rest/settings 200, / 200 (editor UI), with /rest/login and /api/v1/workflows correctly 401. GOTCHA for whoever expands the smoke: /healthz unblocks from abstract-server BEFORE the controllers mount, so polling healthz alone and probing immediately yields spurious 404s on every REST route and the editor. Wait for 'Editor is now accessible' in the log, or poll /rest/settings, before asserting anything."
     },
     {
       "id": "A13-ungate-faircode-features",
