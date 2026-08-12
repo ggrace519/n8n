@@ -136,8 +136,15 @@ export class SharedCredentialsRepository extends Repository<SharedCredentials> {
 		)?.project;
 	}
 
-	async getAllRelationsForCredentials(credentialIds: string[]) {
-		return await this.find({
+	/**
+	 * All project sharings for the given credentials. Pass `trx` when the
+	 * caller is mid-transaction (e.g. unshare cleanup) so the read observes
+	 * deletes that have not yet committed — without it, in-flight removals are
+	 * invisible and access checks falsely retain orphaned per-user entries.
+	 */
+	async getAllRelationsForCredentials(credentialIds: string[], trx?: EntityManager) {
+		const em = trx ?? this.manager;
+		return await em.find(SharedCredentials, {
 			where: {
 				credentialsId: In(credentialIds),
 			},

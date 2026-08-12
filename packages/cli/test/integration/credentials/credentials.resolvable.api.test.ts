@@ -554,6 +554,51 @@ describe('Sharing dynamic credentials', () => {
 		const sharings = await getCredentialSharings(resolvable);
 		expect(sharings.some((s) => s.role === 'credential:user')).toBe(false);
 	});
+
+	/**
+	 * Issue #13: unshare cleanup must drop per-user dynamic-credential entries
+	 * for members who only had access via the unshared project. The access check
+	 * used to read SharedCredentials outside the unshare transaction and still
+	 * saw the pre-delete row, so entries were retained.
+	 */
+	test('PUT /credentials/:id/share — removes orphaned per-user entries on unshare', async () => {
+		const entryRepository = Container.get(DynamicCredentialUserEntryRepository);
+		const resolvable = await saveResolvableCredential();
+
+		// Sharee project memberC only has access via this project (not the home project).
+		const shareeProject = await createTeamProject(undefined, memberA);
+		const memberC = await createMember();
+		await linkUserToProject(memberC, shareeProject, 'project:editor');
+		await shareCredentialWithProjects(resolvable, [shareeProject]);
+		await seedUserEntry(resolvable.id, memberC.id);
+
+		// Home-project editor keeps access after unshare — their entry must stay.
+		await seedUserEntry(resolvable.id, memberB.id);
+
+		expect(await entryRepository.countBy({ credentialId: resolvable.id, userId: memberC.id })).toBe(
+			1,
+		);
+		expect(await entryRepository.countBy({ credentialId: resolvable.id, userId: memberB.id })).toBe(
+			1,
+		);
+
+		await testServer
+			.authAgentFor(memberA)
+			.put(`/credentials/${resolvable.id}/share`)
+			.send({ shareWithIds: [] })
+			.expect(200);
+
+		const sharings = await getCredentialSharings(resolvable);
+		expect(sharings.some((s) => s.role === 'credential:user')).toBe(false);
+
+		// Orphaned sharee entry gone; home-project member still connected.
+		expect(await entryRepository.countBy({ credentialId: resolvable.id, userId: memberC.id })).toBe(
+			0,
+		);
+		expect(await entryRepository.countBy({ credentialId: resolvable.id, userId: memberB.id })).toBe(
+			1,
+		);
+	});
 });
 
 describe('POST /credentials — end-user credential creation is role-restricted', () => {

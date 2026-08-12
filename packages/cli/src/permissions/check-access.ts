@@ -71,9 +71,10 @@ export async function userHasScopes(
 
 	if (credentialId) {
 		const credentialRoles = await roleService.rolesWithScope('credential', scopes, trx);
+		// Thread trx so in-transaction unshare deletes are visible (issue #13).
 		const relations = await Container.get(
 			SharedCredentialsRepository,
-		).getAllRelationsForCredentials([credentialId]);
+		).getAllRelationsForCredentials([credentialId], trx);
 		if (relations.length === 0) {
 			throw new NotFoundError(`Credential with ID "${credentialId}" does not exist.`);
 		}
