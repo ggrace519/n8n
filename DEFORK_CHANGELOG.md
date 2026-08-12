@@ -23,7 +23,7 @@ uses it.** The security floors raised in `.github/scripts/package.json` (yaml
 `^2.9.0`, overrides `fast-uri@3` → 3.1.5 and a new `handlebars@4` → 4.7.9) were
 never written through to the lockfile beside it, so `pnpm install
 --frozen-lockfile --dir ./.github/scripts --ignore-workspace` — the exact command
-~10 workflows run — failed with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`, and the
+21 workflows run — failed with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`, and the
 resolved tree still carried the very versions those floors were meant to replace
 (fast-uri 3.1.4, handlebars 4.7.8, yaml 2.8.3). Regenerating the lockfile fixes
 both the CI failure and the unpatched versions.
@@ -44,20 +44,45 @@ advisory covers (`<=10.3.0`); since no patched 9.x exists, the fix is bumping
 socks to 2.8.9 (it already requires ip-address `^10.1.1`) rather than forcing a
 major. `nanoid` 3.3.8 came from the **workspace catalog**, which takes precedence
 over the overrides block, so its floor had to move in `pnpm-workspace.yaml`; the
-override still covers the transitive 3.3.11 reached via postcss. `pnpm audit`
-drops from 65 to 61 advisories (high 26 → 23) with no new advisories introduced.
+override still covers the transitive 3.3.11 reached via postcss. Advisories drop
+from 65 to 61, high from 26 to 23, with none newly introduced (counted as unique
+keys in `pnpm audit --json`; the CLI's text output counts paths, not advisories,
+so it reports a higher figure for the same tree).
 
 **Known remaining — `showdown` has no upstream fix and is accepted risk.** Three
 XSS advisories cover `showdown` ≤2.1.0 (`packages/nodes-base`), and 2.1.0 is the
 latest version its maintainers have published — there is nothing to bump to, so
 this needs a replacement or input mitigation rather than a version change.
 
-**Deferred — `element-plus` is fixable but out of scope here.** `pnpm audit`
-reports its patched range as `<0.0.0`, which reads as "no fix exists"; that field
-is misleading. The installed 2.4.3 is vulnerable (advisory covers ≤2.11.0) and
-2.14.4 is published, so a bump does resolve it — but ten minor versions of a UI
-component framework is a change that needs its own visual and interaction
-verification, not a ride-along on a dependency-patch branch.
+**Deferred — the remaining advisories all have published fixes, but each needs
+its own verification.** Left for follow-up branches rather than absorbed here,
+since they span unrelated packages and several cross a major version. Versions
+below are current → patched, from `pnpm audit --prod --json`:
+
+*Reaches shipped code:*
+
+| Package | Current | Patched | Consumer |
+| --- | --- | --- | --- |
+| `nodemailer` | 8.0.10 | ≥9.0.1 | `packages/cli` |
+| `@hono/node-server` | 1.19.13 | ≥2.0.5 | `@n8n/agents` |
+| `markdown-it` | 13.0.2 | ≥14.1.1 | `frontend/@n8n/chat` |
+| `sanitize-html` | 2.17.4 | ≥2.17.5 | `@n8n/nodes-langchain` |
+| `@tootallnate/once` | 1.1.2 | ≥2.0.1 | `@n8n/nodes-langchain` |
+| `element-plus` | 2.4.3 | 2.14.4 | `frontend/@n8n/design-system` |
+
+*Dev/tooling only — does not ship:* `js-yaml` 4.3.0 → ≥4.3.1 and `postcss`
+8.5.10 → ≥8.5.12 (`@n8n/ai-utilities`), `vite` 8.0.2 → ≥8.0.5
+(`@n8n/backend-test-utils`), `@eslint/plugin-kit` 0.3.2 → ≥0.3.4
+(`@n8n/eslint-config`).
+
+Two notes on the awkward ones. `nodemailer` is a **catalog** pin needing a major
+bump (8 → 9); it was deliberately left alone even though this change already
+edits the catalog for `nanoid`, because a mail-transport major belongs with its
+own send-path verification. `element-plus` is reported by `pnpm audit` with a
+patched range of `<0.0.0`, which reads as "no fix exists" — that field is
+misleading here: 2.14.4 is published and does resolve the advisory (which covers
+≤2.11.0), but ten minor versions of a UI component framework needs its own visual
+and interaction verification.
 
 ### 2026-08-12 — Signed SAML requests fixed (#7); the app boots (A12); allowlist pruned
 

@@ -110,6 +110,31 @@ by default) for a fast recovery: it cleans build outputs and force-rebuilds
 use `pnpm reset --full`, which also wipes untracked files and reinstalls
 dependencies.
 
+### Dependency changes (pnpm gotchas)
+
+Three behaviours that make a dependency edit look like it worked when it did
+not — all three have silently shipped vulnerable versions before:
+
+- **A successful `pnpm install` prints nothing.** The repo `.npmrc` sets
+  `loglevel = warn`, so silence plus exit 0 means success, not a command that
+  failed to run. Pass `--loglevel=info` when you need to watch resolution
+  actually happen.
+- **Catalog entries beat `pnpm.overrides`.** If a package is pinned in
+  `pnpm-workspace.yaml`'s `catalog:` (the lockfile shows
+  `specifier: 'catalog:'`), an override for it is silently ineffective — raise
+  the floor in the catalog instead. Overrides still cover transitive copies
+  that no catalog entry reaches.
+- **`.github/scripts` is not a workspace member.** It has its own
+  `package.json` and `pnpm-lock.yaml`, and a plain `pnpm install` from inside
+  it resolves the *root* workspace ("Scope: all 78 workspace projects") and
+  leaves that lockfile untouched. Use the form the 21 workflows use:
+  `pnpm install --dir ./.github/scripts --ignore-workspace`.
+
+Version-scoped pins (`ip-address@10`, `linkify-it@<=5.0.2`) only rewrite the
+range they name, so a vulnerable version outside it survives — after any
+security bump, verify the **resolved** versions in the lockfile rather than
+trusting the floor in the manifest.
+
 ### Testing
 - `pnpm test` - Run all tests
 - `pnpm test:affected` - Runs tests based on what has changed since the last
