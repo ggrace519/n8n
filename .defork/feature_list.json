@@ -303,8 +303,10 @@
     {
       "id": "A13-ungate-faircode-features",
       "phase": "A",
-      "title": "Ungate fair-code features that had no .ee (Insights, Folders, instance-ai) via LicenseState override",
-      "passes": false
+      "title": "Ungate fair-code features that had no .ee (Insights, Folders) via a License override",
+      "passes": false,
+      "verify": "unit test + boot: folders reachable via /rest/settings, insights via /rest/module-settings",
+      "notes": "TITLE CORRECTED 2026-08-12 — the original said 'via LicenseState override' and listed instance-ai. Both were wrong.\n(1) MECHANISM: the @Licensed decorator is enforced by `License.isLicensed` (controller.registry.ts:228), NOT LicenseState. A LicenseState-only override leaves all 8 folder routes 403 while the frontend shows folders enabled. Override `License.isLicensed` / `License.getValue` in packages/cli/src/license.ts — LicenseState's provider IS the License instance (base-command.ts:439), so that one place covers the decorator, the LicenseState wrappers and the deprecated shims.\n(2) SCOPE: instance-ai is OUT. It has zero .ee files like the others, but it proxies to an EXTERNAL AI service (url/apiKey in its types), so ungating surfaces a feature that fails at runtime without configuration — the opposite of the 'no friction for the common case' rule that justifies ungating folders/insights. It needs a configuration story of its own; plausibly C-series, not A13.\nUngate ALL insights facets incl. hourly + quota:insights:maxHistoryDays -> UNLIMITED, since a partial ungate gives a half-working dashboard with greyed date ranges. Frontend needs NO code change — gating is purely settings-derived. Found by the A11 agent; verified by the lead."
     },
     {
       "id": "B-eval-node",
