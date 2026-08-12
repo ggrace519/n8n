@@ -1,0 +1,18 @@
+operationId: deleteUser
+tags:
+  - User
+summary: Delete a user
+description: Delete a user from your instance.
+x-required-scope: user:delete
+x-eov-operation-id: unreachable
+x-eov-operation-handler: v1/handlers/decorator-routed.handler
+x-decorator-routed: true
+responses:
+  '204':
+    description: Operation successful.
+  '401':
+    $ref: ../../../../shared/spec/responses/unauthorized.yml
+  '403':
+    $ref: ../../../../shared/spec/responses/forbidden.yml
+  '404':
+    $ref: ../../../../shared/spec/responses/notFound.yml

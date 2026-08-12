@@ -259,6 +259,31 @@ export class UserService {
 		);
 	}
 
+	/**
+	 * List users (with their global role) for the public API, paginated. The
+	 * repository access lives here so the public-API controller never reaches the
+	 * persistence layer directly.
+	 */
+	async listForPublicApi(options: {
+		skip: number;
+		take: number;
+	}): Promise<{ users: User[]; count: number }> {
+		const [users, count] = await this.userRepository.findAndCount({
+			relations: ['role'],
+			skip: options.skip,
+			take: options.take,
+		});
+		return { users, count };
+	}
+
+	/** Find a single user (with their global role) by id or email for the public API. */
+	async findForPublicApi(idOrEmail: string): Promise<User | null> {
+		return await this.userRepository.findOne({
+			where: [{ id: idOrEmail }, { email: idOrEmail }],
+			relations: ['role'],
+		});
+	}
+
 	async inviteUsers(owner: User, invitations: Invitation[]) {
 		const emails = invitations.map(({ email }) => email);
 
