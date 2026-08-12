@@ -16,6 +16,49 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-12 — Vulnerable dependencies patched; a CI-breaking stale lockfile fixed
+
+**Fixed — the CI scripts project could not install, breaking every workflow that
+uses it.** The security floors raised in `.github/scripts/package.json` (yaml
+`^2.9.0`, overrides `fast-uri@3` → 3.1.5 and a new `handlebars@4` → 4.7.9) were
+never written through to the lockfile beside it, so `pnpm install
+--frozen-lockfile --dir ./.github/scripts --ignore-workspace` — the exact command
+~10 workflows run — failed with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`, and the
+resolved tree still carried the very versions those floors were meant to replace
+(fast-uri 3.1.4, handlebars 4.7.8, yaml 2.8.3). Regenerating the lockfile fixes
+both the CI failure and the unpatched versions.
+
+*Note for future dependency work:* `.github/scripts` is **not** a pnpm workspace
+member. A plain `pnpm install` run from inside it silently resolves the *root*
+workspace ("Scope: all 78 workspace projects") and leaves that lockfile
+untouched; it needs `--dir ./.github/scripts --ignore-workspace`. Relatedly, the
+repo `.npmrc` sets `loglevel = warn`, so a successful `pnpm install` prints
+nothing at all — silence and exit 0 is success, not a command that failed to run.
+Use `--loglevel=info` when you need to see resolution actually happen.
+
+**Fixed — two dependency ranges left vulnerable by version-scoped pins.** The
+same defect class as the `node-rsa` entry below: a pin only rewrites the range it
+names, so a vulnerable version outside that range survives. The `ip-address@10`
+override left `socks@2.8.3`'s transitive ip-address 9.0.5 untouched, which the
+advisory covers (`<=10.3.0`); since no patched 9.x exists, the fix is bumping
+socks to 2.8.9 (it already requires ip-address `^10.1.1`) rather than forcing a
+major. `nanoid` 3.3.8 came from the **workspace catalog**, which takes precedence
+over the overrides block, so its floor had to move in `pnpm-workspace.yaml`; the
+override still covers the transitive 3.3.11 reached via postcss. `pnpm audit`
+drops from 65 to 61 advisories (high 26 → 23) with no new advisories introduced.
+
+**Known remaining — `showdown` has no upstream fix and is accepted risk.** Three
+XSS advisories cover `showdown` ≤2.1.0 (`packages/nodes-base`), and 2.1.0 is the
+latest version its maintainers have published — there is nothing to bump to, so
+this needs a replacement or input mitigation rather than a version change.
+
+**Deferred — `element-plus` is fixable but out of scope here.** `pnpm audit`
+reports its patched range as `<0.0.0`, which reads as "no fix exists"; that field
+is misleading. The installed 2.4.3 is vulnerable (advisory covers ≤2.11.0) and
+2.14.4 is published, so a bump does resolve it — but ten minor versions of a UI
+component framework is a change that needs its own visual and interaction
+verification, not a ride-along on a dependency-patch branch.
+
 ### 2026-08-12 — Signed SAML requests fixed (#7); the app boots (A12); allowlist pruned
 
 **Fixed — signed outbound SAML requests produced a signature IdPs reject (#7).**
