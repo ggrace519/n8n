@@ -66,6 +66,7 @@ packages/testing/**/.cursor/rules/
 .venv
 .ruff_cache
 __pycache__
+*.egg-info/
 packages/cli/THIRD_PARTY_LICENSES.md
 .coverage
 .nyc_output
