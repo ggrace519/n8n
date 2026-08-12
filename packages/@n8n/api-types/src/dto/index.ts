@@ -88,6 +88,8 @@ export { RoleChangeRequestDto } from './user/role-change-request.dto';
 export { SettingsUpdateRequestDto } from './user/settings-update-request.dto';
 export { UserSelfSettingsUpdateRequestDto } from './user/user-self-settings-update-request.dto';
 export { UserUpdateRequestDto } from './user/user-update-request.dto';
+export { UserPublicDto, UserListPublicDto, userPublicSchema } from './user/user-public.dto';
+export { UsersListQueryDto } from './user/users-list-query.dto';
 
 export { CommunityRegisteredRequestDto } from './license/community-registered-request.dto';
 
