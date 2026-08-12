@@ -75,14 +75,30 @@ below are current → patched, from `pnpm audit --prod --json`:
 (`@n8n/backend-test-utils`), `@eslint/plugin-kit` 0.3.2 → ≥0.3.4
 (`@n8n/eslint-config`).
 
-Two notes on the awkward ones. `nodemailer` is a **catalog** pin needing a major
-bump (8 → 9); it was deliberately left alone even though this change already
-edits the catalog for `nanoid`, because a mail-transport major belongs with its
-own send-path verification. `element-plus` is reported by `pnpm audit` with a
-patched range of `<0.0.0`, which reads as "no fix exists" — that field is
-misleading here: 2.14.4 is published and does resolve the advisory (which covers
-≤2.11.0), but ten minor versions of a UI component framework needs its own visual
-and interaction verification.
+Notes on the awkward ones, for whoever picks these up:
+
+- **`nodemailer` (catalog pin, 8 → 9).** Left alone even though this change
+  already edits the catalog for `nanoid`, because a mail-transport major belongs
+  with its own send-path verification. The 9.0.0 break is behavioural rather than
+  a signature change: outbound TLS certificates are now validated by default when
+  fetching remote attachments, calling OAuth2 token endpoints, and doing proxy
+  CONNECT. Existing SMTP-level `tls.rejectUnauthorized` settings do not cover
+  those HTTPS paths.
+- **`markdown-it` (13 → 14).** Pin `~14`, **not** `>=14.1.1`: 15.x removes the
+  `markdown-it/lib/*` subpath exports, and two files import them —
+  `editor-ui/.../useChatHubMarkdownOptions.ts` and
+  `design-system/.../N8nMarkdown/youtube.ts`. `@types/markdown-it` (catalog,
+  `^13.0.2`) must move in lockstep, and the `markdown-it-emoji` plugin API
+  changed in 14.
+- **`element-plus` (2.4.3 → 2.14.4).** Two traps. `pnpm audit` reports its
+  patched range as `<0.0.0`, which reads as "no fix exists" — misleading, since
+  2.14.4 is published and does resolve the advisory (which covers ≤2.11.0). More
+  importantly there is a version-pinned `patches/element-plus@2.4.3.patch`, which
+  will not apply to 2.14.4 and must be rebased or dropped as part of the bump.
+- **`@hono/node-server` (1 → 2).** No first-party import; it is pinned for
+  transitive use, so the risk sits in MCP/agent HTTP serving rather than app
+  code. v2 requires Node ≥20 (already satisfied) and drops the
+  `@hono/node-server/vercel` export.
 
 ### 2026-08-12 — Signed SAML requests fixed (#7); the app boots (A12); allowlist pruned
 
