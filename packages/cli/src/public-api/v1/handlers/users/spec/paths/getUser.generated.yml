@@ -1,0 +1,68 @@
+operationId: getUser
+tags:
+  - User
+summary: Get user by ID/Email
+description: Retrieve a user from your instance. Only available for the instance owner.
+x-required-scope: user:read
+parameters:
+  - $ref: ../../../../shared/spec/parameters/offset.yml
+  - $ref: ../../../../shared/spec/parameters/limit.yml
+  - $ref: ../../../../shared/spec/parameters/cursor.yml
+  - schema:
+      type: string
+    required: true
+    name: id
+    in: path
+  - schema:
+      type: string
+    required: false
+    name: includeRole
+    in: query
+x-eov-operation-id: unreachable
+x-eov-operation-handler: v1/handlers/decorator-routed.handler
+x-decorator-routed: true
+responses:
+  '200':
+    description: Operation successful.
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            id:
+              type: string
+            email:
+              type: string
+            firstName:
+              type: string
+              nullable: true
+            lastName:
+              type: string
+              nullable: true
+            isPending:
+              type: boolean
+            mfaEnabled:
+              type: boolean
+            createdAt:
+              type: string
+            updatedAt:
+              type: string
+            role:
+              type: string
+          required:
+            - id
+            - email
+            - firstName
+            - lastName
+            - isPending
+            - mfaEnabled
+            - createdAt
+            - updatedAt
+  '400':
+    $ref: ../../../../shared/spec/responses/badRequest.yml
+  '401':
+    $ref: ../../../../shared/spec/responses/unauthorized.yml
+  '403':
+    $ref: ../../../../shared/spec/responses/forbidden.yml
+  '404':
+    $ref: ../../../../shared/spec/responses/notFound.yml

@@ -1,7 +1,5 @@
 Error:
   $ref: './error.yml'
-Role:
-  $ref: './../../../handlers/users/spec/schemas/role.yml'
 Execution:
   $ref: './../../../handlers/executions/spec/schemas/execution.yml'
 Node:
@@ -30,7 +28,3 @@ PullResult:
   $ref: './../../../handlers/source-control/spec/schemas/pullResult.yml'
 SourceControlledFile:
   $ref: './../../../handlers/source-control/spec/schemas/sourceControlledFile.yml'
-UserList:
-  $ref: './../../../handlers/users/spec/schemas/userList.yml'
-User:
-  $ref: './../../../handlers/users/spec/schemas/user.yml'

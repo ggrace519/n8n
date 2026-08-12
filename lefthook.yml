@@ -38,6 +38,18 @@ pre-commit:
       skip:
         - merge
         - rebase
+    ee_yaml_specifier_check:
+      glob: 'packages/cli/src/public-api/**/*.{yml,yaml}'
+      run: node scripts/check-no-ee-yaml-specifier.mjs
+      skip:
+        - merge
+        - rebase
+    dangling_eslint_allowlist_check:
+      glob: '**/eslint.config.mjs'
+      run: node scripts/check-dangling-eslint-allowlist.mjs
+      skip:
+        - merge
+        - rebase
     zod_peer_deps_check:
       glob: 'packages/{@n8n/api-types,workflow,core,@n8n/agents}/package.json'
       run: node scripts/check-zod-peer-deps.mjs

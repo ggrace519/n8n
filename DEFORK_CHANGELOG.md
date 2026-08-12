@@ -16,6 +16,185 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-12 — Signed SAML requests fixed (#7); the app boots (A12); allowlist pruned
+
+**Fixed — signed outbound SAML requests produced a signature IdPs reject (#7).**
+The repo-wide `"node-rsa": "2.0.0"` override existed for `@n8n_io/license-sdk`
+v3, but overrides apply to every consumer, and `samlify@2.13.0` declares
+`^1.1.1`. Across that major boundary two things break its signing path:
+`sign()` returns a `Uint8Array` rather than a `Buffer`, so samlify's
+`.toString('base64')` yields a comma-separated decimal list; and the default
+signing scheme moved from PKCS#1 v1.5 to RSASSA-PSS, which is not what SAML
+redirect binding advertises. pnpm 10 per-parent overrides now satisfy both
+consumers at once (`samlify>node-rsa` on the v1 line, `@n8n_io/license-sdk>node-rsa`
+on v2). Affects the opt-in `N8N_ENV_FEAT_SIGNED_SAML_REQUESTS` feature; inbound
+verification was never affected, as samlify verifies through `xml-crypto`.
+
+*Note for future dependency work:* node-rsa's own `MIGRATION.md` states the
+Node return type is unchanged `Buffer`. That is inaccurate for the published
+v2.0.0 build — only executing it surfaced the difference.
+
+**Verified — the rebuilt application actually boots (A12).** A full `pnpm build`
+completes, and a real instance against SQLite serves `/healthz`, `/rest/settings`
+and the editor UI, with `/rest/login` and `/api/v1/workflows` correctly refusing
+unauthenticated callers.
+
+**Changed — pruned ESLint allowlist entries for files the purge removed.** Nine
+ratchet-allowlist entries in `packages/cli/eslint.config.mjs` pointed at files
+that no longer exist, which misleads readers into thinking a rule is still
+suppressed somewhere real. One of them carried no `.ee` in its name and so was
+invisible to a `.ee` search; an existence-based guard found it. Removing the
+exclusions unmasked one genuine pre-existing lint error in `project.service.ts`
+(a type assertion that changed nothing), now fixed.
+
+### 2026-08-11 — `packages/cli` builds green (A10); member tag deletion revoked (#8)
+
+**Fixed — `packages/cli` could not build.** The fair-code rebuild of the
+sharing-aware workflow service (E14) gave
+`EnterpriseWorkflowService.addOwnerAndSharings` a generic constraint of
+`shared?: Array<{ role: string; project: ProjectSummary & Record<string, unknown> }>`.
+A TypeORM entity instance is not assignable to an index signature, so passing a
+`WorkflowEntity` failed the constraint and `pnpm --filter n8n build` stopped at
+`tsc`. The intersection was never used — `toProjectSummary` reads only
+`id`/`type`/`name`/`icon` — and removing it clears all five errors in
+`workflows.controller.ts`. `pnpm --filter n8n build` now completes all four
+steps; `build:data` reached `createRole.generated.yml` for the first time and
+filled in its scope enum (checked-in generated output, deterministic).
+
+*Clean-room source:* the fair-code consumer (`workflows.controller.ts`), the
+`@n8n/db` entity definitions, and a type probe against this repo's own code.
+
+**Fixed — a member could delete any workflow tag on the instance (#8).** The
+fair-code `@n8n/permissions` rebuild (A1–A6) picked the full CRUD bundle for
+`tag` and `annotationTag` in a single call, so `GLOBAL_MEMBER_SCOPES` carried
+`tag:delete`. Because workflow tags are instance-wide, a member could remove a
+tag from every workflow on the instance via `DELETE /tags/:id`. The two
+resources are now picked separately and only `tag:delete` is revoked;
+`tag:create`/`tag:update` and all of `annotationTag` stay with members.
+
+*Clean-room source:* the surviving fair-code consumer tests
+(`public-api/tags.test.ts`, which already asserted 403 for a non-owner) and
+editor-ui's `useAnnotationTagPermissions` gate.
+
+**Known gap recorded (E21):** the public API `users` handler is still purged.
+`src/public-api/v1/handlers/users/` carries its `spec/` but no handler, and the
+spec still declares `x-eov-operation-handler: …/users.handler.ee` — the last
+`.ee` specifier left in the public API. The router's containment logic keeps the
+failure scoped to `/users`, which returns 500 until the handler is rebuilt.
+
+### 2026-08-11 — Rebuilt the purged `@n8n/ai-workflow-builder` package (E20)
+
+The purge removed `@n8n/ai-workflow-builder.ee` but left its fair-code consumers
+in place — eight production files in `packages/cli` still imported it. The
+package therefore had to exist for `packages/cli` to compile at all, and its
+absence was why `start.test.ts` collected **0** tests.
+
+**Rebuilt fair-code as `packages/@n8n/ai-workflow-builder`** (no `.ee`), in four
+parts:
+
+1. **Tool descriptors** — the 11 `{ toolName, displayTitle }` constants naming
+   the workflow-builder tools, plus `SDK_IMPORT_STATEMENT`.
+2. **Parse / validate** — `ParseValidateHandler`, `stripImportStatements`,
+   `getWarningKey`, and a re-export of `ValidationWarning`. Orchestration only;
+   the parsing and validation themselves are `@n8n/workflow-sdk`'s.
+3. **Session storage** — `ISessionStorage`, `StoredSession`, `LangchainMessage`,
+   `isLangchainMessagesArray`.
+4. **Builder service** — `AiWorkflowBuilderService`, `ChatPayload`,
+   `ResourceLocatorCallbackFactory`, `createPassthroughSsrfGuard`.
+
+**Parts 1–3 are fully functional.** The MCP workflow-builder tools
+(`validate_workflow`, `create_workflow_from_code`, `update_workflow`, the SDK
+reference) parse and validate real SDK code again, and the builder session
+repository has its contract back.
+
+**Part 4 ships as a loud-failing seam, by decision.** The LLM agent is *not*
+rebuilt here — that is the AI Workflow Composer's job (item C2), which is
+correctly downstream. What is rebuilt is the real class shape, constructor, and
+lifecycle, so C2 drops an agent in rather than re-threading thirteen
+dependencies through `packages/cli`. Operations that need the agent — `chat`,
+`getBuilderInstanceCredits` — throw `AiBuilderUnavailableError`. Operations that
+can be answered truthfully from storage — `clearSession`, and `getSessions` /
+`truncateMessagesAfter` when there is no stored conversation — run for real.
+Where a stored conversation *does* exist, `getSessions` throws rather than
+report `[]`: those turns are in the agent's own encoding and cannot be rendered
+without it, and claiming a user's history is empty is a different, wrong
+statement. `/ai/build` stays registered behind `@Licensed('feat:aiBuilder')`
+(off by default → 403); if enabled, `ai.controller.ts` re-emits the error into
+the response stream, so the editor shows the explanation. Nothing returns an
+empty-but-successful result — the failure mode that made the
+`OWNER_API_KEY_SCOPES` defect above so hard to see.
+
+**Clean-room sources.** No `.ee` body, history, or upstream was read.
+`toolName` literals come from `packages/cli/src/modules/mcp/mcp-scopes.ts`,
+which grants access by them; `displayTitle` from each tool's own surviving test;
+the export list from the ~12 `vi.mock('@n8n/ai-workflow-builder', …)` blocks;
+`ISessionStorage`/`StoredSession` from `workflow-builder-session.repository.ts`,
+which declares `implements ISessionStorage`; `ChatPayload` from
+`ai.controller.ts`, which builds it inline, with field types from
+`@n8n/api-types`' `AiBuilderChatRequestDto`; parse/validate behaviour from
+`@n8n/workflow-sdk`'s public exports; and the stream framing from the surviving
+editor-UI client.
+
+**One mock was wrong and the drift guard proves it.** Several test mocks give
+`CODE_BUILDER_VALIDATE_TOOL.toolName` as `validate_workflow_code`. The registered
+name is `validate_workflow` — `mcp-scopes.ts` grants by that, and
+`mcp-scopes.test.ts` (which does *not* mock this package) fails if the two
+disagree. Taking the mock at face value would have made the tool unreachable for
+every scoped credential. Same for `get_workflow_sdk_reference`, which the live
+upstream MCP surface calls `get_sdk_reference`.
+
+**Verified**, each against the same tree with the package removed:
+
+| Check | Before | After |
+|---|---|---|
+| `packages/cli` typecheck, `Cannot find module` errors | 10 | **0** |
+| `packages/cli` typecheck, total errors | 80 | **68** |
+| `start.test.ts` tests collected | 0 | **9 passed** |
+| `mcp.settings.controller.api.test.ts` | file failed, 28 skipped | **26 passed** |
+| `mcp-scopes.test.ts` (unmocked drift guards) | file failed | **15 passed** |
+
+`packages/cli` MCP + workflow-builder + builder-service suites: **1224/1226**.
+New package: **63 tests**, typecheck and lint clean. No new typecheck errors
+introduced anywhere, and two pre-existing cascading ones fixed.
+
+The parse path was also driven end-to-end through the same
+`await import('@n8n/ai-workflow-builder')` the MCP tools use — those tools' own
+tests mock the module wholesale, so nothing else exercises it — confirming all
+26 named exports resolve across the CJS boundary and that real SDK code parses
+into workflow JSON.
+
+### 2026-08-11 — Two MCP API-key specs asked the wrong role for a personal key
+
+Newly *exposed* by the rebuild above rather than caused by it:
+`mcp.settings.controller.api.test.ts` could not load at all while
+`@n8n/ai-workflow-builder` was missing. With it back, two of its 28 specs failed
+— both mint users with role `global:member` and get 403 from
+`GET /mcp/api-key`, which is guarded by `@GlobalScope('mcpApiKey:create')`.
+
+**The specs were wrong, not the role grant.** `mcpApiKey:create`/`rotate` are
+filed under `settings.Manage` in `custom-role-scopes.ts`, and editor-UI's
+`features/ai/mcpAccess/module.descriptor.ts` gates the entire MCP settings page
+on holding one of them — so a plain member is never offered an MCP key in the
+first place. Both specs are really asserting key **uniqueness**; `global:member`
+was just a cheap way to mint distinct users, and their sibling test uses `owner`
+and passed throughout.
+
+Switched both to entitled users (`createAdmin()` / `global:admin`), preserving
+what they actually test, and **added the assertion that was missing**: a member
+gets 403 from `GET /mcp/api-key`. That authorization boundary was previously
+unpinned in either direction, which is why a spec could drift onto the wrong
+role unnoticed. `GLOBAL_MEMBER_SCOPES` is untouched — widening a role grant on
+the strength of a stale spec is the one change here that would have been hard to
+walk back. File now **29/29**.
+
+**A10 is still red, and not because of this.** `pnpm --filter n8n build` now
+gets past module resolution and fails on **31 pre-existing `src/` errors** in
+`source-control-import.service.ts` (12 unused injected dependencies),
+`workflows.controller.ts` (5), `evaluation/test-runner`, and
+`source-control-status.service.ts`. These are separate de-fork fallout and are
+A10's scope; E20's own verify clause has been corrected accordingly, since the
+whole-build gate was never something this item could satisfy alone.
+
 ### 2026-08-10 — 13 more API-key scopes were ungrantable, taking three public APIs down (#24)
 
 Follow-up to the eight below, and the larger half of the same defect. A public

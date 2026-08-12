@@ -18,10 +18,6 @@ IncludeData:
   $ref: '../../../handlers/executions/spec/schemas/parameters/includeData.yml'
 RedactExecutionData:
   $ref: '../../../handlers/executions/spec/schemas/parameters/redactExecutionData.yml'
-UserIdentifier:
-  $ref: '../../../handlers/users/spec/schemas/parameters/userIdentifier.yml'
-IncludeRole:
-  $ref: '../../../handlers/users/spec/schemas/parameters/includeRole.yml'
 VariableId:
   $ref: '../../../handlers/variables/spec/schemas/parameters/variableId.yml'
 dataTableId:

@@ -157,6 +157,7 @@ The monorepo is organized into these key packages:
 - **`packages/nodes-base`**: Built-in nodes for integrations
 - **`packages/@n8n/nodes-langchain`**: AI/LangChain nodes
 - **`packages/@n8n/instance-ai`**: "AI Assistant" in the UI, "Instance AI" in code — AI assistant backend. See its `CLAUDE.md` for architecture docs.
+- **`packages/@n8n/ai-workflow-builder`**: workflow-builder tool descriptors, SDK-code parse/validate, and builder session contracts. Rebuilt fair-code for this fork. Its tool descriptors, parse/validate, and session storage are fully functional, but **the LLM agent behind `/ai/build` is deliberately absent** — `AiWorkflowBuilderService.chat()` throws `AiBuilderUnavailableError` rather than returning an empty result. Do not "fix" that by making it return a stub; the agent is the AI Workflow Composer's job. See the package README.
 - **`@n8n/design-system`**: Vue component library for UI consistency
 - **`@n8n/config`**: Centralized configuration management
 

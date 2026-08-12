@@ -1061,11 +1061,11 @@ describe('SourceControlService', () => {
 			});
 
 			it('should fail with BadRequest', async () => {
-				const allChanges = (await service.getStatus(globalAdmin, {
+				const allChanges = await service.getStatus(globalAdmin, {
 					direction: 'push',
 					preferLocalVersion: true,
 					verbose: false,
-				})) as SourceControlledFile[];
+				});
 
 				await expect(
 					service.pushWorkfolder(globalMember, {
@@ -1078,11 +1078,11 @@ describe('SourceControlService', () => {
 
 		describe('global:admin user', () => {
 			it('should update all workflows, credentials, data tables, tags and folder', async () => {
-				const allChanges = (await service.getStatus(globalAdmin, {
+				const allChanges = await service.getStatus(globalAdmin, {
 					direction: 'push',
 					preferLocalVersion: true,
 					verbose: false,
-				})) as SourceControlledFile[];
+				});
 
 				const result = await service.pushWorkfolder(globalAdmin, {
 					fileNames: allChanges,
@@ -1129,11 +1129,11 @@ describe('SourceControlService', () => {
 			});
 
 			it('should update all workflows and credentials without arguments', async () => {
-				const allChanges = (await service.getStatus(globalAdmin, {
+				const allChanges = await service.getStatus(globalAdmin, {
 					direction: 'push',
 					preferLocalVersion: true,
 					verbose: false,
-				})) as SourceControlledFile[];
+				});
 
 				const result = await service.pushWorkfolder(globalAdmin, {
 					fileNames: [],
@@ -1201,11 +1201,11 @@ describe('SourceControlService', () => {
 
 		describe('project:admin', () => {
 			it('should update selected workflows, credentials, data tables, tags and folders', async () => {
-				const allChanges = (await service.getStatus(projectAdmin, {
+				const allChanges = await service.getStatus(projectAdmin, {
 					direction: 'push',
 					preferLocalVersion: true,
 					verbose: false,
-				})) as SourceControlledFile[];
+				});
 
 				const result = await service.pushWorkfolder(projectAdmin, {
 					fileNames: allChanges,
@@ -1252,11 +1252,11 @@ describe('SourceControlService', () => {
 			});
 
 			it('should throw ForbiddenError when trying to push workflows out of scope', async () => {
-				const allChanges = (await service.getStatus(globalAdmin, {
+				const allChanges = await service.getStatus(globalAdmin, {
 					direction: 'push',
 					preferLocalVersion: true,
 					verbose: false,
-				})) as SourceControlledFile[];
+				});
 
 				const workflowOutOfScope = allChanges.find(
 					(wf) =>
@@ -1273,11 +1273,11 @@ describe('SourceControlService', () => {
 			});
 
 			it('should throw ForbiddenError when trying to push credentials out of scope', async () => {
-				const allChanges = (await service.getStatus(globalAdmin, {
+				const allChanges = await service.getStatus(globalAdmin, {
 					direction: 'push',
 					preferLocalVersion: true,
 					verbose: false,
-				})) as SourceControlledFile[];
+				});
 
 				const credentialOutOfScope = allChanges.find(
 					(cred) =>
@@ -1313,11 +1313,11 @@ describe('SourceControlService', () => {
 				// Add a new tag to newly assigned workflow
 				await assignTagToWorkflow(tags[1], movedIntoScopeWorkflow);
 
-				const allChanges = (await service.getStatus(projectAdmin, {
+				const allChanges = await service.getStatus(projectAdmin, {
 					direction: 'push',
 					preferLocalVersion: true,
 					verbose: false,
-				})) as SourceControlledFile[];
+				});
 				const tagsFile = allChanges.find((file) =>
 					file.file.includes(SOURCE_CONTROL_TAGS_EXPORT_FILE),
 				);
@@ -1343,11 +1343,11 @@ describe('SourceControlService', () => {
 			});
 
 			it('should update folders in scope and keep out of scope ones', async () => {
-				const allChanges = (await service.getStatus(projectAdmin, {
+				const allChanges = await service.getStatus(projectAdmin, {
 					direction: 'push',
 					preferLocalVersion: true,
 					verbose: false,
-				})) as SourceControlledFile[];
+				});
 				const foldersFile = allChanges.find((file) =>
 					file.file.includes(SOURCE_CONTROL_FOLDERS_EXPORT_FILE),
 				);
@@ -1381,11 +1381,11 @@ describe('SourceControlService', () => {
 
 		describe('global:member', () => {
 			it('should deny all changes', async () => {
-				const allChanges = (await service.getStatus(globalAdmin, {
+				const allChanges = await service.getStatus(globalAdmin, {
 					direction: 'push',
 					preferLocalVersion: true,
 					verbose: false,
-				})) as SourceControlledFile[];
+				});
 
 				await expect(
 					service.pushWorkfolder(globalMember, {
@@ -1396,11 +1396,11 @@ describe('SourceControlService', () => {
 			});
 
 			it('should deny any changes', async () => {
-				const allChanges = (await service.getStatus(globalAdmin, {
+				const allChanges = await service.getStatus(globalAdmin, {
 					direction: 'push',
 					preferLocalVersion: true,
 					verbose: false,
-				})) as SourceControlledFile[];
+				});
 
 				await expect(
 					service.pushWorkfolder(globalMember, {
@@ -1479,11 +1479,11 @@ describe('SourceControlService', () => {
 			setupMocksForCredential(credential, remoteCredential);
 
 			// Act
-			const result = (await service.getStatus(testGlobalOwner, {
+			const result = await service.getStatus(testGlobalOwner, {
 				direction: 'push',
 				preferLocalVersion: true,
 				verbose: false,
-			})) as SourceControlledFile[];
+			});
 
 			// Assert
 			const modifiedCredentials = result.filter(
@@ -1508,11 +1508,11 @@ describe('SourceControlService', () => {
 			remoteCredential.isGlobal = false;
 			setupMocksForCredential(credential, remoteCredential);
 
-			const result = (await service.getStatus(testGlobalOwner, {
+			const result = await service.getStatus(testGlobalOwner, {
 				direction: 'push',
 				preferLocalVersion: true,
 				verbose: false,
-			})) as SourceControlledFile[];
+			});
 
 			const modifiedCredentials = result.filter(
 				(r: SourceControlledFile) => r.type === 'credential' && r.status === 'modified',
@@ -1536,11 +1536,11 @@ describe('SourceControlService', () => {
 			delete remoteCredential.isGlobal;
 			setupMocksForCredential(credential, remoteCredential);
 
-			const result = (await service.getStatus(testGlobalOwner, {
+			const result = await service.getStatus(testGlobalOwner, {
 				direction: 'push',
 				preferLocalVersion: true,
 				verbose: false,
-			})) as SourceControlledFile[];
+			});
 
 			const modifiedCredentials = result.filter(
 				(r: SourceControlledFile) => r.type === 'credential' && r.status === 'modified',
@@ -1564,11 +1564,11 @@ describe('SourceControlService', () => {
 			remoteCredential.isGlobal = true;
 			setupMocksForCredential(credential, remoteCredential);
 
-			const result = (await service.getStatus(testGlobalOwner, {
+			const result = await service.getStatus(testGlobalOwner, {
 				direction: 'push',
 				preferLocalVersion: true,
 				verbose: false,
-			})) as SourceControlledFile[];
+			});
 
 			const modifiedCredentials = result.filter(
 				(r: SourceControlledFile) => r.type === 'credential' && r.status === 'modified',
@@ -1592,11 +1592,11 @@ describe('SourceControlService', () => {
 			remoteCredential.isGlobal = true;
 			setupMocksForCredential(credential, remoteCredential);
 
-			const result = (await service.getStatus(testGlobalOwner, {
+			const result = await service.getStatus(testGlobalOwner, {
 				direction: 'push',
 				preferLocalVersion: true,
 				verbose: false,
-			})) as SourceControlledFile[];
+			});
 
 			const modifiedCredentials = result.filter(
 				(r: SourceControlledFile) => r.type === 'credential' && r.status === 'modified',

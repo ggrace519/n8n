@@ -8,9 +8,9 @@ import { mock } from 'vitest-mock-extended';
 
 import type { EventService } from '@/events/event.service';
 import { ExternalSecretsManager } from '@/modules/external-secrets/external-secrets-manager';
+import { ExternalSecretsProviderConnectionManager } from '@/modules/external-secrets/external-secrets-provider-connection-manager';
 import { ExternalSecretsProviders } from '@/modules/external-secrets/external-secrets-providers';
 import { ExternalSecretsConfig } from '@/modules/external-secrets/external-secrets.config';
-import { ExternalSecretsProviderConnectionManager } from '@/modules/external-secrets/external-secrets-provider-connection-manager';
 import { ExternalSecretsProviderLifecycle } from '@/modules/external-secrets/provider-lifecycle.service';
 import { ExternalSecretsProviderRegistry } from '@/modules/external-secrets/provider-registry.service';
 import { ExternalSecretsSecretsCache } from '@/modules/external-secrets/secrets-cache.service';
@@ -62,7 +62,7 @@ const eventService = mock<EventService>();
 const logger = mockLogger();
 
 const resetManager = async () => {
-	Container.get(ExternalSecretsManager).shutdown();
+	await Container.get(ExternalSecretsManager).shutdown();
 
 	// Get all service dependencies from Container
 	const config = Container.get(ExternalSecretsConfig);
@@ -184,7 +184,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-	Container.get(ExternalSecretsManager).shutdown();
+	await Container.get(ExternalSecretsManager).shutdown();
 });
 
 describe('GET /external-secrets/providers', () => {

@@ -95,8 +95,8 @@ describe('GET /roles/', () => {
 				'project:personalOwner',
 				[
 					...PROJECT_SCOPE_MAP['project:personalOwner'],
-					...(PERSONAL_SPACE_SHARING_SETTING.scopes as Scope[]),
-					...(PERSONAL_SPACE_PUBLISHING_SETTING.scopes as Scope[]),
+					...PERSONAL_SPACE_SHARING_SETTING.scopes,
+					...PERSONAL_SPACE_PUBLISHING_SETTING.scopes,
 				],
 				resp.body.data.project,
 			);
@@ -128,8 +128,8 @@ describe('GET /roles/', () => {
 				'project:personalOwner',
 				[
 					...PROJECT_SCOPE_MAP['project:personalOwner'],
-					...(PERSONAL_SPACE_PUBLISHING_SETTING.scopes as Scope[]),
-					...(PERSONAL_SPACE_SHARING_SETTING.scopes as Scope[]),
+					...PERSONAL_SPACE_PUBLISHING_SETTING.scopes,
+					...PERSONAL_SPACE_SHARING_SETTING.scopes,
 				],
 				resp.body.data.project,
 			);
@@ -144,8 +144,8 @@ describe('GET /roles/', () => {
 				'project:personalOwner',
 				[
 					...PROJECT_SCOPE_MAP['project:personalOwner'],
-					...(PERSONAL_SPACE_PUBLISHING_SETTING.scopes as Scope[]),
-					...(PERSONAL_SPACE_SHARING_SETTING.scopes as Scope[]),
+					...PERSONAL_SPACE_PUBLISHING_SETTING.scopes,
+					...PERSONAL_SPACE_SHARING_SETTING.scopes,
 				],
 				resp.body.data.project,
 			);

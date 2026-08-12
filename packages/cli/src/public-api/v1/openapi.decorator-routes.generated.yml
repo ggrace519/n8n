@@ -9,6 +9,19 @@ paths:
   /tags:
     get:
       $ref: ./handlers/tags/spec/paths/getTags.generated.yml
+  /users:
+    get:
+      $ref: ./handlers/users/spec/paths/getUsers.generated.yml
+    post:
+      $ref: ./handlers/users/spec/paths/createUser.generated.yml
+  /users/{id}:
+    get:
+      $ref: ./handlers/users/spec/paths/getUser.generated.yml
+    delete:
+      $ref: ./handlers/users/spec/paths/deleteUser.generated.yml
+  /users/{id}/role:
+    patch:
+      $ref: ./handlers/users/spec/paths/changeRole.generated.yml
   /workflows/{workflowId}/history:
     get:
       $ref: ./handlers/workflows/spec/paths/getWorkflowHistory.generated.yml

@@ -1331,3 +1331,211 @@ needs Greg's call on a repo-wide pin).
 
 **ORDER ON RESUME:** E20 layers 1–3 → read the A11 reply → design layer 4 with
 Greg → A10 → A12 → A13. C2 only after A12.
+
+## 2026-08-11 — E20 DONE: `@n8n/ai-workflow-builder` rebuilt fair-code
+
+**Board: 32/41.** Branch `feat/e20-ai-workflow-builder`, not pushed.
+
+**Built `packages/@n8n/ai-workflow-builder`** (no `.ee`), single CJS build
+mirroring `@n8n/workflow-sdk` rather than `ai-utilities`' dual ESM/CJS — the
+only consumer is `packages/cli`, which is CJS, and the SDK it depends on is
+CJS-only. Deps kept to four: `@langchain/core`, `@n8n/utils`,
+`@n8n/workflow-sdk`, `n8n-workflow`.
+
+**Layers 1–3 are real.** The MCP builder tools parse and validate actual SDK
+code again; the session repository has its contract back. Layer 2 is
+orchestration over `@n8n/workflow-sdk` (`parseWorkflowCodeToBuilder`,
+`validateWorkflow`, `ValidationWarning`) — no parsing or validation was
+reimplemented.
+
+**Layer 4 is a loud-failing seam** (Greg's call, both options taken as
+recommended). Real 13-arg constructor and lifecycle; `chat()` and
+`getBuilderInstanceCredits()` throw `AiBuilderUnavailableError`; storage-only
+operations run for real. `getSessions` throws rather than reporting `[]` when a
+conversation exists — those turns are in the agent's encoding and telling a user
+their history is empty is a different, wrong statement. Routes stay registered.
+
+**THREE THINGS THE CONTRACT DERIVATION GOT WRONG, now proven:**
+- `CODE_BUILDER_VALIDATE_TOOL.toolName` is **`validate_workflow`**, not the
+  mocks' `validate_workflow_code`. `mcp-scopes.ts` grants by it and
+  `mcp-scopes.test.ts` (unmocked) has drift guards both ways. The mocks are
+  authoritative for `displayTitle` only — `mcp-scopes.ts` owns `toolName`.
+- `parseAndValidate` **throws** on invalid input; there is no `errors` field on
+  its result. Consumers report failures from their `catch`. Parse failures must
+  carry `name === 'WorkflowCodeParseError'` or `getSdkReferenceHint` silently
+  drops the hint that tells a failing client how to recover.
+- `reranker` is in the SDK's import line and in the AST interpreter's
+  `sdkFunctions` table, but is **not** re-exported from `@n8n/workflow-sdk`'s
+  index. A test written against package exports fails; the interpreter's table
+  is what actually resolves these names. Anchored the test to the SDK's own
+  `WORKFLOW_PATTERNS_DETAILED` instead.
+
+**VERIFIED** against the same tree with the package stashed out: cli
+`Cannot find module` 10 → **0**; cli typecheck total 80 → **68**, with a
+line-by-line diff showing **zero new errors** and 2 pre-existing cascading ones
+fixed; `start.test.ts` **0 → 9 tests** (the recorded symptom, closed);
+`mcp-scopes.test.ts` file-failed → **15 passed**;
+`mcp.settings.controller.api.test.ts` file-failed/28-skipped → **26 passed**;
+cli MCP + workflow-builder + builder-service **1224/1226**. New package **62
+tests**, typecheck and lint clean.
+
+**A10 IS RED FOR OTHER REASONS — this is the next real finding.**
+`pnpm --filter n8n build` now clears module resolution and fails on **31
+pre-existing `src/` errors** that have nothing to do with this package:
+`source-control-import.service.ts` (12 × TS6138, unused injected dependencies —
+the code that used them was almost certainly `.ee`), `workflows.controller.ts`
+(5 × `ProjectSummary`/`shared` mismatches plus 2 stale `@ts-expect-error`),
+`evaluation/test-runner/test-runner.service.ts`, and
+`source-control-status.service.ts`. **E20's verify clause was corrected** — it
+was `pnpm --filter n8n build`, a gate this item can never satisfy alone.
+
+**2 SPECS NEWLY EXPOSED — MECHANISM CERTAIN, VERDICT NOT.** Not a regression:
+`mcp.settings.controller.api.test.ts` could not load at all before this change
+(28 skipped), and now runs 26/28. The two failures mint users with role
+`global:member`; `GET /mcp/api-key` is guarded by
+`@GlobalScope('mcpApiKey:create')`, and `GLOBAL_MEMBER_SCOPES` does not carry
+it, so they 403.
+
+**I first recorded this as a proven missing grant. That was overstated** — the
+surviving fair-code leans the other way:
+- `custom-role-scopes.ts` files `mcpApiKey:create`/`rotate` under
+  **`settings.Manage`**, the admin bundle.
+- editor-ui's `features/ai/mcpAccess/module.descriptor.ts` gates the entire MCP
+  settings page on `['mcp:manage','mcp:oauth','mcpApiKey:create','mcpApiKey:rotate']`,
+  so no personal MCP-key control is surfaced to a plain member anyway.
+- Both specs are really asserting key **uniqueness**; `global:member` is just a
+  cheap way to mint five distinct users. The sibling test at line 55 uses
+  `owner` and passes.
+
+**SETTLED 2026-08-11 on `fix/mcp-api-key-spec-roles`** (stacked on E20): the
+specs were wrong, the role grant was not. Both now use entitled users
+(`createAdmin()` / `global:admin`) and keep their uniqueness intent, and a new
+test pins the real behaviour — a member gets **403** from `GET /mcp/api-key`.
+File is **29/29** (was 26/28). `GLOBAL_MEMBER_SCOPES` was left alone.
+
+**ORDER ON RESUME:** A10's 31 errors → A12 → A13. C2 (the actual agent) only
+after A12.
+
+## 2026-08-11 — A10 DONE: cli builds green; #8 fixed; users handler gap found
+
+**Board: 33/42** (E21 added, see below).
+
+**A10's real error count was 5, not 31.** The prior session measured 31 before
+E20 landed; with module resolution restored, `source-control-import.service.ts`
+(12 × TS6138), `test-runner.service.ts` and `source-control-status.service.ts`
+are all clean. Every remaining error sat in `workflows.controller.ts`.
+
+**Root cause — one dead type, on `fix/cli-build-green`.**
+`EnterpriseWorkflowService.addOwnerAndSharings` constrained its generic to
+`shared?: Array<{ role: string; project: ProjectSummary & Record<string, unknown> }>`.
+A TypeORM entity instance is **not assignable to an index signature**, so
+`WorkflowEntity` failed the constraint. A three-way probe isolated it: `role:
+string` accepts `WorkflowEntity`, a bare `ProjectSummary` accepts it, only the
+`& Record<string, unknown>` half rejects. The intersection was never
+load-bearing — `toProjectSummary` reads `id`/`type`/`name`/`icon` only.
+
+Deleting it cleared all 5 at once, and the two "unused `@ts-expect-error`"
+TS2578s resolved **the opposite way to how they look**: once `T` infers as
+`WorkflowEntity`, `shared` is non-optional, so `delete` needs those directives
+again. They were never stale.
+
+`pnpm --filter n8n build` now exits 0 through all four steps. `build:data` had
+never run in this tree; it filled in the scope enum in
+`createRole.generated.yml` (tracked, deterministic across repeat runs).
+
+**A10's other two clauses, which the build does not cover:**
+- `.ee` sweep clean — 0 files/dirs; the 3 textual hits are provenance comments.
+- **#8 fixed** on `fix/tags-member-delete-scope` (stacked).
+
+**#8 root cause: `GLOBAL_MEMBER_SCOPES` picked `tag` and `annotationTag` in one
+`pick`**, handing members `tag:delete` — an instance-wide delete. The surviving
+fair-code test already pinned the contract (`non-owner should not delete tag`,
+403 + row survives) and was failing 200. Split the pick; dropped `delete` from
+`tag` only.
+
+**`annotationTag:delete` was a forced call, not a side effect** — same `pick`.
+Kept for members: editor-ui gates its delete control on that scope
+(`useAnnotationTagPermissions`), and annotation tags belong to the
+execution-annotation flow members own. Revoking it would have broken a live
+flow with **no test to catch it**. `tag:create`/`update` also stay — the same
+spec requires a member to create a tag (201).
+
+**Why nothing caught this:** the `scope-information` snapshot enumerates the
+scope *catalog*, not per-role sets. 110/110 permissions tests passed before and
+after, with no snapshot change.
+
+**E21 ADDED — the public API users handler is still purged.**
+`src/public-api/v1/handlers/users/` has `spec/` but **no `users.handler.ts`** —
+the only one of 24 resources missing its handler. Its spec paths still declare
+`x-eov-operation-handler: v1/handlers/users/users.handler.ee`, the **last
+remaining `.ee` specifier in the public API**. A prior session's
+`isContainableHandlerLoadError` contains the load failure on purpose, so
+`/users` routes 500 in isolation rather than poisoning the whole v1 router —
+working as designed, but the rebuild never happened and was tracked nowhere.
+Symptom: `endpoints-with-scopes-enabled.test.ts` **12 failed / 60 passed**,
+every failure in the users block, 500 regardless of scope.
+**Proven pre-existing** — identical 12/60 with the tag change stashed.
+
+**VERIFIED:** cli typecheck 5 → 0; `pnpm --filter n8n build` exit 0 (twice,
+before and after the scope change); `pnpm test src/workflows` 496/496 across 29
+files; `public-api/tags.test.ts` 24/24 (was 23/24); `tags.api` +
+`annotation-tags.api` 15/15; `@n8n/permissions` 110/110; eslint 0 errors.
+
+**Neither branch is pushed.** `fix/cli-build-green` → `fix/tags-member-delete-scope`,
+both stacked on `fix/mcp-api-key-spec-roles`.
+
+**ORDER ON RESUME:** A12 (full build + boot smoke) → A13. E21 whenever the
+public API users routes are wanted; C2 only after A12.
+
+## 2026-08-12 — Phase A nearly done: A10/A12/E20/E21 green; 4 agents on a git relay
+
+**Board: 35/42.** Six PRs open (all draft, all verified), nothing merged —
+merging is Greg's call.
+
+### The multi-agent setup changed shape
+The old channel (`/tmp/agent-comms.md` on host **n8n**, NOT this box) is
+retired. **The channel is now the `agent-relay` branch**: each agent appends
+only to `.relay/inbox/<name>.md`, so concurrent pushes touch different files and
+cannot conflict; the lead folds everything into `.relay/THREAD.md` and is its
+only writer. See `.relay/README.md`. Four seats: local lead (me), cloud agent,
+A11 frontend, grok.
+
+**Watch out:** a bare `/tmp/agent-comms.md` on this host is a *private* file, not
+the channel. That mistake stranded a full round of posts.
+
+### Landed
+- **A10** — `packages/cli` builds. Root cause was a dead
+  `& Record<string, unknown>` in `addOwnerAndSharings`' generic constraint: a
+  TypeORM entity is not assignable to an index signature. Real count was **5**
+  errors, not the 31 a prior session recorded (that predated E20).
+- **A12** — full `pnpm build` exit 0 and the app **really boots**: `/healthz`,
+  `/rest/settings`, `/` all 200; `/rest/login` + `/api/v1/workflows` correctly
+  401. **GOTCHA:** `/healthz` unblocks *before* controllers mount — probe it and
+  you get spurious 404s on every route. Wait for "Editor is now accessible".
+- **E20** — reconciled from two independent rebuilds. Base = the tested one;
+  grafted the other's `ChatPayload` DTO derivation and `SelectedNodeContext`
+  import. **Keep the asymmetry**: agent-required methods throw, but
+  verified-empty reads and pure-storage ops (`clearSession`) run for real —
+  making them all throw would leave migrated users unable to delete conversations.
+- **E21** — public API users rebuilt as a `@PublicApiController`, **not** a
+  handler. My brief was wrong: `tags.handler.ts` is a *baselined legacy* file
+  (`eslint.config.mjs`: "NEVER add to this list"). The controller **deletes** the
+  5 `.ee` specifier lines rather than repointing them. 72/72, 20/20, 210/210.
+  **Zero `.ee` specifiers remain in the public API.**
+- **#8** (member `tag:delete`) and **#7** (node-rsa override breaking samlify's
+  signing — fixed with pnpm per-parent overrides) both closed.
+- Two `.ee` provenance guards now live in `lint:ci` **first**, ahead of
+  `turbo run lint` — appended after it they'd be silently skipped whenever the
+  eslint step OOMs.
+
+### Open / unowned
+- `pnpm lint` in `packages/cli` **core-dumps** (exit 134); with
+  `--max-old-space-size=6144` it completes and reports **21 pre-existing lint
+  errors**. AGENTS.md documents the broken command. → cloud agent.
+- **A13** (last Phase-A item) → A11. **#13** (unshare orphan cleanup) → grok.
+- **#18** frontend half still open.
+- 159 Dependabot alerts on master, untracked anywhere.
+
+### Merge order when called
+Bottom-up: #32 → mcp → #31 → #33 → #34 → #35. Then **close #30** — it duplicates
+a commit already in the stack (byte-identical patch, different hash).

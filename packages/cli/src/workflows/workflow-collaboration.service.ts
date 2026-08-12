@@ -91,7 +91,7 @@ export class EnterpriseWorkflowService {
 	 */
 	addOwnerAndSharings<
 		T extends {
-			shared?: Array<{ role: string; project: ProjectSummary & Record<string, unknown> }>;
+			shared?: Array<{ role: string; project: ProjectSummary }>;
 		},
 	>(workflow: T): T & { homeProject: ProjectSummary | null; sharedWithProjects: ProjectSummary[] } {
 		const enriched = workflow as T & {

@@ -28,7 +28,7 @@ import { setupTestServer } from '../shared/utils';
 
 const resetManager = async () => {
 	const manager = Container.get(ExternalSecretsManager);
-	manager.shutdown();
+	await manager.shutdown();
 	await manager.init();
 };
 

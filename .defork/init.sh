@@ -19,7 +19,7 @@ echo "== Phase A: @n8n/permissions typecheck + full test suite =="
 pnpm --filter @n8n/permissions typecheck >/dev/null 2>&1 \
   && echo "  ok (typecheck)" || { echo "  FAIL: permissions typecheck"; FAIL=1; }
 pnpm --filter @n8n/permissions exec vitest run >/dev/null 2>&1 \
-  && echo "  ok (105 tests)" || { echo "  FAIL: permissions tests"; FAIL=1; }
+  && echo "  ok (110 tests)" || { echo "  FAIL: permissions tests"; FAIL=1; }
 
 echo "== Phase A: @n8n/db is de-forked (0 .ee refs) + builds =="
 n_db=$(grep -rlE "\.ee['\"]" packages/@n8n/db/src 2>/dev/null | wc -l | tr -d ' ')
@@ -27,7 +27,10 @@ if [ "$n_db" != "0" ]; then echo "  FAIL: $n_db .ee refs in @n8n/db/src"; FAIL=1
 pnpm --filter @n8n/db build >/dev/null 2>&1 \
   && echo "  ok (db build)" || { echo "  FAIL: @n8n/db build"; FAIL=1; }
 
-# TODO(A10): once cli green, add:  pnpm --filter n8n build
+echo "== Phase A10: packages/cli builds (all four steps) =="
+pnpm --filter n8n... build >/dev/null 2>&1 \
+  && echo "  ok (cli build)" || { echo "  FAIL: cli build"; FAIL=1; }
+
 # TODO(A12): once app green, add:  pnpm build && node <boot smoke>
 echo "== result =="
 [ "$FAIL" = "0" ] && echo "SMOKE OK" || echo "SMOKE FAILED"
