@@ -185,6 +185,7 @@
       "yaml@<=2.8.3": "2.8.3",
       "axios": "catalog:",
       "fast-xml-parser": "5.7.2",
+      "dompurify@<=3.4.12": "3.4.14",
       "postcss@<=8.5.9": "8.5.10",
       "@anthropic-ai/sdk@<=0.91.1": "0.91.1",
       "uuid@<=13.0.1": "13.0.1",
