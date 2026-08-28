@@ -16,6 +16,68 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-27 (cont.) — Six more advisories closed, including the deferred storybook
+
+A second pass on the same branch, drawing on a diverse-model review panel
+(codex read-only + grok advisory) to de-risk the awkward ones. Took the tree
+from **23 → 16 advisories (3 critical, 5 high)**. The remaining criticals are
+all `vm2` (see the standing note below).
+
+**Fixed — sanitize-html 2.17.4 → 2.17.5.** Closes the incomplete-URI-scheme-
+validation advisory (`<=2.17.4`, a `javascript:` bypass) that was on the older
+deferred "reaches shipped code" table. A same-line patch on the catalog pin;
+reaches four shipped consumers (`@n8n/nodes-langchain`, `nodes-base`,
+`editor-ui`, `design-system`), all `catalog:` references.
+
+**Fixed — storybook dev-server WebSocket hijacking (`<10.2.10`), by splitting
+the catalog.** This was deferred earlier today because moving the whole
+storybook catalog group to 10.5.10 dragged `eslint-plugin-storybook@10.5.10`
+(needs `@typescript-eslint ^8.60`), which duplicated against the repo-wide
+`^8.35` pin and broke `@n8n/node-cli`'s `tsc`. The advisory is on the
+`storybook` dev-server package, **not** the eslint plugin, so the fix is to
+bump `storybook` + `@storybook/*` to 10.5.10 while pinning
+`eslint-plugin-storybook` at 10.1.11 (which needs only `@typescript-eslint
+^8.8.1`, satisfied by 8.35.0, and whose `storybook: ^10.1.11` peer is satisfied
+by 10.5.10). Result: exactly one `@typescript-eslint/types@8.35.0` in the tree,
+build 69/69, design-system stories still lint clean. A lockstep plugin bump to
+10.5.x remains its own branch (raises typescript-eslint repo-wide to `^8.60` and
+re-runs full lint). *Approach credit: the diverse-model panel flagged the
+catalog split as lower-risk than the repo-wide typescript-eslint bump the direct
+fix would have needed.*
+
+**Fixed — @eslint/plugin-kit ReDoS (`<0.3.4`).** Two transitive copies (0.2.8,
+0.3.2), both vulnerable, neither directly declared → a scoped override
+`@eslint/plugin-kit@<0.3.4` → 0.3.4 collapses both. Low-severity, dev-only.
+
+**Fixed — the @tootallnate/once chain (`<2.0.1`).** 1.1.2 survived because its
+sole consumer `http-proxy-agent@4.0.1` pins it at exactly 1.1.2 — outside the
+existing `@tootallnate/once@2` override (the scoped-pin gap once more). Rather
+than force `once@2` into a parent that wants `once@1`, overrode
+`http-proxy-agent@4` → 5.0.0, whose declared `@tootallnate/once ^2` pulls the
+patched 2.0.1. No `http-proxy-agent` 4.x remains; the catalog's own 7.0.2 is
+untouched.
+
+**Fixed — @babel/core, prismjs, @hono/node-server.** `@babel/core` `<=7.29.0` →
+`^7.29.6` (resolves 7.29.7; preset-env dev tooling). `prismjs` `<1.30.0` →
+1.30.0 (DOM clobbering; same `@redocly/cli > redoc` chain as dompurify).
+`@hono/node-server`: the deferred table had flagged a 1→2 cross-major, but the
+advisory fix is a 1.x patch (`>=1.19.15`), so the existing override just moves
+1.19.13 → 1.19.15 — no major, no dropped exports.
+
+**Standing note — `vm2` is a Code-node engine migration, not a dependency fix.**
+Investigating the removal (this session): `vm2`'s `NodeVM` is the live sandbox
+for the legacy Code, Function and FunctionItem nodes
+(`packages/nodes-base/nodes/{Code,Function,FunctionItem}`) and langchain's Code
+node, using `NodeVM` (with `console: 'redirect'`, `sandbox` object injection,
+and a `require` resolver from `makeResolverFromLegacyOptions`) plus `.run()`.
+The `isolated-vm` already in the tree lives in `@n8n/expression-runtime` and is
+a **separate** path (expressions), wrapped in a dedicated `isolated-vm-bridge`
+because isolated-vm has no `require` resolver and no direct object injection —
+which is exactly the surface the Code nodes rely on. So the 3 sandbox-breakout
+criticals cannot be closed by a version bump (3.11.5 is terminal) and removal
+means porting the Code-node execution engine to isolated-vm (or `node:vm`) —
+its own design + plan + security review, flagged to Greg as a dedicated branch.
+
 ### 2026-08-27 — Four dependency-advisory groups closed; storybook deferred
 
 Continuing the scoped-pin cleanup on a fresh audit baseline. Today's tree opened
@@ -152,6 +214,12 @@ below are current → patched, from `pnpm audit --prod --json`:
 | `sanitize-html` | 2.17.4 | ≥2.17.5 | `@n8n/nodes-langchain` |
 | `@tootallnate/once` | 1.1.2 | ≥2.0.1 | `@n8n/nodes-langchain` |
 | `element-plus` | 2.4.3 | 2.14.4 | `frontend/@n8n/design-system` |
+
+*Since closed (see the 2026-08-27 entries above): `sanitize-html`,
+`@tootallnate/once`, and `@hono/node-server` (the last on the 1.x line, not the
+2.x this table assumed). Still open here: `nodemailer` (send-path verification),
+`markdown-it` (14.x subpath-export traps), `element-plus` (patch rebase) — each
+its own branch.*
 
 *Dev/tooling only — does not ship:* `js-yaml` 4.3.0 → ≥4.3.1 and `postcss`
 8.5.10 → ≥8.5.12 (`@n8n/ai-utilities`), `@eslint/plugin-kit` 0.3.2 → ≥0.3.4
