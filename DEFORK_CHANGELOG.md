@@ -16,6 +16,78 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-08-27 — Four dependency-advisory groups closed; storybook deferred
+
+Continuing the scoped-pin cleanup on a fresh audit baseline. Today's tree opened
+at **54 advisories (3 critical, 15 high)** — up from the 48 last recorded, the
+delta being the advisory DB advancing rather than a regression. Four groups
+closed it to **23 (3 critical, 6 high)**; the 3 remaining criticals are all
+`vm2` (see below). Every fix verified by resolved lockfile versions plus a full
+`pnpm build` (turbo, 69/69) that also retroactively covers the earlier groups.
+
+**Fixed — three high-severity ranges in dev/build/test tooling (54 → 50).**
+None reaches shipped code. `js-yaml`: the existing override pinned 4.3.0, itself
+covered by the `<4.3.1` advisory (quadratic CPU in `!!omap`); raised to 4.3.1 —
+the newest mature 4.3.x under the repo's `minimumReleaseAge` guard (4.3.2, 27h
+old, is blocked). Reaches only eslint's config loader. `@babel/plugin-transform-modules-systemjs`:
+floor `^7.29.4` resolves to 7.29.8, above the `<=7.29.3` advisory; via
+preset-env. `serialize-javascript`: scoped `<=7.0.2` → 7.1.0 (RCE via
+`RegExp.flags`); reaches only `@n8n/typeorm`'s mocha test run.
+
+**Fixed — dompurify raised to close 20 XSS/mXSS advisories (50 → 30).** The
+single highest-leverage edit in the tree: dompurify 3.1.7 arrived through one
+path (`packages/cli > @redocly/cli > redoc > dompurify`) and had accumulated 20
+advisories (mutation-XSS and prototype-pollution sanitizer bypasses, ranges up
+to `<=3.4.12`). redoc declares `dompurify ^3.0.6`, so an unconditional override
+to 3.4.14 (published 2026-08-19, mature) satisfies its range and lands one clean
+copy. dompurify here is only redoc's OpenAPI-docs sanitizer.
+
+**Fixed — electron-builder bumped to close two electron-updater advisories
+(30 → 28).** `local-gateway`'s `electron-builder ^26.9.0` pulled `app-builder-lib`
+26.9.0 and `builder-util-runtime` 9.6.0, each carrying a high-severity advisory
+(cross-origin redirect leaking `PRIVATE-TOKEN`; uncontrolled search path). Both
+leaves are owned by electron-builder, so raising the one dep to `^26.15.3`
+(published 2026-06-09) floats both leaves to their fixed versions (26.15.3 /
+9.7.0) in a single same-major edit. Packaging tooling that runs only under the
+`dist:mac` / `dist:win` scripts; it does not ship.
+
+**Fixed — postcss and rollup ranges closed (28 → 23).** Two more scoped-pin
+traps in frontend build tooling. `postcss`: the override was `postcss@<=8.5.9`
+→ `8.5.10`, and 8.5.10 is *itself* covered by two later advisories (source-map
+path traversal, arbitrary file read, up to `<=8.5.17`) — the scoped key re-armed
+the version it was meant to retire. Replaced with an unconditional floor
+`postcss ^8.5.26`. `rollup`: the vulnerable 4.52.4 (`<4.59.0`, arbitrary file
+write) was an **optional peer** via `vite-plugin-dts > @rollup/pluginutils >
+rollup`; this repo's vite is Rolldown-based and nothing first-party wants rollup
+4, so pinning the genuine 2.x consumer (`codemirror-lang-html`'s `^2.52.2`
+grammar-build) to `rollup@2` 2.80.0 (`<2.80.0` advisory) leaves the optional
+peer to re-resolve onto the 2.x copy — the 4.x copy disappears entirely. The
+4.x advisory closes because the vulnerable copy is **gone**, not because a 4.x
+was bumped; no rollup 4 remains in the tree.
+
+**Deferred — storybook (dev-server WebSocket hijacking, `<10.2.10`).** Bumping
+the storybook catalog floor to 10.5.10 does close the advisory, but it drags a
+second `@typescript-eslint/utils` (8.68.0, via `eslint-plugin-storybook`) into
+the tree, which collides with `@n8n/node-cli`'s pinned 8.35.0 and breaks its
+build (`'es2025' is not assignable to type 'Lib'`). Confirmed by a clean-lockfile
+single-variable bisect: with storybook the *only* change, the build fails 59/59
+tasks; without it, 69/69. It is dev-server tooling that does not ship, so it
+moves to its own branch with its own `@typescript-eslint`-dedup verification,
+alongside the deferred `element-plus` and `nodemailer` below.
+
+**Known remaining — no upstream fix, accepted risk (like `showdown`).**
+`html-minifier` 4.0.0 (via `mjml` 4's `mjml-cli`) and `extract-zip` 2.0.1 (via
+`@langchain/community > puppeteer > @puppeteer/browsers`) are both at the latest
+published version, and their advisories cover `<=` that version — nothing to
+bump to. `mjml` 5 replaces `html-minifier` with the maintained
+`html-minifier-terser`, but that is a production major in `packages/cli`'s email
+rendering and needs its own verification (noted for a follow-up branch, not
+accepted forever). `vm2` (3 critical + 2 high, all `<=3.11.5`, and 3.11.5 is the
+last release its abandoned maintainers published) reaches `@n8n/nodes-langchain`.
+Three sandbox-breakout criticals on an abandoned dep mean this wants **removal**,
+not acceptance — upstream n8n moved off it. Flagged to Greg as its own branch
+after auditing the actual import sites; not touched here.
+
 ### 2026-08-12 — Vulnerable dependencies patched; a CI-breaking stale lockfile fixed
 
 **Fixed — the CI scripts project could not install, breaking every workflow that
@@ -84,7 +156,8 @@ below are current → patched, from `pnpm audit --prod --json`:
 *Dev/tooling only — does not ship:* `js-yaml` 4.3.0 → ≥4.3.1 and `postcss`
 8.5.10 → ≥8.5.12 (`@n8n/ai-utilities`), `@eslint/plugin-kit` 0.3.2 → ≥0.3.4
 (`@n8n/eslint-config`). (`vite`, `minimatch` and `svgo` were on this list and are
-now fixed above.)
+now fixed above. `js-yaml` and `postcss` were closed in the 2026-08-27 entry;
+`@eslint/plugin-kit` remains — a low-severity dev-only advisory.)
 
 Notes on the awkward ones, for whoever picks these up:
 

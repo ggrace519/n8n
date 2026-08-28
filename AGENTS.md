@@ -133,7 +133,40 @@ not — all three have silently shipped vulnerable versions before:
 Version-scoped pins (`ip-address@10`, `linkify-it@<=5.0.2`) only rewrite the
 range they name, so a vulnerable version outside it survives — after any
 security bump, verify the **resolved** versions in the lockfile rather than
-trusting the floor in the manifest.
+trusting the floor in the manifest. A scoped pin can also become the *trap
+itself*: `postcss@<=8.5.9` → `8.5.10` was re-arming 8.5.10 for later advisories
+that reached `<=8.5.17`. When a pin's target keeps re-appearing in the audit,
+replace the scoped key with an unconditional floor (`postcss: ^8.5.26`).
+
+Two more traps that made a bump look done when it wasn't:
+
+- **The repo enforces `minimumReleaseAge: 4320`** (3 days) in
+  `pnpm-workspace.yaml` — a supply-chain guard that refuses any version
+  published less than 3 days ago (`ERR_PNPM_NO_MATURE_MATCHING_VERSION`). A
+  freshly-published patch (js-yaml 4.3.2, 27h old) is blocked; drop to the
+  newest version that is both patched *and* mature (4.3.1). `@n8n/*` and
+  `@n8n_io/*` are excluded via `minimumReleaseAgeExclude`.
+
+- **Bisecting a manifest change requires resetting `pnpm-lock.yaml` between
+  arms.** `pnpm install` preserves any existing resolution that still satisfies
+  the new range, so *lowering* a floor back does **not** unwind the transitive
+  tree the higher version already wrote — the guilty change gets falsely
+  exonerated. Between bisect arms, `git checkout HEAD -- pnpm-lock.yaml
+  package.json pnpm-workspace.yaml` first, then apply one variable. Tells that
+  the trees actually differed (not a flaky build): the turbo task count changes
+  (a failing early-bail shows fewer *total* tasks, e.g. 59 vs 69) and a
+  `0 cached` build that finishes in seconds is an early failure, not a real one.
+
+- **A dev-tooling bump can drag a duplicate `@typescript-eslint` that breaks an
+  unrelated package's build.** Raising the storybook catalog floor to 10.5.10
+  pulled a second `@typescript-eslint/utils` (8.68.0 via `eslint-plugin-storybook`)
+  that collided with `@n8n/node-cli`'s pinned 8.35.0, failing its `tsc` with
+  `'es2025' is not assignable to type 'Lib'`. The error names node-cli, but the
+  cause is the eslint-tooling bump elsewhere. Don't paper over it with a
+  repo-wide `@typescript-eslint` override (that changes lint behaviour across
+  every package to close one dev-server advisory) — defer the bump to its own
+  branch. This is why a full `pnpm build` (turbo, never `--filter`) is the
+  non-negotiable check after any tooling bump, not just an install + audit.
 
 ### Building in a fresh worktree: the error names the wrong culprit
 
