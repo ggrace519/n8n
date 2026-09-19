@@ -384,15 +384,23 @@ test-workflows-pr-comment.yml
 
 ## ci-master.yml
 
-Runs on push to `master` or `1.x`:
+Runs on **push to `master` or `develop`**, and on **pull requests targeting
+`master` or `develop`** (so the integration branch and its incoming PRs are
+built/tested, not just `master`). `paths-ignore` skips
+`packages/@n8n/task-runner-python/**` on both events. PR runs cancel their own
+superseded runs (`concurrency` with `cancel-in-progress` on `pull_request`
+only); push runs are never cancelled. The Slack alert fires on push only — a
+failing PR is visible on the PR, and `github.ref_name` is a merge ref on
+`pull_request` events.
 
 ```
-Push to master/1.x
+Push to master/develop  ·  PR → master/develop
 ├─ build-github (populate cache)
 ├─ unit-test (matrix: Node 22.23.2, 24.18.1)
 │   └─ Coverage only on 24.18.1
 ├─ lint
-└─ notify-on-failure (Slack #alerts-build)
+├─ performance
+└─ notify-on-failure (Slack #alerts-build; push events only)
 ```
 
 ---
