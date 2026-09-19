@@ -156,6 +156,40 @@ vulnerable terminal version with no override/catalog/patch:
 
 These are genuinely fix-less; our fork is not behind upstream on any of them.
 
+### 2026-09-19 (cont.) — faker v10 API call-site fixes surfaced by the bump
+
+Running the frontend test suites on the new deps to verify the vitest/tiptap
+bumps (see above) surfaced faker v10 API removals in editor-ui test code:
+
+**Fixed — `faker.internet.userName()` → `username()`** in
+`setupTemplate.store.testData.ts`. This one **is** a direct regression from the
+`@faker-js/faker` 10.4.0 → 10.6.0 bump above: 10.4.0 still had the `userName`
+alias, 10.6.0 removed it, so 7 tests in `setupTemplate.store.test.ts` began
+throwing `faker.internet.userName is not a function`. The file now passes 12/12.
+A runtime probe of all 24 distinct faker APIs used across the repo confirms no
+other removed-API call sites remain.
+
+**Fixed — two pre-existing latent faker breakages found alongside it** (both
+predate this session; not caused by the bump): `factories/user.ts` used
+`faker.name.firstName/lastName` (the `name` module was renamed to `person` back
+in faker v8, so this was already broken under 10.4.0 — the factory has no
+importers, which is why no test exercised it) → `faker.person.*`; and
+`factories/variable.ts` called `faker.internet.password(10)` with the old
+positional arg (v10 takes an options object) → `password({ length: 10 })`,
+which was failing `vue-tsc` before this session. editor-ui now lints and
+typechecks clean (0 errors).
+
+**Finding (not fixed here) — the editor-ui unit suite is already red on this
+branch.** 18 test files / 136 tests fail **identically** at the pre-session
+branch tip `fb6a096c34` and after this session's changes (verified by reverting
+the dependency manifests to that commit and re-running) — the error shapes
+(`localStorage.setItem is not a function`, `window.open not implemented`,
+`Found multiple elements by [data-test-id]`) are test-environment/isolation
+issues, not a dependency regression. Whether `master` shares this is unverified.
+This session's dependency changes add **zero** net-new failures. Flagging for its
+own investigation before this branch is promoted — a red frontend suite should
+not ride along silently.
+
 ### 2026-08-27 (cont.) — Six more advisories closed, including the deferred storybook
 
 A second pass on the same branch, drawing on a diverse-model review panel

@@ -32,7 +32,7 @@ export const newFullOneNodeTemplate = (node: IWorkflowTemplateNode): ITemplatesW
 	image: [],
 	categories: [],
 	user: {
-		username: faker.internet.userName(),
+		username: faker.internet.username(),
 		name: faker.person.fullName(),
 		avatar: faker.image.avatar(),
 		verified: true,
