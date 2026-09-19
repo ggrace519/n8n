@@ -130,7 +130,7 @@ catalog:
   callsites: 3.1.0
   change-case: ^5.4.4
   chat: ^4.28.1
-  cheerio: 1.1.0
+  cheerio: 1.2.0
   chokidar: 4.0.3
   cron: 4.4.0
   cron-parser: 5.6.1
