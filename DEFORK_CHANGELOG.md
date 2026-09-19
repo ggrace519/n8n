@@ -16,6 +16,87 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-19 — Re-armed pins refreshed: ~20 advisories closed in one mechanical batch
+
+Three weeks after the 2026-08-27 pass closed the tree at 16 advisories, a fresh
+`pnpm audit` reported **68** (3 critical, 31 high, 30 moderate, 4 low). The
+growth was almost entirely *re-arming*: newly-published advisories whose ranges
+now widened past versions we had deliberately pinned — the documented
+`postcss@<=8.5.9 → 8.5.10` trap, at scale. A resolved-lockfile spot-check
+confirmed the framing (every sampled pin resolved to exactly the version it
+named), so the fix for this tier is to raise floors, not to chase symptoms.
+Where a scoped/exact pin was itself being re-armed, it was replaced with an
+unconditional floor. All targets were verified mature (≥ the 3-day
+`minimumReleaseAge`) before editing, then the whole tier landed behind **one**
+`pnpm install` and **one** full `pnpm build` (turbo, 69/69 tasks, clean).
+
+*Provenance: all clean-room — these are version-floor edits to fair-code
+dependencies and this repo's own catalog/overrides; no `.ee` body was read.*
+
+**Fixed — eight override floors bumped past a widened range** (root
+`package.json` `pnpm.overrides`): `fast-uri` 3.1.5 → 3.1.6 (SSRF/host-confusion,
+`<3.1.6`); `js-yaml` 4.3.1 → 4.3.2 (merge-key CPU DoS — the version deferred on
+2026-08-26 for being 27h old, now mature); `adm-zip` 0.6.0 → 0.6.1 (memory
+DoS); `svgo@3` 3.3.4 → 3.3.5 (`removeScripts` bypass); `@xmldom/xmldom` 0.8.13 →
+0.8.15 (a cluster of injection/ReDoS/quadratic advisories, `<=0.8.14`); `hono`
+4.12.34 → 4.13.5 (`toSSG`/`parseBody`/query-parser advisories); `multer`
+`^2.2.0` → `2.3.0` (three DoS advisories, pinned exact to escape the re-armed
+2.2.0); `baseline-browser-mapping` `^2.10.31` → `^2.11.0` (process-termination
+on invalid input).
+
+**Fixed — two catalog floors raised** (`pnpm-workspace.yaml`, because
+catalog-pinned packages ignore `pnpm.overrides`): `sanitize-html` 2.17.5 →
+2.17.7 — note 2.17.5 was the version the 2026-08-27 pass *installed*, and it is
+now itself vulnerable (`<=2.17.6`), the re-arming pattern biting a prior fix;
+`qs` 6.15.2 → 6.16.0 (array-limit bypass + `isBuffer` DoS).
+
+**Fixed — the vitest family, moved in lockstep via the catalog.** The `vitest`
+core + `@vitest/mocker` DoS/path-traversal advisory (`<4.1.11`) could not be
+closed by a `pnpm.overrides` entry — `vitest` is catalog-pinned, so the override
+was silently ineffective (an attempt to add one produced a wall of
+`unmet peer vitest@4.1.11: found 4.1.9`). Raised the catalog: `vitest`,
+`@vitest/coverage-v8`, `@vitest/browser-playwright` all `4.1.9 → 4.1.11`, and
+the standalone `@vitest/browser` override `<4.1.10 → 4.1.10` up to
+`<4.1.11 → 4.1.11` so the whole family is coherent. Dev-only.
+
+**Fixed — six advisories on packages with no prior pin** (new `pnpm.overrides`):
+`browserslist` `^4.28.7` (unbounded memory / prototype write, `<=4.28.6`);
+`@faker-js/faker` `^10.5.0` (`helpers.fake` RCE, `<=10.4.0`); `colord` 2.9.4
+(slow-rejection DoS); `@humanfs/node` 0.16.8 (recursive-copy symlink follow —
+dev, via eslint); `csv-parse` 7.0.2 (prototype replacement via column); `toml`
+4.2.0 (uncontrolled recursion + prototype pollution — pinned to the *minimum*
+patched 4.2.0, not the 5.0.0 major); `markdown-it` 14.2.0 (smartquotes quadratic
+DoS); `@redocly/cli` 1.34.17 (path traversal in `split`); and
+`postcss-selector-parser` split into two scoped floors (`@6 → 6.1.3`,
+`@7 → 7.1.3`) since both major lines are present and each has its own patched
+version.
+
+**Deferred — stream-json (non-reaching moderate).** The advisory is on the
+*filter* streams (`pick`/`ignore`/`filter`/`replace`, O(depth) DoS). A repo-wide
+grep found exactly one consumer — `@n8n/backend-common`'s `flatted-async.ts` —
+using only `parser()` + `Assembler`, **not** the filter streams, so the
+vulnerable surface is not reached. Bumping to the patched 3.5.0 is a *breaking*
+change regardless: 3.5.0's `parser()` now returns a `chain()`-pipeline
+`Flushable` factory instead of a Node `Duplex` (you must call `parser.asStream()`
+or use the default export), and it ships its own `.d.ts` that shadows the
+`@types/stream-json@1.7.8` still in the tree — this broke the `backend-common`
+`tsc` build (`TS2740`/`TS2339`). Since `flatted-async.ts` is on the flatted
+execution-data async-parse path, the migration is data-adjacent and gets its own
+branch (adapt the consumer + drop `@types/stream-json`), not a ride-along in a
+dependency batch. Left at the natural resolution (1.9.1) for now.
+
+**Deferred — element-plus (moderate, its own branch).** Resolved at 2.4.3 (ten
+minors behind the frontend), the `el-link` advisory has **no upstream fix**
+(`patched: <0.0.0`), and the package is coupled to a hand-authored patch
+(`patches/element-plus@2.4.3.patch`: a vitest-4 teardown guard plus a cherry-pick
+of upstream PR #18445). A bump would only exit the declared range (fixing nothing
+verifiable) while forcing a patch rebase and full frontend re-verification — a
+large change warranting its own plan.
+
+**Standing — vm2 (3 criticals) unchanged.** Still terminal at 3.11.5; closing it
+is the Code-node engine migration described in the standing note below, not a
+version bump.
+
 ### 2026-08-27 (cont.) — Six more advisories closed, including the deferred storybook
 
 A second pass on the same branch, drawing on a diverse-model review panel

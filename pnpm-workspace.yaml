@@ -120,8 +120,8 @@ catalog:
   '@types/uuid': ^11.0.0
   '@types/ws': ^8.18.1
   '@types/xml2js': ^0.4.14
-  '@vitest/browser-playwright': ^4.1.9
-  '@vitest/coverage-v8': 4.1.9
+  '@vitest/browser-playwright': ^4.1.11
+  '@vitest/coverage-v8': 4.1.11
   agent-browser: 0.26.0
   ai: ^7.0.48
   axios: 1.18.0
@@ -191,10 +191,10 @@ catalog:
   posthog-node: 5.33.4
   prettier: 3.6.2
   proxy-from-env: ^1.1.0
-  qs: 6.15.2
+  qs: 6.16.0
   reflect-metadata: 0.2.2
   rimraf: 6.0.1
-  sanitize-html: 2.17.5
+  sanitize-html: 2.17.7
   sass-embedded: ^1.98.0
   semver: 7.7.3
   simple-git: 3.36.0
@@ -213,7 +213,7 @@ catalog:
   vite: ^8.0.16
   vite-plugin-dts: ^4.5.4
   vite-plugin-singlefile: 2.3.3
-  vitest: ^4.1.9
+  vitest: ^4.1.11
   vitest-mock-extended: ^3.1.0
   vm2: 3.11.5
   xml2js: 0.6.2
