@@ -8,10 +8,10 @@ export const userFactory = Factory.extend<IUser>({
 		return `${i}`;
 	},
 	firstName() {
-		return faker.name.firstName();
+		return faker.person.firstName();
 	},
 	lastName() {
-		return faker.name.lastName();
+		return faker.person.lastName();
 	},
 	isDefaultUser() {
 		return false;

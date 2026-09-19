@@ -10,6 +10,6 @@ export const variableFactory = Factory.extend<EnvironmentVariable>({
 		return `${faker.lorem.word()}`.toUpperCase();
 	},
 	value() {
-		return faker.internet.password(10);
+		return faker.internet.password({ length: 10 });
 	},
 });

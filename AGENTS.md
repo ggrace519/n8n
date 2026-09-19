@@ -110,6 +110,91 @@ by default) for a fast recovery: it cleans build outputs and force-rebuilds
 use `pnpm reset --full`, which also wipes untracked files and reinstalls
 dependencies.
 
+### Dependency changes (pnpm gotchas)
+
+Three behaviours that make a dependency edit look like it worked when it did
+not — all three have silently shipped vulnerable versions before:
+
+- **A successful `pnpm install` prints nothing.** The repo `.npmrc` sets
+  `loglevel = warn`, so silence plus exit 0 means success, not a command that
+  failed to run. Pass `--loglevel=info` when you need to watch resolution
+  actually happen.
+- **A *scoped* override does not beat a `catalog:` entry.** If a package is
+  pinned in `pnpm-workspace.yaml`'s `catalog:` (the lockfile shows
+  `specifier: 'catalog:'`), a **version-scoped** override for it
+  (`vitest@<4.1.11`, `dompurify@<=3.4.12`) is silently ineffective — the
+  catalog specifier wins and the scoped key matches nothing. Raise the floor in
+  the catalog instead, and move the whole family in lockstep (e.g. `vitest` +
+  `@vitest/coverage-v8` + `@vitest/browser-playwright`, or the fourteen
+  `@tiptap/*`), or you get `unmet peer` walls. A **plain, unscoped** override
+  (`"nodemailer": "9.1.1"`) *does* force the resolved version globally, even
+  over a catalog entry — but that diverges the catalog specifier from the
+  resolved version (misleading bookkeeping). The repo idiom is to make the
+  catalog the source of truth and point the override at it
+  (`"nodemailer": "catalog:"`), which forces transitive copies to the catalog
+  value. Overrides still cover transitive copies that no catalog entry reaches.
+  *(Verified 2026-09-19: scoped `vitest@<4.1.11` was inert against catalog
+  `^4.1.9`; plain `nodemailer` rewrote catalog `8.0.10` → 9.1.1.)*
+- **`.github/scripts` is not a workspace member.** It has its own
+  `package.json` and `pnpm-lock.yaml`, and a plain `pnpm install` from inside
+  it resolves the *root* workspace ("Scope: all 78 workspace projects") and
+  leaves that lockfile untouched. Use the form the 21 workflows use:
+  `pnpm install --dir ./.github/scripts --ignore-workspace`.
+
+Version-scoped pins (`ip-address@10`, `linkify-it@<=5.0.2`) only rewrite the
+range they name, so a vulnerable version outside it survives — after any
+security bump, verify the **resolved** versions in the lockfile rather than
+trusting the floor in the manifest. A scoped pin can also become the *trap
+itself*: `postcss@<=8.5.9` → `8.5.10` was re-arming 8.5.10 for later advisories
+that reached `<=8.5.17`. When a pin's target keeps re-appearing in the audit,
+replace the scoped key with an unconditional floor (`postcss: ^8.5.26`).
+
+Two more traps that made a bump look done when it wasn't:
+
+- **The repo enforces `minimumReleaseAge: 4320`** (3 days) in
+  `pnpm-workspace.yaml` — a supply-chain guard that refuses any version
+  published less than 3 days ago (`ERR_PNPM_NO_MATURE_MATCHING_VERSION`). A
+  freshly-published patch (js-yaml 4.3.2, 27h old) is blocked; drop to the
+  newest version that is both patched *and* mature (4.3.1). `@n8n/*` and
+  `@n8n_io/*` are excluded via `minimumReleaseAgeExclude`.
+
+- **Bisecting a manifest change requires resetting `pnpm-lock.yaml` between
+  arms.** `pnpm install` preserves any existing resolution that still satisfies
+  the new range, so *lowering* a floor back does **not** unwind the transitive
+  tree the higher version already wrote — the guilty change gets falsely
+  exonerated. Between bisect arms, `git checkout HEAD -- pnpm-lock.yaml
+  package.json pnpm-workspace.yaml` first, then apply one variable. Tells that
+  the trees actually differed (not a flaky build): the turbo task count changes
+  (a failing early-bail shows fewer *total* tasks, e.g. 59 vs 69) and a
+  `0 cached` build that finishes in seconds is an early failure, not a real one.
+
+- **A dev-tooling bump can drag a duplicate `@typescript-eslint` that breaks an
+  unrelated package's build.** Raising the storybook catalog floor to 10.5.10
+  pulled a second `@typescript-eslint/utils` (8.68.0 via `eslint-plugin-storybook`)
+  that collided with `@n8n/node-cli`'s pinned 8.35.0, failing its `tsc` with
+  `'es2025' is not assignable to type 'Lib'`. The error names node-cli, but the
+  cause is the eslint-tooling bump elsewhere. Don't paper over it with a
+  repo-wide `@typescript-eslint` override (that changes lint behaviour across
+  every package to close one dev-server advisory) — defer the bump to its own
+  branch. This is why a full `pnpm build` (turbo, never `--filter`) is the
+  non-negotiable check after any tooling bump, not just an install + audit.
+
+### Building in a fresh worktree: the error names the wrong culprit
+
+In a tree whose workspace deps aren't built yet, failures point at innocent
+code. Both of these were mistaken for regressions in an unrelated change:
+
+- `Rolldown failed to resolve import "n8n-workflow"` when building `editor-ui`
+  — means `packages/workflow/dist` doesn't exist, not a bundler problem.
+- `TS2353: 'level' does not exist in type 'ExecutionBaseErrorOptions'` in
+  `packages/workflow` — a knock-on of `TS2307: Cannot find module '@n8n/errors'`;
+  the options type resolves stale when `@n8n/errors` isn't built first.
+
+**Use `pnpm build` (turbo), which orders the dependency graph correctly.**
+`pnpm --filter <pkg> build` and even `pnpm --filter <pkg>... build` do not
+reliably build prerequisites here. Before blaming a diff for a build error in a
+fresh worktree, reproduce it on the base commit.
+
 ### Testing
 - `pnpm test` - Run all tests
 - `pnpm test:affected` - Runs tests based on what has changed since the last

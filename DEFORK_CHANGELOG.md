@@ -16,6 +16,416 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-19 — Re-armed pins refreshed: ~20 advisories closed in one mechanical batch
+
+Three weeks after the 2026-08-27 pass closed the tree at 16 advisories, a fresh
+`pnpm audit` reported **68** (3 critical, 31 high, 30 moderate, 4 low). The
+growth was almost entirely *re-arming*: newly-published advisories whose ranges
+now widened past versions we had deliberately pinned — the documented
+`postcss@<=8.5.9 → 8.5.10` trap, at scale. A resolved-lockfile spot-check
+confirmed the framing (every sampled pin resolved to exactly the version it
+named), so the fix for this tier is to raise floors, not to chase symptoms.
+Where a scoped/exact pin was itself being re-armed, it was replaced with an
+unconditional floor. All targets were verified mature (≥ the 3-day
+`minimumReleaseAge`) before editing, then the whole tier landed behind **one**
+`pnpm install` and **one** full `pnpm build` (turbo, 69/69 tasks, clean).
+
+*Provenance: all clean-room — these are version-floor edits to fair-code
+dependencies and this repo's own catalog/overrides; no `.ee` body was read.*
+
+**Fixed — eight override floors bumped past a widened range** (root
+`package.json` `pnpm.overrides`): `fast-uri` 3.1.5 → 3.1.6 (SSRF/host-confusion,
+`<3.1.6`); `js-yaml` 4.3.1 → 4.3.2 (merge-key CPU DoS — the version deferred on
+2026-08-26 for being 27h old, now mature); `adm-zip` 0.6.0 → 0.6.1 (memory
+DoS); `svgo@3` 3.3.4 → 3.3.5 (`removeScripts` bypass); `@xmldom/xmldom` 0.8.13 →
+0.8.15 (a cluster of injection/ReDoS/quadratic advisories, `<=0.8.14`); `hono`
+4.12.34 → 4.13.5 (`toSSG`/`parseBody`/query-parser advisories); `multer`
+`^2.2.0` → `2.3.0` (three DoS advisories, pinned exact to escape the re-armed
+2.2.0); `baseline-browser-mapping` `^2.10.31` → `^2.11.0` (process-termination
+on invalid input).
+
+**Fixed — two catalog floors raised** (`pnpm-workspace.yaml`, because
+catalog-pinned packages ignore `pnpm.overrides`): `sanitize-html` 2.17.5 →
+2.17.7 — note 2.17.5 was the version the 2026-08-27 pass *installed*, and it is
+now itself vulnerable (`<=2.17.6`), the re-arming pattern biting a prior fix;
+`qs` 6.15.2 → 6.16.0 (array-limit bypass + `isBuffer` DoS).
+
+**Fixed — the vitest family, moved in lockstep via the catalog.** The `vitest`
+core + `@vitest/mocker` DoS/path-traversal advisory (`<4.1.11`) could not be
+closed by a `pnpm.overrides` entry — `vitest` is catalog-pinned, so the override
+was silently ineffective (an attempt to add one produced a wall of
+`unmet peer vitest@4.1.11: found 4.1.9`). Raised the catalog: `vitest`,
+`@vitest/coverage-v8`, `@vitest/browser-playwright` all `4.1.9 → 4.1.11`, and
+the standalone `@vitest/browser` override `<4.1.10 → 4.1.10` up to
+`<4.1.11 → 4.1.11` so the whole family is coherent. Dev-only.
+
+**Fixed — six advisories on packages with no prior pin** (new `pnpm.overrides`):
+`browserslist` `^4.28.7` (unbounded memory / prototype write, `<=4.28.6`);
+`@faker-js/faker` `^10.5.0` (`helpers.fake` RCE, `<=10.4.0`); `colord` 2.9.4
+(slow-rejection DoS); `@humanfs/node` 0.16.8 (recursive-copy symlink follow —
+dev, via eslint); `csv-parse` 7.0.2 (prototype replacement via column); `toml`
+4.2.0 (uncontrolled recursion + prototype pollution — pinned to the *minimum*
+patched 4.2.0, not the 5.0.0 major); `markdown-it` 14.2.0 (smartquotes quadratic
+DoS); `@redocly/cli` 1.34.17 (path traversal in `split`); and
+`postcss-selector-parser` split into two scoped floors (`@6 → 6.1.3`,
+`@7 → 7.1.3`) since both major lines are present and each has its own patched
+version.
+
+**Deferred — stream-json (non-reaching moderate).** The advisory is on the
+*filter* streams (`pick`/`ignore`/`filter`/`replace`, O(depth) DoS). A repo-wide
+grep found exactly one consumer — `@n8n/backend-common`'s `flatted-async.ts` —
+using only `parser()` + `Assembler`, **not** the filter streams, so the
+vulnerable surface is not reached. Bumping to the patched 3.5.0 is a *breaking*
+change regardless: 3.5.0's `parser()` now returns a `chain()`-pipeline
+`Flushable` factory instead of a Node `Duplex` (you must call `parser.asStream()`
+or use the default export), and it ships its own `.d.ts` that shadows the
+`@types/stream-json@1.7.8` still in the tree — this broke the `backend-common`
+`tsc` build (`TS2740`/`TS2339`). Since `flatted-async.ts` is on the flatted
+execution-data async-parse path, the migration is data-adjacent and gets its own
+branch (adapt the consumer + drop `@types/stream-json`), not a ride-along in a
+dependency batch. Left at the natural resolution (1.9.1) for now.
+
+**Deferred — element-plus (moderate, its own branch).** Resolved at 2.4.3 (ten
+minors behind the frontend), the `el-link` advisory has **no upstream fix**
+(`patched: <0.0.0`), and the package is coupled to a hand-authored patch
+(`patches/element-plus@2.4.3.patch`: a vitest-4 teardown guard plus a cherry-pick
+of upstream PR #18445). A bump would only exit the declared range (fixing nothing
+verifiable) while forcing a patch rebase and full frontend re-verification — a
+large change warranting its own plan.
+
+**Standing — vm2 (3 criticals) unchanged.** Still terminal at 3.11.5; closing it
+is the Code-node engine migration described in the standing note below, not a
+version bump.
+
+### 2026-09-19 (cont.) — Two semver-risky bumps, verified behaviorally
+
+The semver-risky tier from the same audit, landed as a second commit with its
+own build + test signal (kept out of the mechanical batch so a failure would
+have a single candidate cause).
+
+*Provenance: clean-room version-floor edits to fair-code dependencies; no `.ee`
+body read.*
+
+**Fixed — nodemailer 8.0.10 → 9.1.1 (major).** Closes a cluster of nodemailer
+advisories (raw-option `disableFileAccess` bypass, quadratic address parsing,
+`resolveContent` bypass, IDN/Punycode allow-list bypass, recipient-domain
+validation bypass — `<9.1.0`/`<=9.1.0`). nodemailer is catalog-routed
+(`packages/cli` and `packages/nodes-base` both declare `"nodemailer":
+"catalog:"`), so the catalog is the source of truth: raised `nodemailer` to
+9.1.1 in `pnpm-workspace.yaml` and pointed the override at `catalog:` (the repo
+idiom — see the corrected AGENTS.md note). The sole first-party consumer is
+`packages/cli/.../email/node-mailer.ts` (`createTransport`, `Transporter`, and
+the `nodemailer/lib/smtp-connection` subpath); its 13-test suite **passes**
+against 9.1.1 on vitest 4.1.11, so the major is behaviorally verified, not just
+type-checked. `@types/nodemailer` stays at 8.0.1 — nodemailer 9 ships no bundled
+types, the `@types` track has no 9.x (latest is 8.0.2, tagged `latest`), and
+8.0.1 is structurally compatible with the 9.1.1 runtime (full build clean).
+
+**Fixed — the @tiptap/* family 3.27.0 → 3.31.3 (catalog lockstep).** Closes the
+`@tiptap/core` quadratic-ReDoS + `mergeAttributes` prototype-pollution advisories
+(`<3.30.5` / `<3.30.4`). All fourteen `@tiptap/*` catalog entries move together,
+because tiptap requires one version across the family. The advisory floor is
+3.30.5, but `@tiptap/vue-3` transitively pulls `extension-floating-menu` /
+`extension-bubble-menu` at 3.31.3, which peer-require `@tiptap/pm@^3.31.3` — so
+pinning the family at 3.30.5 left an `unmet peer @tiptap/pm@3.31.3` wall. Moving
+the whole catalog to 3.31.3 (mature, 2026-09-04; still `>=3.30.5`) makes the
+family fully coherent — zero tiptap peer warnings, single 3.31.3 everywhere.
+Full build 69/69.
+
+**Tier C — no fix available; upstream carries the same risk.** For the fix-less
+transitive/terminal advisories, a read-only provenance check of upstream
+`n8n-io/n8n` master (v2.40.0, 2026-09-19; manifests/lockfile only, no `.ee`)
+found upstream has addressed **none** of them — all resolve at the same
+vulnerable terminal version with no override/catalog/patch:
+- **vm2** (3 crit): terminal 3.11.5, Code-node engine migration (standing note).
+- **html-minifier** `<=4.0.0` (ReDoS, no fix): transitive via `mjml@4.15.3 >
+  mjml-cli`/`mjml-core`. Upstream has not migrated to `html-minifier-terser` or
+  mjml 5. The only real fix (mjml 5, which swaps in htmlnano) was upstream PR
+  #28570, **closed unmerged**.
+- **mjml** `<5.0.0-alpha.9` (directory traversal): upstream still on 4.15.3; the
+  only fix is a 5.x alpha, declined upstream (#28570). Not a floor to take.
+- **showdown** `<=2.1.0` (ReDoS + XSS, no fix): direct dep of `nodes-base`
+  (Markdown node), terminal, not replaced upstream either.
+- **extract-zip** `<=2.0.1` (symlink path traversal, no fix): transitive via the
+  `@langchain/community > puppeteer > @puppeteer/browsers` chain. Install-time
+  only, and upstream's `allowBuilds: puppeteer: false` disables the puppeteer
+  browser-download build script that reaches the unpack path (not a runtime
+  guarantee, but a real mitigation we share).
+- **elliptic** `<=6.6.1` (low, risky-primitive, no fix): transitive via the
+  `crypto-browserify` browser polyfill.
+
+These are genuinely fix-less; our fork is not behind upstream on any of them.
+
+### 2026-09-19 (cont.) — faker v10 API call-site fixes surfaced by the bump
+
+Running the frontend test suites on the new deps to verify the vitest/tiptap
+bumps (see above) surfaced faker v10 API removals in editor-ui test code:
+
+**Fixed — `faker.internet.userName()` → `username()`** in
+`setupTemplate.store.testData.ts`. This one **is** a direct regression from the
+`@faker-js/faker` 10.4.0 → 10.6.0 bump above: 10.4.0 still had the `userName`
+alias, 10.6.0 removed it, so 7 tests in `setupTemplate.store.test.ts` began
+throwing `faker.internet.userName is not a function`. The file now passes 12/12.
+A runtime probe of all 24 distinct faker APIs used across the repo confirms no
+other removed-API call sites remain.
+
+**Fixed — two pre-existing latent faker breakages found alongside it** (both
+predate this session; not caused by the bump): `factories/user.ts` used
+`faker.name.firstName/lastName` (the `name` module was renamed to `person` back
+in faker v8, so this was already broken under 10.4.0 — the factory has no
+importers, which is why no test exercised it) → `faker.person.*`; and
+`factories/variable.ts` called `faker.internet.password(10)` with the old
+positional arg (v10 takes an options object) → `password({ length: 10 })`,
+which was failing `vue-tsc` before this session. editor-ui now lints and
+typechecks clean (0 errors).
+
+**Finding (not fixed here) — the editor-ui unit suite is already red on this
+branch.** 18 test files / 136 tests fail **identically** at the pre-session
+branch tip `fb6a096c34` and after this session's changes (verified by reverting
+the dependency manifests to that commit and re-running) — the error shapes
+(`localStorage.setItem is not a function`, `window.open not implemented`,
+`Found multiple elements by [data-test-id]`) are test-environment/isolation
+issues, not a dependency regression. Whether `master` shares this is unverified.
+This session's dependency changes add **zero** net-new failures. Flagging for its
+own investigation before this branch is promoted — a red frontend suite should
+not ride along silently.
+
+### 2026-08-27 (cont.) — Six more advisories closed, including the deferred storybook
+
+A second pass on the same branch, drawing on a diverse-model review panel
+(codex read-only + grok advisory) to de-risk the awkward ones. Took the tree
+from **23 → 16 advisories (3 critical, 5 high)**. The remaining criticals are
+all `vm2` (see the standing note below).
+
+**Fixed — sanitize-html 2.17.4 → 2.17.5.** Closes the incomplete-URI-scheme-
+validation advisory (`<=2.17.4`, a `javascript:` bypass) that was on the older
+deferred "reaches shipped code" table. A same-line patch on the catalog pin;
+reaches four shipped consumers (`@n8n/nodes-langchain`, `nodes-base`,
+`editor-ui`, `design-system`), all `catalog:` references.
+
+**Fixed — storybook dev-server WebSocket hijacking (`<10.2.10`), by splitting
+the catalog.** This was deferred earlier today because moving the whole
+storybook catalog group to 10.5.10 dragged `eslint-plugin-storybook@10.5.10`
+(needs `@typescript-eslint ^8.60`), which duplicated against the repo-wide
+`^8.35` pin and broke `@n8n/node-cli`'s `tsc`. The advisory is on the
+`storybook` dev-server package, **not** the eslint plugin, so the fix is to
+bump `storybook` + `@storybook/*` to 10.5.10 while pinning
+`eslint-plugin-storybook` at 10.1.11 (which needs only `@typescript-eslint
+^8.8.1`, satisfied by 8.35.0, and whose `storybook: ^10.1.11` peer is satisfied
+by 10.5.10). Result: exactly one `@typescript-eslint/types@8.35.0` in the tree,
+build 69/69, design-system stories still lint clean. A lockstep plugin bump to
+10.5.x remains its own branch (raises typescript-eslint repo-wide to `^8.60` and
+re-runs full lint). *Approach credit: the diverse-model panel flagged the
+catalog split as lower-risk than the repo-wide typescript-eslint bump the direct
+fix would have needed.*
+
+**Fixed — @eslint/plugin-kit ReDoS (`<0.3.4`).** Two transitive copies (0.2.8,
+0.3.2), both vulnerable, neither directly declared → a scoped override
+`@eslint/plugin-kit@<0.3.4` → 0.3.4 collapses both. Low-severity, dev-only.
+
+**Fixed — the @tootallnate/once chain (`<2.0.1`).** 1.1.2 survived because its
+sole consumer `http-proxy-agent@4.0.1` pins it at exactly 1.1.2 — outside the
+existing `@tootallnate/once@2` override (the scoped-pin gap once more). Rather
+than force `once@2` into a parent that wants `once@1`, overrode
+`http-proxy-agent@4` → 5.0.0, whose declared `@tootallnate/once ^2` pulls the
+patched 2.0.1. No `http-proxy-agent` 4.x remains; the catalog's own 7.0.2 is
+untouched.
+
+**Fixed — @babel/core, prismjs, @hono/node-server.** `@babel/core` `<=7.29.0` →
+`^7.29.6` (resolves 7.29.7; preset-env dev tooling). `prismjs` `<1.30.0` →
+1.30.0 (DOM clobbering; same `@redocly/cli > redoc` chain as dompurify).
+`@hono/node-server`: the deferred table had flagged a 1→2 cross-major, but the
+advisory fix is a 1.x patch (`>=1.19.15`), so the existing override just moves
+1.19.13 → 1.19.15 — no major, no dropped exports.
+
+**Standing note — `vm2` is a Code-node engine migration, not a dependency fix.**
+Investigating the removal (this session): `vm2`'s `NodeVM` is the live sandbox
+for the legacy Code, Function and FunctionItem nodes
+(`packages/nodes-base/nodes/{Code,Function,FunctionItem}`) and langchain's Code
+node, using `NodeVM` (with `console: 'redirect'`, `sandbox` object injection,
+and a `require` resolver from `makeResolverFromLegacyOptions`) plus `.run()`.
+The `isolated-vm` already in the tree lives in `@n8n/expression-runtime` and is
+a **separate** path (expressions), wrapped in a dedicated `isolated-vm-bridge`
+because isolated-vm has no `require` resolver and no direct object injection —
+which is exactly the surface the Code nodes rely on. So the 3 sandbox-breakout
+criticals cannot be closed by a version bump (3.11.5 is terminal) and removal
+means porting the Code-node execution engine to isolated-vm (or `node:vm`) —
+its own design + plan + security review, flagged to Greg as a dedicated branch.
+
+### 2026-08-27 — Four dependency-advisory groups closed; storybook deferred
+
+Continuing the scoped-pin cleanup on a fresh audit baseline. Today's tree opened
+at **54 advisories (3 critical, 15 high)** — up from the 48 last recorded, the
+delta being the advisory DB advancing rather than a regression. Four groups
+closed it to **23 (3 critical, 6 high)**; the 3 remaining criticals are all
+`vm2` (see below). Every fix verified by resolved lockfile versions plus a full
+`pnpm build` (turbo, 69/69) that also retroactively covers the earlier groups.
+
+**Fixed — three high-severity ranges in dev/build/test tooling (54 → 50).**
+None reaches shipped code. `js-yaml`: the existing override pinned 4.3.0, itself
+covered by the `<4.3.1` advisory (quadratic CPU in `!!omap`); raised to 4.3.1 —
+the newest mature 4.3.x under the repo's `minimumReleaseAge` guard (4.3.2, 27h
+old, is blocked). Reaches only eslint's config loader. `@babel/plugin-transform-modules-systemjs`:
+floor `^7.29.4` resolves to 7.29.8, above the `<=7.29.3` advisory; via
+preset-env. `serialize-javascript`: scoped `<=7.0.2` → 7.1.0 (RCE via
+`RegExp.flags`); reaches only `@n8n/typeorm`'s mocha test run.
+
+**Fixed — dompurify raised to close 20 XSS/mXSS advisories (50 → 30).** The
+single highest-leverage edit in the tree: dompurify 3.1.7 arrived through one
+path (`packages/cli > @redocly/cli > redoc > dompurify`) and had accumulated 20
+advisories (mutation-XSS and prototype-pollution sanitizer bypasses, ranges up
+to `<=3.4.12`). redoc declares `dompurify ^3.0.6`, so an unconditional override
+to 3.4.14 (published 2026-08-19, mature) satisfies its range and lands one clean
+copy. dompurify here is only redoc's OpenAPI-docs sanitizer.
+
+**Fixed — electron-builder bumped to close two electron-updater advisories
+(30 → 28).** `local-gateway`'s `electron-builder ^26.9.0` pulled `app-builder-lib`
+26.9.0 and `builder-util-runtime` 9.6.0, each carrying a high-severity advisory
+(cross-origin redirect leaking `PRIVATE-TOKEN`; uncontrolled search path). Both
+leaves are owned by electron-builder, so raising the one dep to `^26.15.3`
+(published 2026-06-09) floats both leaves to their fixed versions (26.15.3 /
+9.7.0) in a single same-major edit. Packaging tooling that runs only under the
+`dist:mac` / `dist:win` scripts; it does not ship.
+
+**Fixed — postcss and rollup ranges closed (28 → 23).** Two more scoped-pin
+traps in frontend build tooling. `postcss`: the override was `postcss@<=8.5.9`
+→ `8.5.10`, and 8.5.10 is *itself* covered by two later advisories (source-map
+path traversal, arbitrary file read, up to `<=8.5.17`) — the scoped key re-armed
+the version it was meant to retire. Replaced with an unconditional floor
+`postcss ^8.5.26`. `rollup`: the vulnerable 4.52.4 (`<4.59.0`, arbitrary file
+write) was an **optional peer** via `vite-plugin-dts > @rollup/pluginutils >
+rollup`; this repo's vite is Rolldown-based and nothing first-party wants rollup
+4, so pinning the genuine 2.x consumer (`codemirror-lang-html`'s `^2.52.2`
+grammar-build) to `rollup@2` 2.80.0 (`<2.80.0` advisory) leaves the optional
+peer to re-resolve onto the 2.x copy — the 4.x copy disappears entirely. The
+4.x advisory closes because the vulnerable copy is **gone**, not because a 4.x
+was bumped; no rollup 4 remains in the tree.
+
+**Deferred — storybook (dev-server WebSocket hijacking, `<10.2.10`).** Bumping
+the storybook catalog floor to 10.5.10 does close the advisory, but it drags a
+second `@typescript-eslint/utils` (8.68.0, via `eslint-plugin-storybook`) into
+the tree, which collides with `@n8n/node-cli`'s pinned 8.35.0 and breaks its
+build (`'es2025' is not assignable to type 'Lib'`). Confirmed by a clean-lockfile
+single-variable bisect: with storybook the *only* change, the build fails 59/59
+tasks; without it, 69/69. It is dev-server tooling that does not ship, so it
+moves to its own branch with its own `@typescript-eslint`-dedup verification,
+alongside the deferred `element-plus` and `nodemailer` below.
+
+**Known remaining — no upstream fix, accepted risk (like `showdown`).**
+`html-minifier` 4.0.0 (via `mjml` 4's `mjml-cli`) and `extract-zip` 2.0.1 (via
+`@langchain/community > puppeteer > @puppeteer/browsers`) are both at the latest
+published version, and their advisories cover `<=` that version — nothing to
+bump to. `mjml` 5 replaces `html-minifier` with the maintained
+`html-minifier-terser`, but that is a production major in `packages/cli`'s email
+rendering and needs its own verification (noted for a follow-up branch, not
+accepted forever). `vm2` (3 critical + 2 high, all `<=3.11.5`, and 3.11.5 is the
+last release its abandoned maintainers published) reaches `@n8n/nodes-langchain`.
+Three sandbox-breakout criticals on an abandoned dep mean this wants **removal**,
+not acceptance — upstream n8n moved off it. Flagged to Greg as its own branch
+after auditing the actual import sites; not touched here.
+
+### 2026-08-12 — Vulnerable dependencies patched; a CI-breaking stale lockfile fixed
+
+**Fixed — the CI scripts project could not install, breaking every workflow that
+uses it.** The security floors raised in `.github/scripts/package.json` (yaml
+`^2.9.0`, overrides `fast-uri@3` → 3.1.5 and a new `handlebars@4` → 4.7.9) were
+never written through to the lockfile beside it, so `pnpm install
+--frozen-lockfile --dir ./.github/scripts --ignore-workspace` — the exact command
+21 workflows run — failed with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`, and the
+resolved tree still carried the very versions those floors were meant to replace
+(fast-uri 3.1.4, handlebars 4.7.8, yaml 2.8.3). Regenerating the lockfile fixes
+both the CI failure and the unpatched versions.
+
+*Note for future dependency work:* `.github/scripts` is **not** a pnpm workspace
+member. A plain `pnpm install` run from inside it silently resolves the *root*
+workspace ("Scope: all 78 workspace projects") and leaves that lockfile
+untouched; it needs `--dir ./.github/scripts --ignore-workspace`. Relatedly, the
+repo `.npmrc` sets `loglevel = warn`, so a successful `pnpm install` prints
+nothing at all — silence and exit 0 is success, not a command that failed to run.
+Use `--loglevel=info` when you need to see resolution actually happen.
+
+**Fixed — two dependency ranges left vulnerable by version-scoped pins.** The
+same defect class as the `node-rsa` entry below: a pin only rewrites the range it
+names, so a vulnerable version outside that range survives. The `ip-address@10`
+override left `socks@2.8.3`'s transitive ip-address 9.0.5 untouched, which the
+advisory covers (`<=10.3.0`); since no patched 9.x exists, the fix is bumping
+socks to 2.8.9 (it already requires ip-address `^10.1.1`) rather than forcing a
+major. `nanoid` 3.3.8 came from the **workspace catalog**, which takes precedence
+over the overrides block, so its floor had to move in `pnpm-workspace.yaml`; the
+override still covers the transitive 3.3.11 reached via postcss. Advisories drop
+from 65 to 61, high from 26 to 23, with none newly introduced (counted as unique
+keys in `pnpm audit --json`; the CLI's text output counts paths, not advisories,
+so it reports a higher figure for the same tree).
+
+**Fixed — the minimatch, svgo and vite advisory ranges.** Three more of the same
+scoped-pin pattern. `minimatch` had overrides for `<=5.1.8` and `@10` while the
+resolved tree also carried 8.0.4 and 9.0.1, outside either pin and both
+vulnerable — `minimatch@8`/`minimatch@9` entries close them (9.0.9 was already
+present, so that one consolidates). `svgo` 3.3.2 → 3.3.4. `vite` is a **catalog**
+entry rather than an override target: its `^8.0.2` floor already permitted the
+fix, but the lock had pinned 8.0.2, so the floor moved to `^8.0.16` and
+resolution lands 8.2.1. Advisories 61 → 48, high 23 → 12, none introduced;
+editor-ui builds on the new vite (8968 modules) and design-system (1423) and
+n8n-core (1987) are unchanged.
+
+**Known remaining — `showdown` has no upstream fix and is accepted risk.** Three
+XSS advisories cover `showdown` ≤2.1.0 (`packages/nodes-base`), and 2.1.0 is the
+latest version its maintainers have published — there is nothing to bump to, so
+this needs a replacement or input mitigation rather than a version change.
+
+**Deferred — the remaining advisories all have published fixes, but each needs
+its own verification.** Left for follow-up branches rather than absorbed here,
+since they span unrelated packages and several cross a major version. Versions
+below are current → patched, from `pnpm audit --prod --json`:
+
+*Reaches shipped code:*
+
+| Package | Current | Patched | Consumer |
+| --- | --- | --- | --- |
+| `nodemailer` | 8.0.10 | ≥9.0.1 | `packages/cli` |
+| `@hono/node-server` | 1.19.13 | ≥2.0.5 | `@n8n/agents` |
+| `markdown-it` | 13.0.2 | ≥14.1.1 | `frontend/@n8n/chat` |
+| `sanitize-html` | 2.17.4 | ≥2.17.5 | `@n8n/nodes-langchain` |
+| `@tootallnate/once` | 1.1.2 | ≥2.0.1 | `@n8n/nodes-langchain` |
+| `element-plus` | 2.4.3 | 2.14.4 | `frontend/@n8n/design-system` |
+
+*Since closed (see the 2026-08-27 entries above): `sanitize-html`,
+`@tootallnate/once`, and `@hono/node-server` (the last on the 1.x line, not the
+2.x this table assumed). Still open here: `nodemailer` (send-path verification),
+`markdown-it` (14.x subpath-export traps), `element-plus` (patch rebase) — each
+its own branch.*
+
+*Dev/tooling only — does not ship:* `js-yaml` 4.3.0 → ≥4.3.1 and `postcss`
+8.5.10 → ≥8.5.12 (`@n8n/ai-utilities`), `@eslint/plugin-kit` 0.3.2 → ≥0.3.4
+(`@n8n/eslint-config`). (`vite`, `minimatch` and `svgo` were on this list and are
+now fixed above. `js-yaml` and `postcss` were closed in the 2026-08-27 entry;
+`@eslint/plugin-kit` remains — a low-severity dev-only advisory.)
+
+Notes on the awkward ones, for whoever picks these up:
+
+- **`nodemailer` (catalog pin, 8 → 9).** Left alone even though this change
+  already edits the catalog for `nanoid`, because a mail-transport major belongs
+  with its own send-path verification. The 9.0.0 break is behavioural rather than
+  a signature change: outbound TLS certificates are now validated by default when
+  fetching remote attachments, calling OAuth2 token endpoints, and doing proxy
+  CONNECT. Existing SMTP-level `tls.rejectUnauthorized` settings do not cover
+  those HTTPS paths.
+- **`markdown-it` (13 → 14).** Pin `~14`, **not** `>=14.1.1`: 15.x removes the
+  `markdown-it/lib/*` subpath exports, and two files import them —
+  `editor-ui/.../useChatHubMarkdownOptions.ts` and
+  `design-system/.../N8nMarkdown/youtube.ts`. `@types/markdown-it` (catalog,
+  `^13.0.2`) must move in lockstep, and the `markdown-it-emoji` plugin API
+  changed in 14.
+- **`element-plus` (2.4.3 → 2.14.4).** Two traps. `pnpm audit` reports its
+  patched range as `<0.0.0`, which reads as "no fix exists" — misleading, since
+  2.14.4 is published and does resolve the advisory (which covers ≤2.11.0). More
+  importantly there is a version-pinned `patches/element-plus@2.4.3.patch`, which
+  will not apply to 2.14.4 and must be rebased or dropped as part of the bump.
+- **`@hono/node-server` (1 → 2).** No first-party import; it is pinned for
+  transitive use, so the risk sits in MCP/agent HTTP serving rather than app
+  code. v2 requires Node ≥20 (already satisfied) and drops the
+  `@hono/node-server/vercel` export.
+
 ### 2026-08-12 — Signed SAML requests fixed (#7); the app boots (A12); allowlist pruned
 
 **Fixed — signed outbound SAML requests produced a signature IdPs reject (#7).**
