@@ -97,6 +97,65 @@ large change warranting its own plan.
 is the Code-node engine migration described in the standing note below, not a
 version bump.
 
+### 2026-09-19 (cont.) — Two semver-risky bumps, verified behaviorally
+
+The semver-risky tier from the same audit, landed as a second commit with its
+own build + test signal (kept out of the mechanical batch so a failure would
+have a single candidate cause).
+
+*Provenance: clean-room version-floor edits to fair-code dependencies; no `.ee`
+body read.*
+
+**Fixed — nodemailer 8.0.10 → 9.1.1 (major).** Closes a cluster of nodemailer
+advisories (raw-option `disableFileAccess` bypass, quadratic address parsing,
+`resolveContent` bypass, IDN/Punycode allow-list bypass, recipient-domain
+validation bypass — `<9.1.0`/`<=9.1.0`). nodemailer is catalog-routed
+(`packages/cli` and `packages/nodes-base` both declare `"nodemailer":
+"catalog:"`), so the catalog is the source of truth: raised `nodemailer` to
+9.1.1 in `pnpm-workspace.yaml` and pointed the override at `catalog:` (the repo
+idiom — see the corrected AGENTS.md note). The sole first-party consumer is
+`packages/cli/.../email/node-mailer.ts` (`createTransport`, `Transporter`, and
+the `nodemailer/lib/smtp-connection` subpath); its 13-test suite **passes**
+against 9.1.1 on vitest 4.1.11, so the major is behaviorally verified, not just
+type-checked. `@types/nodemailer` stays at 8.0.1 — nodemailer 9 ships no bundled
+types, the `@types` track has no 9.x (latest is 8.0.2, tagged `latest`), and
+8.0.1 is structurally compatible with the 9.1.1 runtime (full build clean).
+
+**Fixed — the @tiptap/* family 3.27.0 → 3.31.3 (catalog lockstep).** Closes the
+`@tiptap/core` quadratic-ReDoS + `mergeAttributes` prototype-pollution advisories
+(`<3.30.5` / `<3.30.4`). All fourteen `@tiptap/*` catalog entries move together,
+because tiptap requires one version across the family. The advisory floor is
+3.30.5, but `@tiptap/vue-3` transitively pulls `extension-floating-menu` /
+`extension-bubble-menu` at 3.31.3, which peer-require `@tiptap/pm@^3.31.3` — so
+pinning the family at 3.30.5 left an `unmet peer @tiptap/pm@3.31.3` wall. Moving
+the whole catalog to 3.31.3 (mature, 2026-09-04; still `>=3.30.5`) makes the
+family fully coherent — zero tiptap peer warnings, single 3.31.3 everywhere.
+Full build 69/69.
+
+**Tier C — no fix available; upstream carries the same risk.** For the fix-less
+transitive/terminal advisories, a read-only provenance check of upstream
+`n8n-io/n8n` master (v2.40.0, 2026-09-19; manifests/lockfile only, no `.ee`)
+found upstream has addressed **none** of them — all resolve at the same
+vulnerable terminal version with no override/catalog/patch:
+- **vm2** (3 crit): terminal 3.11.5, Code-node engine migration (standing note).
+- **html-minifier** `<=4.0.0` (ReDoS, no fix): transitive via `mjml@4.15.3 >
+  mjml-cli`/`mjml-core`. Upstream has not migrated to `html-minifier-terser` or
+  mjml 5. The only real fix (mjml 5, which swaps in htmlnano) was upstream PR
+  #28570, **closed unmerged**.
+- **mjml** `<5.0.0-alpha.9` (directory traversal): upstream still on 4.15.3; the
+  only fix is a 5.x alpha, declined upstream (#28570). Not a floor to take.
+- **showdown** `<=2.1.0` (ReDoS + XSS, no fix): direct dep of `nodes-base`
+  (Markdown node), terminal, not replaced upstream either.
+- **extract-zip** `<=2.0.1` (symlink path traversal, no fix): transitive via the
+  `@langchain/community > puppeteer > @puppeteer/browsers` chain. Install-time
+  only, and upstream's `allowBuilds: puppeteer: false` disables the puppeteer
+  browser-download build script that reaches the unpack path (not a runtime
+  guarantee, but a real mitigation we share).
+- **elliptic** `<=6.6.1` (low, risky-primitive, no fix): transitive via the
+  `crypto-browserify` browser polyfill.
+
+These are genuinely fix-less; our fork is not behind upstream on any of them.
+
 ### 2026-08-27 (cont.) — Six more advisories closed, including the deferred storybook
 
 A second pass on the same branch, drawing on a diverse-model review panel

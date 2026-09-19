@@ -119,11 +119,22 @@ not — all three have silently shipped vulnerable versions before:
   `loglevel = warn`, so silence plus exit 0 means success, not a command that
   failed to run. Pass `--loglevel=info` when you need to watch resolution
   actually happen.
-- **Catalog entries beat `pnpm.overrides`.** If a package is pinned in
-  `pnpm-workspace.yaml`'s `catalog:` (the lockfile shows
-  `specifier: 'catalog:'`), an override for it is silently ineffective — raise
-  the floor in the catalog instead. Overrides still cover transitive copies
-  that no catalog entry reaches.
+- **A *scoped* override does not beat a `catalog:` entry.** If a package is
+  pinned in `pnpm-workspace.yaml`'s `catalog:` (the lockfile shows
+  `specifier: 'catalog:'`), a **version-scoped** override for it
+  (`vitest@<4.1.11`, `dompurify@<=3.4.12`) is silently ineffective — the
+  catalog specifier wins and the scoped key matches nothing. Raise the floor in
+  the catalog instead, and move the whole family in lockstep (e.g. `vitest` +
+  `@vitest/coverage-v8` + `@vitest/browser-playwright`, or the fourteen
+  `@tiptap/*`), or you get `unmet peer` walls. A **plain, unscoped** override
+  (`"nodemailer": "9.1.1"`) *does* force the resolved version globally, even
+  over a catalog entry — but that diverges the catalog specifier from the
+  resolved version (misleading bookkeeping). The repo idiom is to make the
+  catalog the source of truth and point the override at it
+  (`"nodemailer": "catalog:"`), which forces transitive copies to the catalog
+  value. Overrides still cover transitive copies that no catalog entry reaches.
+  *(Verified 2026-09-19: scoped `vitest@<4.1.11` was inert against catalog
+  `^4.1.9`; plain `nodemailer` rewrote catalog `8.0.10` → 9.1.1.)*
 - **`.github/scripts` is not a workspace member.** It has its own
   `package.json` and `pnpm-lock.yaml`, and a plain `pnpm install` from inside
   it resolves the *root* workspace ("Scope: all 78 workspace projects") and
