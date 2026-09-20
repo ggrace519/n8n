@@ -15,7 +15,17 @@ on:
         default: 24.18.1
 
 env:
-  NODE_OPTIONS: --max-old-space-size=7168
+  # GitHub-hosted `ubuntu-latest` has 16GB; the default 4-vcpu Blacksmith runner
+  # has more. `turbo run lint` fans out to ~10 parallel eslint processes; on the
+  # smaller GitHub runner that overruns memory two ways — too many workers
+  # (kernel OOM-kill, exit 137) and, once concurrency is capped, the largest
+  # single package (nodes-base, cli) exceeding a too-small per-process heap
+  # (V8 abort, exit 134). Fix both: run lint serially (concurrency 1) with a
+  # 10GB per-process heap — nodes-base and cli both lint clean at 10240MB, and
+  # one-at-a-time keeps peak memory at ~10GB, under 16GB with headroom. Slower
+  # but correct; turbo still caches. Blacksmith keeps its tuned parallel settings.
+  NODE_OPTIONS: ${{ vars.RUNNER_PROVIDER == 'github' && '--max-old-space-size=10240' || '--max-old-space-size=7168' }}
+  TURBO_CONCURRENCY: ${{ vars.RUNNER_PROVIDER == 'github' && '1' || '10' }}
 
 jobs:
   lint:

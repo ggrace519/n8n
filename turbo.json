@@ -32,7 +32,7 @@
 		"format": {},
 		"format:check": {},
 		"lint": {
-			"dependsOn": ["^build", "@n8n/eslint-config#build"]
+			"dependsOn": ["^build", "build", "@n8n/eslint-config#build"]
 		},
 		"lint:fix": {},
 		"lint:styles": {
