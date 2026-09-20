@@ -38,8 +38,16 @@ one place (`PERSONAL_SPACE_SETTING_SCOPES` in `@n8n/permissions/settings.ts`),
 referenced by both the base-map exclusion and the setting definitions, so the two
 can no longer drift.
 
+One unit fixture needed the same follow-through: `auth.roles.service`'s
+"should not update roles when they are already correct" reconstructed the synced
+personalOwner scope set from a hardcoded list; it now pushes exactly the
+personal-space setting scopes so it can't drift again.
+
 **Verification:** `packages/cli` integration `role.api.test.ts` **8/8** (was
-4 failed / 4 passed); `@n8n/permissions` unit **110/110**; `packages/cli`
+4 failed / 4 passed); `auth.roles.service.test.ts` **30/32** (the two remaining
+reds are pre-existing external-secrets crashes on the fork's empty
+`roleScopeMap`, tracked separately — unrelated to this change); `@n8n/permissions`
+unit **110/110**; `@n8n/api-types` 1775/1775, `@n8n/stores` 173/173; `packages/cli`
 `security-settings.service` 27/27, `security-policy` loader 12/12, public-api
 `security-policy.test.ts` 15/15; full `pnpm build` green; `@n8n/permissions`
 typecheck + lint clean. Closes #36.
