@@ -424,17 +424,19 @@ describe('AuthRolesService', () => {
 
 		test('should not update roles when they are already correct', async () => {
 			// When personal space publishing/sharing are enabled (null = default = enabled),
-			// project:personalOwner needs workflow:publish, workflow:unpublish (in base PERSONAL_PROJECT_OWNER_SCOPES),
-			// and workflow:share, credential:share, credential:move
+			// project:personalOwner's base scopes are extended with the personal-space
+			// setting scopes (workflow:publish, workflow:unpublish, workflow:share,
+			// credential:share), which the base map excludes and the startup sync adds.
 			const correctRoles = Object.entries(ALL_ROLES).flatMap(([namespace, roles]) =>
 				roles.map((roleDef) => {
 					const scopes = roleDef.scopes.map((scopeSlug) => createMinimalScope(scopeSlug));
 					if (roleDef.slug === PROJECT_OWNER_ROLE_SLUG) {
-						scopes.push(createMinimalScope('workflow:publish'));
-						scopes.push(createMinimalScope('agent:publish'));
-						scopes.push(createMinimalScope('workflow:share'));
-						scopes.push(createMinimalScope('credential:share'));
-						scopes.push(createMinimalScope('credential:move'));
+						for (const scopeSlug of [
+							...PERSONAL_SPACE_PUBLISHING_SETTING.scopes,
+							...PERSONAL_SPACE_SHARING_SETTING.scopes,
+						]) {
+							scopes.push(createMinimalScope(scopeSlug));
+						}
 					}
 					return createRole(roleDef.slug, {
 						displayName: roleDef.displayName,
