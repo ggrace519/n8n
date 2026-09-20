@@ -1,10 +1,9 @@
 import { Service } from '@n8n/di';
 import { DataSource } from '@n8n/typeorm';
 
-import { TestRun, type TestRunStatus } from '../entities';
-import type { TestCaseExecution } from '../entities';
-import type { TestRunFinalResult } from '../entities/types-db';
+import { TestRun, type TestRunStatus, TestCaseExecution } from '../entities';
 import { BaseRepository } from './base-repository';
+import type { TestRunFinalResult } from '../entities/types-db';
 
 // The spread in `toSummary` keeps only data properties, so the mixin methods
 // (`generateId`, `setUpdateDate`) are omitted alongside the relation.
