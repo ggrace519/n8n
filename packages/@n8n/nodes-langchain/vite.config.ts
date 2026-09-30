@@ -18,5 +18,9 @@ export default mergeConfig(
 				'n8n-workflow': require.resolve('n8n-workflow'),
 			},
 		},
+		oxc: {
+			// The shared NodeTestHarness (`@nodes-testing`) uses legacy decorators (`@Memoized`).
+			decorator: { legacy: true },
+		},
 	}),
 );
