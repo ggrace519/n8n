@@ -1539,3 +1539,37 @@ the channel. That mistake stranded a full round of posts.
 ### Merge order when called
 Bottom-up: #32 → mcp → #31 → #33 → #34 → #35. Then **close #30** — it duplicates
 a commit already in the stack (byte-identical patch, different hash).
+
+## 2026-09-30 — Conversion (A/B/E) complete; Phase H (health) opened before C
+
+**Board: 36/36 conversion items pass; 6 Phase-C (AI) items open; 7 Phase-H items added.**
+Greg's call (2026-09-30): "health first, then C" — make `develop` cleanly promotable to
+`master`, open the promotion PR for him, then plan Phase C item by item. Greg also granted
+standing push/PR/merge-into-develop authority (promotion stays his).
+
+### Landed this session (into develop)
+- **#46** personal-space settings are the sole source of sharing/publishing scopes (#36).
+- **#48** external-secrets role-sync tests assert full scope lists (#47).
+- In flight: **#54** nodes-langchain harness tests load again (#49); **#55** members can
+  use the public API via an audited project-role key-scope allowlist (#26) — public-API
+  integration failures 111 → 9.
+
+### Measured baselines (develop @ 8effc4662d) — diff against these, don't guess
+- public-API integration: 111 failing (→ 9 after #55; remainder = #50).
+- cli unit: 18 failing in 5 files (auth.roles now fixed by #48; concurrency, oauth-clients,
+  frontend.service, user-management-mailer remain → fold into H6/H7 triage).
+- nodes-langchain: 3 files failed to load (fixed by #54).
+- editor-ui: 18 files / 136 tests (H5).
+- CI only runs `:changed` test variants, so baselines surface only on PRs touching them.
+
+### Gotchas learned
+- `pnpm` isn't on PATH on the Victus box (nvm default Node 26 has no corepack): prepend
+  Node 24 and shim `pnpm` → `corepack pnpm`; lefthook needs it too.
+- Stacked PRs: retarget the child before `gh pr merge --delete-branch` on the parent, or
+  GitHub closes the child and refuses to reopen it.
+- Public-API key gate checks only the key's scopes (`apiKeyHasScopeWithGlobalScopeFallback`
+  ignores its globalScope). Any scope granted to non-admins must be backed by a per-resource
+  check on every route — see `PROJECT_CHECKED_API_KEY_SCOPES` and #51.
+
+### NEXT
+H1 (#53, security) → H2 (Dependabot criticals/highs) → H3/H4 → H5 → H6 → H7.
