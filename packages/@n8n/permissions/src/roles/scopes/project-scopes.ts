@@ -1,3 +1,4 @@
+import { PERSONAL_SPACE_SETTING_SCOPES } from '../../settings';
 import type { Resource, Scope } from '../../types';
 import { allOps, pick, READ_OPS, WRITE_OPS } from './scope-filters';
 
@@ -31,9 +32,15 @@ const FULL_PROJECT_SCOPES: Scope[] = [
 /**
  * Personal projects don't have project variables (a team-project feature),
  * so the personal owner carries no `projectVariable:*` scopes.
+ *
+ * The sharing/publishing scopes are excluded from this base set and granted
+ * separately by the personal-space security settings (see `settings.ts` and
+ * `SecuritySettingsService`), so a disabled setting can withhold them. They
+ * default to enabled, so a personal owner keeps full control out of the box.
  */
 export const PERSONAL_PROJECT_OWNER_SCOPES: Scope[] = FULL_PROJECT_SCOPES.filter(
-	(scope) => !scope.startsWith('projectVariable:'),
+	(scope) =>
+		!scope.startsWith('projectVariable:') && !PERSONAL_SPACE_SETTING_SCOPES.includes(scope),
 );
 
 /**
