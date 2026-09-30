@@ -16,6 +16,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-20 — Personal-project sharing/publishing scopes made a single source of truth (#36)
+
+**Fixed:** the personal-space security settings (`personalProject.sharing.enabled`,
+`personalProject.publishing.enabled`) could not reliably withhold the scopes they
+gate. The four scopes `workflow:publish`, `workflow:unpublish`, `workflow:share`,
+and `credential:share` were granted **both** unconditionally by the base
+`project:personalOwner` scope map (via `allOps`) **and** conditionally by the
+settings toggle — two sources of truth for the same authority. Because the base
+already carried them, disabling a setting could not durably remove them, and the
+role-scope test suite double-counted them (four `project:personalOwner` tests
+failed, 86 served vs 90 expected).
+
+The base map now **excludes** those four (`PERSONAL_PROJECT_OWNER_SCOPES` filters
+them out), leaving the settings toggle as the sole source: they are added when a
+setting is enabled and removed when it is disabled. Both settings still **default
+to enabled**, so a personal-project owner keeps full sharing/publishing control
+out of the box — but an admin who disables `personalProject.sharing.enabled` now
+actually withholds sharing, as the control implies. The gated scope list lives in
+one place (`PERSONAL_SPACE_SETTING_SCOPES` in `@n8n/permissions/settings.ts`),
+referenced by both the base-map exclusion and the setting definitions, so the two
+can no longer drift.
+
+One unit fixture needed the same follow-through: `auth.roles.service`'s
+"should not update roles when they are already correct" reconstructed the synced
+personalOwner scope set from a hardcoded list; it now pushes exactly the
+personal-space setting scopes so it can't drift again.
+
+**Verification:** `packages/cli` integration `role.api.test.ts` **8/8** (was
+4 failed / 4 passed); `auth.roles.service.test.ts` **30/32** (the two remaining
+reds are pre-existing external-secrets crashes on the fork's empty
+`roleScopeMap`, tracked separately — unrelated to this change); `@n8n/permissions`
+unit **110/110**; `@n8n/api-types` 1775/1775, `@n8n/stores` 173/173; `packages/cli`
+`security-settings.service` 27/27, `security-policy` loader 12/12, public-api
+`security-policy.test.ts` 15/15; full `pnpm build` green; `@n8n/permissions`
+typecheck + lint clean. Closes #36.
+
 ### 2026-09-19 — Re-armed pins refreshed: ~20 advisories closed in one mechanical batch
 
 Three weeks after the 2026-08-27 pass closed the tree at 16 advisories, a fresh

@@ -7,7 +7,8 @@ const PERSONAL_OWNER_ROLE_SLUG = 'project:personalOwner';
  *
  * This migration ensures backward compatibility after the introduction of the workflow:unpublish scope.
  * Roles that could publish workflows should also be able to unpublish them.
- * project:personalOwner is excluded because it already has workflow:unpublish in its base definition (PERSONAL_PROJECT_OWNER_SCOPES).
+ * project:personalOwner is excluded because it receives workflow:unpublish from the startup role sync,
+ * which grants it (default-enabled) via the personalProject.publishing.enabled security setting.
  *
  * This migration:
  * 1. Ensures the workflow:unpublish scope exists in the scope table
@@ -65,7 +66,7 @@ export class AddWorkflowUnpublishScopeToCustomRoles1769900001000 implements Reve
 		const roleScopeScopeSlugColumn = escape.columnName('scopeSlug');
 
 		// Remove workflow:unpublish only from roles that are not project:personalOwner
-		// (personal owner keeps workflow:unpublish from base definition)
+		// (personal owner keeps workflow:unpublish from the startup role sync)
 		const deleteQuery = `
 			DELETE FROM ${roleScopeTableName}
 			WHERE ${roleScopeScopeSlugColumn} = :unpublishScope
