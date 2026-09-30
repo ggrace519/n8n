@@ -12,6 +12,7 @@ import {
 	GLOBAL_OWNER_SCOPES,
 } from '@/roles/scopes/global-scopes';
 import { PERSONAL_PROJECT_OWNER_SCOPES } from '@/roles/scopes/project-scopes';
+import { PERSONAL_SPACE_SETTING_SCOPES } from '@/settings';
 import { ALL_SCOPES } from '@/scope-information';
 import type { Scope } from '@/types';
 
@@ -58,8 +59,13 @@ describe('public API key scopes', () => {
 	});
 
 	describe('project-derived scopes', () => {
+		// The personal owner's synced role: base set plus the personal-space
+		// setting scopes, which default to enabled.
 		const member = () =>
-			getApiKeyScopesForPrincipal(GLOBAL_MEMBER_SCOPES, PERSONAL_PROJECT_OWNER_SCOPES);
+			getApiKeyScopesForPrincipal(GLOBAL_MEMBER_SCOPES, [
+				...PERSONAL_PROJECT_OWNER_SCOPES,
+				...PERSONAL_SPACE_SETTING_SCOPES,
+			]);
 
 		test('a member with a personal project gets exactly the project-checked scopes plus their global ones', () => {
 			const expected = new Set([
@@ -97,6 +103,18 @@ describe('public API key scopes', () => {
 			const scopes = getApiKeyScopesForPrincipal([], ['workflow:publish', 'workflow:unpublish']);
 
 			expect(scopes.sort()).toEqual(['workflow:activate', 'workflow:deactivate']);
+		});
+
+		test('withholds legacy activate/deactivate when personal publishing is disabled', () => {
+			// The base set still carries the legacy scopes directly (allOps), but
+			// without workflow:publish they must not be grantable.
+			const scopes = getApiKeyScopesForPrincipal(
+				GLOBAL_MEMBER_SCOPES,
+				PERSONAL_PROJECT_OWNER_SCOPES,
+			);
+
+			expect(scopes).not.toContain('workflow:activate');
+			expect(scopes).not.toContain('workflow:deactivate');
 		});
 
 		test('every project-checked scope is in the API key catalog', () => {

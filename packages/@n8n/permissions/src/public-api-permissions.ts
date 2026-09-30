@@ -110,13 +110,19 @@ export const PROJECT_CHECKED_API_KEY_SCOPES: ApiKeyScope[] = [
 	'workflowTags:update',
 ];
 
-/** Held scopes plus the legacy public-API scopes coupled to them (workflow:activate ⇔ workflow:publish). */
+/**
+ * Held scopes, with each legacy public-API scope present exactly when its modern
+ * counterpart is (workflow:activate ⇔ workflow:publish). Project role sets carry the
+ * legacy scopes directly via `allOps`, so a direct hold is ignored — otherwise a
+ * personal owner with publishing disabled could still grant `workflow:activate`.
+ */
 const withCoupledScopes = (scopes: Iterable<string>): Set<string> => {
 	const held = new Set(scopes);
 	for (const [hidden, coupledTo] of Object.entries(COUPLED_HIDDEN_SCOPES) as Array<
 		[Scope, Scope]
 	>) {
 		if (held.has(coupledTo)) held.add(hidden);
+		else held.delete(hidden);
 	}
 	return held;
 };

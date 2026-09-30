@@ -58,6 +58,12 @@ their global role. Follow-up: #51.
   single user. Members hold `user:list` for the sharing picker, which exposes far
   less than this listing (MFA state, roles). Now that members can hold keys, it
   would otherwise have been open to them.
+- The legacy scopes `workflow:activate`/`workflow:deactivate` are now derived
+  **only** from `workflow:publish`/`workflow:unpublish`. Project role sets also
+  carry them directly (via `allOps`), so without this a personal owner with
+  personal publishing disabled (#36) could still put `workflow:activate` on a
+  key. The route itself re-checks `workflow:publish`, so this was never
+  exploitable, but the key would have carried a scope it shouldn't.
 - Existing keys keep their scopes after the owner's global role is lowered. This
   predates this change and is tracked in #53.
 
