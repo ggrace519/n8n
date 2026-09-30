@@ -209,6 +209,7 @@ export class ProjectService {
 
 	/** Add users to a project (idempotent; existing members get the new role). */
 	async addUsersToProject(projectId: string, relations: RelationPayload[]): Promise<void> {
+		await this.getProject(projectId);
 		await this.roleService.checkRolesExist(
 			relations.map((relation) => relation.role),
 			'project',
@@ -282,20 +283,21 @@ export class ProjectService {
 	}
 
 	async changeUserRoleInProject(projectId: string, userId: string, role: string): Promise<void> {
+		await this.getProject(projectId);
 		await this.roleService.checkRolesExist([role], 'project');
 		this.checkRolesLicensed([role]);
 
+		// A user outside the project gets the same not-found as a missing project.
 		const relation = await this.projectRelationRepository.findRelation(projectId, userId);
 		if (!relation) {
-			throw new NotFoundError(
-				`Could not find a relation between the user "${userId}" and the project "${projectId}"`,
-			);
+			throw new NotFoundError(`Could not find project with ID: ${projectId}`);
 		}
 
 		await this.projectRelationRepository.upsertRelation(projectId, userId, role);
 	}
 
 	async deleteUserFromProject(projectId: string, userId: string): Promise<void> {
+		await this.getProject(projectId);
 		const relation = await this.projectRelationRepository.findRelation(projectId, userId);
 		if (!relation) return;
 
