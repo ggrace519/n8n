@@ -13,6 +13,7 @@ import {
 	credentialSharingRoleSchema,
 	workflowSharingRoleSchema,
 	customProjectRoleSchema,
+	scopeSchema,
 } from '../schemas';
 
 describe('roleNamespaceSchema', () => {
@@ -125,5 +126,18 @@ describe('customProjectRoleSchema', () => {
 	])('should validate $name', ({ value, expected }) => {
 		const result = customProjectRoleSchema.safeParse(value);
 		expect(result.success).toBe(expected);
+	});
+});
+
+describe('scopeSchema', () => {
+	test('accepts a catalog scope', () => {
+		expect(scopeSchema.safeParse('workflow:read').success).toBe(true);
+	});
+
+	test.each(['not:a-real-scope', 'workflow', 42])('rejects %p with a short message', (value) => {
+		const result = scopeSchema.safeParse(value);
+
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0].message).toBe('Invalid scope');
 	});
 });
