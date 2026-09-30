@@ -162,6 +162,3 @@ export const getApiKeyScopesForRole = (principal: {
 		(principal.role.scopes ?? []).map((scope) => scope.slug),
 		[],
 	);
-
-/** Scopes that only an instance owner's API key may hold (none in fair-code). */
-export const getOwnerOnlyApiKeyScopes = (): ApiKeyScope[] => [];

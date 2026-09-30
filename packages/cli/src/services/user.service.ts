@@ -363,15 +363,10 @@ export class UserService {
 		await this.userRepository.manager.transaction(async (trx) => {
 			await trx.update(User, { id: user.id }, { role: { slug: newRole.newRoleName } });
 
-			const isAdminRole = (roleName: string) => {
-				return roleName === 'global:admin' || roleName === 'global:owner';
-			};
-
 			const isDowngradedToChatUser =
 				user.role.slug !== 'global:chatUser' && newRole.newRoleName === 'global:chatUser';
 			const isUpgradedChatUser =
 				user.role.slug === 'global:chatUser' && newRole.newRoleName !== 'global:chatUser';
-			const isDowngradedAdmin = isAdminRole(user.role.slug) && !isAdminRole(newRole.newRoleName);
 
 			if (isDowngradedToChatUser) {
 				// Revoke user's project roles in any shared projects they have access to.
@@ -421,8 +416,6 @@ export class UserService {
 
 				// Revoke all API keys from chat users
 				await this.publicApiKeyService.deleteAllApiKeysForUser(user, trx);
-			} else if (isDowngradedAdmin) {
-				await this.publicApiKeyService.removeOwnerOnlyScopesFromApiKeys(user, trx);
 			} else if (isUpgradedChatUser) {
 				const personalProject = await this.projectRepository.getPersonalProjectForUserOrFail(
 					user.id,
@@ -445,6 +438,13 @@ export class UserService {
 
 		// Invalidate ownership cache for the user to ensure their new permissions are reflected in subsequent requests
 		await this.ownershipService.invalidateProjectOwnerCacheByUserId(user.id);
+
+		// Stored API keys may carry scopes the new role no longer backs.
+		const updatedUser = await this.userRepository.findOneOrFail({
+			where: { id: user.id },
+			relations: { role: true },
+		});
+		await this.publicApiKeyService.pruneScopesToGrantable(updatedUser);
 	}
 
 	/**

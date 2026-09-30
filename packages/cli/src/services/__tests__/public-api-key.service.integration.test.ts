@@ -1,12 +1,13 @@
 import { testDb } from '@n8n/backend-test-utils';
-import { ApiKeyRepository } from '@n8n/db';
+import { ApiKeyRepository, UserRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
-import { getOwnerOnlyApiKeyScopes, type ApiKeyScope } from '@n8n/permissions';
+import type { ApiKeyScope } from '@n8n/permissions';
 import type { InstanceSettings } from 'n8n-core';
 import { mock } from 'vitest-mock-extended';
 
 import { createAdminWithApiKey, createOwnerWithApiKey } from '@test-integration/db/users';
 
+import { ApiKeyScopesService } from '../api-key-scopes.service';
 import { JwtService } from '../jwt.service';
 import { PublicApiKeyService } from '../public-api-key.service';
 
@@ -26,7 +27,13 @@ describe('PublicApiKeyService', () => {
 	beforeAll(async () => {
 		await testDb.init();
 		apiKeyRepository = Container.get(ApiKeyRepository);
-		publicApiKeyService = new PublicApiKeyService(apiKeyRepository, jwtService, mock(), mock());
+		publicApiKeyService = new PublicApiKeyService(
+			apiKeyRepository,
+			jwtService,
+			mock(),
+			mock(),
+			Container.get(ApiKeyScopesService),
+		);
 	});
 
 	afterAll(async () => {
@@ -50,25 +57,33 @@ describe('PublicApiKeyService', () => {
 		});
 	});
 
-	describe('removeOwnerOnlyScopesFromApiKeys', () => {
-		it("it should remove all owner only scopes from user's API keys", async () => {
-			// Arrange
+	describe('pruneScopesToGrantable', () => {
+		it("drops the key scopes a demoted user's new role no longer backs", async () => {
+			const admin = await createAdminWithApiKey();
+			const apiKeyId = admin.apiKeys[0].id;
+			const userRepository = Container.get(UserRepository);
+			await userRepository.update(admin.id, { role: { slug: 'global:member' } });
+			const demoted = await userRepository.findOneOrFail({
+				where: { id: admin.id },
+				relations: { role: true },
+			});
 
-			const adminUser = await createAdminWithApiKey();
-			const apiKeyId = adminUser.apiKeys[0].id;
-			const ownerOnlyScopes = getOwnerOnlyApiKeyScopes();
+			await publicApiKeyService.pruneScopesToGrantable(demoted);
 
-			// Act
+			const { scopes } = await apiKeyRepository.findOneByOrFail({ id: apiKeyId });
+			expect(scopes).not.toContain('user:create');
+			expect(scopes).not.toContain('project:delete');
+			expect(scopes).toEqual(expect.arrayContaining(['workflow:read', 'tag:read']));
+		});
 
-			await publicApiKeyService.removeOwnerOnlyScopesFromApiKeys(adminUser);
+		it('leaves keys untouched when every scope is still grantable', async () => {
+			const owner = await createOwnerWithApiKey();
+			const { id, scopes: before } = owner.apiKeys[0];
 
-			// Assert
+			await publicApiKeyService.pruneScopesToGrantable(owner);
 
-			const apiKeyOnDb = await apiKeyRepository.findOneByOrFail({ id: apiKeyId });
-
-			expect(ownerOnlyScopes.some((ownerScope) => apiKeyOnDb.scopes.includes(ownerScope))).toBe(
-				false,
-			);
+			const { scopes: after } = await apiKeyRepository.findOneByOrFail({ id });
+			expect(after.sort()).toEqual([...before].sort());
 		});
 	});
 

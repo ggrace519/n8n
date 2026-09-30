@@ -1,10 +1,11 @@
 import { Logger } from '@n8n/backend-common';
 import { Time } from '@n8n/constants';
-import type { AuthenticatedRequest, TokenGrant } from '@n8n/db';
+import type { ApiKey, AuthenticatedRequest, TokenGrant } from '@n8n/db';
 import { ApiKeyRepository } from '@n8n/db';
 import { Service } from '@n8n/di';
 import { TokenExpiredError } from 'jsonwebtoken';
 
+import { ApiKeyScopesService } from './api-key-scopes.service';
 import type { AuthStrategy, AuthStrategyOptions } from './auth-strategy.types';
 import { JwtService } from './jwt.service';
 import { API_KEY_AUDIENCE, API_KEY_ISSUER, PREFIX_LEGACY_API_KEY } from './public-api-key.service';
@@ -18,6 +19,7 @@ export class ApiKeyAuthStrategy implements AuthStrategy {
 		private readonly apiKeyRepository: ApiKeyRepository,
 		private readonly jwtService: JwtService,
 		private readonly logger: Logger,
+		private readonly apiKeyScopesService: ApiKeyScopesService,
 	) {}
 
 	async buildTokenGrant(
@@ -65,8 +67,21 @@ export class ApiKeyAuthStrategy implements AuthStrategy {
 		return {
 			scopes: apiKeyRecord.user.role.scopes.map((s) => s.slug),
 			subject: apiKeyRecord.user,
-			apiKeyScopes: apiKeyRecord.scopes ?? [],
+			apiKeyScopes:
+				audience === API_KEY_AUDIENCE
+					? await this.effectiveApiKeyScopes(apiKeyRecord)
+					: (apiKeyRecord.scopes ?? []),
 		};
+	}
+
+	/**
+	 * A key's stored scopes, narrowed to what its owner can grant *now*: a key
+	 * issued before the owner's role was lowered (or a custom role was edited)
+	 * must not keep the scopes that role no longer backs.
+	 */
+	private async effectiveApiKeyScopes(apiKeyRecord: ApiKey) {
+		const grantable = new Set(await this.apiKeyScopesService.getGrantableScopes(apiKeyRecord.user));
+		return (apiKeyRecord.scopes ?? []).filter((scope) => grantable.has(scope));
 	}
 
 	private touchLastUsedAt(apiKeyId: string, previous: Date | null) {

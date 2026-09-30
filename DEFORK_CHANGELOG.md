@@ -16,6 +16,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — API keys lose the scopes their owner's role no longer backs (#53)
+
+**Fixed:** lowering a user's global role (for example admin → member) left
+their existing public-API keys with every scope they were issued. That included
+scopes whose routes check only the key (`project:delete`, `user:create`,
+`credential:list`, …), so the demoted user kept instance-wide API reach until
+the key was deleted. The pruning hook meant to prevent this stripped
+`getOwnerOnlyApiKeyScopes()`, which is empty in fair-code, so it did nothing.
+
+- **At request time**, `ApiKeyAuthStrategy` narrows a key's stored scopes to what
+  its owner can grant *now* (`ApiKeyScopesService`). This covers every path that
+  changes what a role backs: role changes, custom-role scope edits, and SSO role
+  mapping. It costs no query for owners and admins and one for members, and
+  applies to public-API keys only (MCP keys don't use these scopes).
+- **On a role change**, `UserService.changeUserRole` now prunes the stored scopes
+  (`PublicApiKeyService.pruneScopesToGrantable`), so key listings stay accurate.
+  The no-op `removeOwnerOnlyScopesFromApiKeys` and `getOwnerOnlyApiKeyScopes`
+  are deleted.
+- `GET /api/v1/discover` now describes the caller's effective scopes from the
+  authentication grant, not the stored key row. This also fixes a 401 for
+  token-exchange (bearer) callers, which have no `x-n8n-api-key` header.
+- `TokenGrant.apiKeyScopes` is typed `ApiKeyScope[]` rather than `string[]`.
+
+**Tests:** three specs asserted against the empty owner-only list and could
+never fail; they now assert real pruning. New: a key issued to an admin who is
+demoted directly in the DB (bypassing the role-change hook) loses `user:create`
+and `project:delete` at request time; disabling the intersection turns it red.
+
+**Provenance:** this repo's fair-code `ApiKeyAuthStrategy`, `UserService`,
+`PublicApiKeyService`, and the surviving public-API specs. No Enterprise source
+was read.
+
+**Verification:**
+- Full `pnpm build` passes: 69/69.
+- Public-API integration: 9 failing, all #50, with no new failures against the
+  `develop` baseline.
+- cli `tsc`: the same 63 known errors.
+
 ### 2026-09-30 — Members can use the public API through their project roles (#26)
 
 **Fixed:** members could not use the public API in any meaningful way. They held
