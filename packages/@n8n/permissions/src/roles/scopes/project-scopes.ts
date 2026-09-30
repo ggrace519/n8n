@@ -58,7 +58,7 @@ export const REGULAR_PROJECT_ADMIN_SCOPES: Scope[] = FULL_PROJECT_SCOPES.filter(
  */
 export const PROJECT_EDITOR_SCOPES: Scope[] = [
 	...pick(PROJECT_RESOURCES, [...READ_OPS, ...WRITE_OPS]),
-	...pick(['project'], ['list', 'read']),
+	...pick(['project'], ['list', 'read', 'export']),
 ];
 
 /** Read-only access to a project's resources. */
