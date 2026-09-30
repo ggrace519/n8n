@@ -10,8 +10,8 @@ import { Logger } from '@n8n/backend-common';
 import type { User } from '@n8n/db';
 import { ApiKey, ApiKeyRepository, withTransaction } from '@n8n/db';
 import { Service } from '@n8n/di';
-import type { ApiKeyScope, AuthPrincipal } from '@n8n/permissions';
-import { getApiKeyScopesForRole, getOwnerOnlyApiKeyScopes, hasGlobalScope } from '@n8n/permissions';
+import type { ApiKeyScope } from '@n8n/permissions';
+import { getOwnerOnlyApiKeyScopes, hasGlobalScope } from '@n8n/permissions';
 import {
 	In,
 	Raw,
@@ -351,11 +351,6 @@ export class PublicApiKeyService {
 		const decoded = this.jwtService.decode(apiKey);
 		return decoded?.exp ?? null;
 	};
-
-	apiKeyHasValidScopesForRole(role: AuthPrincipal, apiKeyScopes: ApiKeyScope[]) {
-		const scopesForRole = getApiKeyScopesForRole(role);
-		return apiKeyScopes.every((scope) => scopesForRole.includes(scope));
-	}
 
 	async apiKeyHasValidScopes(apiKey: string, endpointScope: ApiKeyScope) {
 		const apiKeyData = await this.apiKeyRepository.findOne({

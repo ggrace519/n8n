@@ -12,12 +12,12 @@ import {
 } from '@n8n/db';
 import { Container } from '@n8n/di';
 import type { ApiKeyScope } from '@n8n/permissions';
-import { getApiKeyScopesForRole } from '@n8n/permissions';
 import type { DeepPartial } from '@n8n/typeorm';
 import { hash } from 'bcryptjs';
 
 import { MfaService } from '@/mfa/mfa.service';
 import { TOTPService } from '@/mfa/totp.service';
+import { ApiKeyScopesService } from '@/services/api-key-scopes.service';
 import { PublicApiKeyService } from '@/services/public-api-key.service';
 
 type ApiKeyOptions = {
@@ -114,7 +114,9 @@ export const addApiKey = async (
 	return await Container.get(PublicApiKeyService).createPublicApiKeyForUser(user, {
 		label: randomName(),
 		expiresAt,
-		scopes: scopes.length ? scopes : getApiKeyScopesForRole(user),
+		scopes: scopes.length
+			? scopes
+			: await Container.get(ApiKeyScopesService).getGrantableScopes(user),
 	});
 };
 

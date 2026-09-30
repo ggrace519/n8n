@@ -5,6 +5,7 @@ import { Container } from '@n8n/di';
 import type { InstanceSettings } from 'n8n-core';
 import { mock } from 'vitest-mock-extended';
 
+import { ApiKeyScopesService } from '@/services/api-key-scopes.service';
 import { JwtService } from '@/services/jwt.service';
 import { createMember, createOwner } from '@test-integration/db/users';
 
@@ -44,7 +45,11 @@ describe('ScopedJwtStrategy (integration)', () => {
 
 	beforeAll(async () => {
 		await testDb.init();
-		strategy = new ScopedJwtStrategy(jwtService, Container.get(UserRepository));
+		strategy = new ScopedJwtStrategy(
+			jwtService,
+			Container.get(UserRepository),
+			Container.get(ApiKeyScopesService),
+		);
 	});
 
 	beforeEach(async () => {
