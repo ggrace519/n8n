@@ -128,6 +128,20 @@ sets, and `ProjectRelationRepository`. No Enterprise source was read.
 - `test/integration/public-api/` goes from 111 failures on `develop` to 9, with
   no new failures (compared by test name). The 9 that remain are #50.
 
+### 2026-09-30 — nodes-langchain workflow tests load again (#49)
+
+**Fixed:** three nodes-langchain test files (Agent v3, AgentTool v3, OpenAI v1
+workflow tests) failed to load with `SyntaxError: Invalid or unexpected token`,
+so their 13 tests never ran. The shared `NodeTestHarness` they import uses
+legacy decorators (`@Memoized`), and the package's Vitest config didn't enable
+the decorator transform the way `nodes-base` does. The transform is now
+enabled. Test-only; no runtime change.
+
+**Provenance:** this repo's own fair-code test config (`nodes-base/vite.config.ts`).
+
+**Verification:** full nodes-langchain suite **205/205 files, 2812/2812 tests**
+(previously 3 files failed to load).
+
 ### 2026-09-25 — External-secrets role-sync tests match the fork's scope policy (#47)
 
 **Fixed:** two role-sync tests crashed while iterating missing entries in the
