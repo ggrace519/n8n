@@ -1,9 +1,9 @@
 import type { AuthenticatedRequest, TokenGrant, User } from '@n8n/db';
 import { UserRepository } from '@n8n/db';
 import { Service } from '@n8n/di';
-import { getApiKeyScopesForRole } from '@n8n/permissions';
 import { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
 
+import { ApiKeyScopesService } from '@/services/api-key-scopes.service';
 import type { AuthStrategy, AuthStrategyOptions } from '@/services/auth-strategy.types';
 import { JwtService } from '@/services/jwt.service';
 
@@ -17,6 +17,7 @@ export class ScopedJwtStrategy implements AuthStrategy {
 	constructor(
 		private readonly jwtService: JwtService,
 		private readonly userRepository: UserRepository,
+		private readonly apiKeyScopesService: ApiKeyScopesService,
 	) {}
 
 	async buildTokenGrant(
@@ -62,10 +63,11 @@ export class ScopedJwtStrategy implements AuthStrategy {
 		// 5. Acting principal: actor (if resolved) or subject
 		const actingUser = actor ?? subject;
 
-		// 6. Scopes come from the acting user's role (role.scopes is eager: true)
+		// 6. Scopes come from the acting user's global role (role.scopes is eager: true);
+		//    API-key scopes also consult their project roles.
 		return {
 			scopes: actingUser.role.scopes.map((s) => s.slug),
-			apiKeyScopes: getApiKeyScopesForRole(actingUser),
+			apiKeyScopes: await this.apiKeyScopesService.getGrantableScopes(actingUser),
 			subject,
 			...(actor && { actor }),
 		};

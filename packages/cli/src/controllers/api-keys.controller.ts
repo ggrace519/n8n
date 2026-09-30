@@ -15,12 +15,12 @@ import {
 	Query,
 	RestController,
 } from '@n8n/decorators';
-import { getApiKeyScopesForRole } from '@n8n/permissions';
 import type { RequestHandler } from 'express';
 
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { EventService } from '@/events/event.service';
 import { isApiEnabled } from '@/public-api';
+import { ApiKeyScopesService } from '@/services/api-key-scopes.service';
 import { PublicApiKeyService } from '@/services/public-api-key.service';
 
 export const isApiEnabledMiddleware: RequestHandler = (_, res, next) => {
@@ -36,6 +36,7 @@ export class ApiKeysController {
 	constructor(
 		private readonly eventService: EventService,
 		private readonly publicApiKeyService: PublicApiKeyService,
+		private readonly apiKeyScopesService: ApiKeyScopesService,
 	) {}
 
 	@GlobalScope('apiKey:create')
@@ -45,7 +46,7 @@ export class ApiKeysController {
 		_res: Response,
 		@Body body: CreateApiKeyRequestDto,
 	) {
-		if (!this.publicApiKeyService.apiKeyHasValidScopesForRole(req.user, body.scopes)) {
+		if (!(await this.apiKeyScopesService.canGrant(req.user, body.scopes))) {
 			throw new BadRequestError('Invalid scopes for user role');
 		}
 
@@ -100,7 +101,7 @@ export class ApiKeysController {
 		@Param('id') apiKeyId: string,
 		@Body body: UpdateApiKeyRequestDto,
 	) {
-		if (!this.publicApiKeyService.apiKeyHasValidScopesForRole(req.user, body.scopes)) {
+		if (!(await this.apiKeyScopesService.canGrant(req.user, body.scopes))) {
 			throw new BadRequestError('Invalid scopes for user role');
 		}
 
@@ -125,11 +126,10 @@ export class ApiKeysController {
 		};
 	}
 
-	// No role scope required: returns the scopes the caller's role can assign
-	// to a key — empty-ish for roles without apiKey grants.
+	// No role scope required: returns the scopes the caller may assign to a key,
+	// from their global role and (audited subset) their project roles.
 	@Get('/scopes', { middlewares: [isApiEnabledMiddleware] })
 	async getApiKeyScopes(req: AuthenticatedRequest, _res: Response) {
-		const scopes = getApiKeyScopesForRole(req.user);
-		return scopes;
+		return await this.apiKeyScopesService.getGrantableScopes(req.user);
 	}
 }

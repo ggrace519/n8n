@@ -4,12 +4,9 @@ import { GlobalConfig } from '@n8n/config';
 import type { User } from '@n8n/db';
 import { ApiKeyRepository, GLOBAL_MEMBER_ROLE, GLOBAL_OWNER_ROLE } from '@n8n/db';
 import { Container } from '@n8n/di';
-import {
-	getApiKeyScopesForRole,
-	getOwnerOnlyApiKeyScopes,
-	type ApiKeyScope,
-} from '@n8n/permissions';
+import type { ApiKeyScope } from '@n8n/permissions';
 
+import { ApiKeyScopesService } from '@/services/api-key-scopes.service';
 import { PublicApiKeyService } from '@/services/public-api-key.service';
 
 import {
@@ -379,7 +376,7 @@ describe('Owner shell', () => {
 
 		const scopes = apiKeyScopesResponse.body.data as ApiKeyScope[];
 
-		const scopesForRole = getApiKeyScopesForRole(ownerShell);
+		const scopesForRole = await Container.get(ApiKeyScopesService).getGrantableScopes(ownerShell);
 
 		expect(scopes.sort()).toEqual(scopesForRole.sort());
 	});
@@ -492,17 +489,38 @@ describe('Member', () => {
 		expect(newApiKey.rawApiKey).toBeDefined();
 	});
 
-	test("POST /api-keys should fail to create api key with scopes not allowed in the user's role", async () => {
-		const expiresAt = Date.now() + 1000;
+	// Scopes a member's project roles back but whose public-API routes act on any
+	// project or list instance-wide, plus a global-only scope.
+	test.each([
+		'project:update',
+		'project:delete',
+		'credential:list',
+		'insights:read',
+		'workflow:import',
+		'user:create',
+	] as const)(
+		'POST /api-keys should refuse a scope not grantable to the user: %s',
+		async (scope) => {
+			const newApiKeyResponse = await testServer
+				.authAgentFor(member)
+				.post('/api-keys')
+				.send({ label: 'My API Key', expiresAt: null, scopes: [scope] });
 
-		const notAllowedScope = getOwnerOnlyApiKeyScopes()[0];
+			expect(newApiKeyResponse.statusCode).toBe(400);
+			expect(newApiKeyResponse.body.message).toBe('Invalid scopes for user role');
+		},
+	);
+
+	test('POST /api-keys should accept every scope the member can grant', async () => {
+		const grantable = await Container.get(ApiKeyScopesService).getGrantableScopes(member);
 
 		const newApiKeyResponse = await testServer
 			.authAgentFor(member)
 			.post('/api-keys')
-			.send({ label: 'My API Key', expiresAt, scopes: [notAllowedScope] });
+			.send({ label: 'My API Key', expiresAt: null, scopes: grantable });
 
-		expect(newApiKeyResponse.statusCode).toBe(400);
+		expect(newApiKeyResponse.statusCode).toBe(200);
+		expect(grantable).toEqual(expect.arrayContaining(['workflow:read', 'credential:create']));
 	});
 
 	test('GET /api-keys should fetch the api key redacted', async () => {
@@ -610,7 +628,7 @@ describe('Member', () => {
 
 		const scopes = apiKeyScopesResponse.body.data as ApiKeyScope[];
 
-		const scopesForRole = getApiKeyScopesForRole(member);
+		const scopesForRole = await Container.get(ApiKeyScopesService).getGrantableScopes(member);
 
 		expect(scopes.sort()).toEqual(scopesForRole.sort());
 	});

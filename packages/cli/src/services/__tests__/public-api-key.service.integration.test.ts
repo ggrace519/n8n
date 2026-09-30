@@ -1,5 +1,5 @@
 import { testDb } from '@n8n/backend-test-utils';
-import { ApiKeyRepository, GLOBAL_MEMBER_ROLE, GLOBAL_OWNER_ROLE } from '@n8n/db';
+import { ApiKeyRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
 import { getOwnerOnlyApiKeyScopes, type ApiKeyScope } from '@n8n/permissions';
 import type { InstanceSettings } from 'n8n-core';
@@ -104,44 +104,6 @@ describe('PublicApiKeyService', () => {
 			const result = await publicApiKeyService.apiKeyHasValidScopes(apiKey, requiredScope);
 
 			// Assert
-			expect(result).toBe(false);
-		});
-	});
-
-	describe('apiKeyHasValidScopesForRole', () => {
-		it('should return true if API key has the required scope for the role', async () => {
-			// Arrange
-			const ownerOnlyScopes = getOwnerOnlyApiKeyScopes();
-
-			// Act
-
-			const result = publicApiKeyService.apiKeyHasValidScopesForRole(
-				{
-					role: GLOBAL_OWNER_ROLE,
-				},
-				ownerOnlyScopes,
-			);
-
-			// Assert
-
-			expect(result).toBe(true);
-		});
-
-		it('should return false if API key does not have the required scope for the role', async () => {
-			// Arrange
-			const ownerOnlyScopes = getOwnerOnlyApiKeyScopes();
-
-			// Act
-
-			const result = publicApiKeyService.apiKeyHasValidScopesForRole(
-				{
-					role: GLOBAL_MEMBER_ROLE,
-				},
-				ownerOnlyScopes,
-			);
-
-			// Assert
-
 			expect(result).toBe(false);
 		});
 	});
