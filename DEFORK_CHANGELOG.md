@@ -84,6 +84,62 @@ sets, and `ProjectRelationRepository`. No Enterprise source was read.
 - `test/integration/public-api/` goes from 111 failures on `develop` to 9, with
   no new failures (compared by test name). The 9 that remain are #50.
 
+### 2026-09-25 — External-secrets role-sync tests match the fork's scope policy (#47)
+
+**Fixed:** two role-sync tests crashed while iterating missing entries in the
+fork's intentionally empty external-secrets scope map. Three neighboring tests
+iterated an empty list, so their scope assertions never ran. Replace these five
+cases with a nine-case matrix covering project admin, editor, and personal-owner
+roles with the setting enabled, disabled, or absent. Each case checks the entire
+scope list against the role's base definition, with personal-space settings
+disabled, so both extra and missing scopes are detected. Production behavior is
+unchanged.
+
+**Provenance:** derived from the surviving fair-code tests, `AuthRolesService`,
+and this fork's `@n8n/permissions` settings and role definitions; no Enterprise
+source was read.
+
+**Verification:** the full `auth.roles.service.test.ts` file passes **36/36**
+(previously **30 passed / 2 failed**). Package lint and test-file formatting pass;
+independent review found no issues. Package typecheck remains red with 63
+pre-existing errors across 16 other files, none in this test file.
+
+### 2026-09-20 — Personal-project sharing/publishing scopes made a single source of truth (#36)
+
+**Fixed:** the personal-space security settings (`personalProject.sharing.enabled`,
+`personalProject.publishing.enabled`) could not reliably withhold the scopes they
+gate. The four scopes `workflow:publish`, `workflow:unpublish`, `workflow:share`,
+and `credential:share` were granted **both** unconditionally by the base
+`project:personalOwner` scope map (via `allOps`) **and** conditionally by the
+settings toggle — two sources of truth for the same authority. Because the base
+already carried them, disabling a setting could not durably remove them, and the
+role-scope test suite double-counted them (four `project:personalOwner` tests
+failed, 86 served vs 90 expected).
+
+The base map now **excludes** those four (`PERSONAL_PROJECT_OWNER_SCOPES` filters
+them out), leaving the settings toggle as the sole source: they are added when a
+setting is enabled and removed when it is disabled. Both settings still **default
+to enabled**, so a personal-project owner keeps full sharing/publishing control
+out of the box — but an admin who disables `personalProject.sharing.enabled` now
+actually withholds sharing, as the control implies. The gated scope list lives in
+one place (`PERSONAL_SPACE_SETTING_SCOPES` in `@n8n/permissions/settings.ts`),
+referenced by both the base-map exclusion and the setting definitions, so the two
+can no longer drift.
+
+One unit fixture needed the same follow-through: `auth.roles.service`'s
+"should not update roles when they are already correct" reconstructed the synced
+personalOwner scope set from a hardcoded list; it now pushes exactly the
+personal-space setting scopes so it can't drift again.
+
+**Verification:** `packages/cli` integration `role.api.test.ts` **8/8** (was
+4 failed / 4 passed); `auth.roles.service.test.ts` **30/32** (the two remaining
+reds are pre-existing external-secrets crashes on the fork's empty
+`roleScopeMap`, tracked separately — unrelated to this change); `@n8n/permissions`
+unit **110/110**; `@n8n/api-types` 1775/1775, `@n8n/stores` 173/173; `packages/cli`
+`security-settings.service` 27/27, `security-policy` loader 12/12, public-api
+`security-policy.test.ts` 15/15; full `pnpm build` green; `@n8n/permissions`
+typecheck + lint clean. Closes #36.
+
 ### 2026-09-19 — Re-armed pins refreshed: ~20 advisories closed in one mechanical batch
 
 Three weeks after the 2026-08-27 pass closed the tree at 16 advisories, a fresh

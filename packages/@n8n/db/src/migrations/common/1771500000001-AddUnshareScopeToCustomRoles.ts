@@ -8,8 +8,9 @@ const PERSONAL_OWNER_ROLE_SLUG = 'project:personalOwner';
  *
  * This migration ensures backward compatibility after the introduction of separate unshare scopes.
  * Roles that could share resources should also be able to unshare them.
- * project:personalOwner is excluded because it already has unshare scopes in its base definition
- * (PERSONAL_PROJECT_OWNER_SCOPES), which are synced on startup.
+ * project:personalOwner is excluded because the startup role sync already gives it these scopes:
+ * unshare from its base definition (PERSONAL_PROJECT_OWNER_SCOPES) and the matching share scopes
+ * (default-enabled) via the personalProject.sharing.enabled security setting.
  *
  * This migration:
  * 1. Ensures workflow:unshare and credential:unshare scopes exist in the scope table
