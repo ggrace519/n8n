@@ -16,6 +16,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — nodes-langchain workflow tests load again (#49)
+
+**Fixed:** three nodes-langchain test files (Agent v3, AgentTool v3, OpenAI v1
+workflow tests) failed to load with `SyntaxError: Invalid or unexpected token`,
+so their 13 tests never ran. The shared `NodeTestHarness` they import uses
+legacy decorators (`@Memoized`), and the package's Vitest config didn't enable
+the decorator transform the way `nodes-base` does. The transform is now
+enabled. Test-only; no runtime change.
+
+**Provenance:** this repo's own fair-code test config (`nodes-base/vite.config.ts`).
+
+**Verification:** full nodes-langchain suite **205/205 files, 2812/2812 tests**
+(previously 3 files failed to load).
+
 ### 2026-09-19 — Re-armed pins refreshed: ~20 advisories closed in one mechanical batch
 
 Three weeks after the 2026-08-27 pass closed the tree at 16 advisories, a fresh
