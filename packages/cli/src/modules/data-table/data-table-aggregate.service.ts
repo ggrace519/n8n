@@ -25,9 +25,13 @@ export class DataTableAggregateService {
 			return await this.dataTableRepository.getManyAndCount(options);
 		}
 
-		const projects = await this.projectService.getProjectRelationsForUser(user);
-
-		let projectIds = projects.map((x) => x.projectId);
+		// Membership alone is not enough: a chat user's relation grants no data-table access.
+		const relations = await this.projectService.getProjectRelationsForUser(user);
+		let projectIds = relations
+			.filter((relation) =>
+				relation.role.scopes.some((scope) => scope.slug === 'dataTable:listProject'),
+			)
+			.map((relation) => relation.projectId);
 		if (options.filter?.projectId) {
 			const mask = [options.filter?.projectId].flat();
 			projectIds = projectIds.filter((x) => mask.includes(x));

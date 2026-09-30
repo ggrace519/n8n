@@ -49,6 +49,8 @@ describe('dataTableAggregate', () => {
 	let project2: Project;
 
 	beforeEach(async () => {
+		// Owner/admin paths never read relations, so a queued mock would leak into the next test.
+		projectRelationRepository.getRelationsForUser.mockReset();
 		project1 = await createTeamProject();
 		project2 = await createTeamProject();
 		user = await createUser({ role: GLOBAL_OWNER_ROLE });
@@ -71,7 +73,7 @@ describe('dataTableAggregate', () => {
 				columns: [],
 			});
 
-			projectRelationRepository.find.mockResolvedValueOnce([
+			projectRelationRepository.getRelationsForUser.mockResolvedValueOnce([
 				{
 					userId: user.id,
 					projectId: project1.id,
@@ -124,7 +126,7 @@ describe('dataTableAggregate', () => {
 				name: 'dataTable1',
 				columns: [],
 			});
-			projectRelationRepository.find.mockResolvedValueOnce([]);
+			projectRelationRepository.getRelationsForUser.mockResolvedValueOnce([]);
 
 			// ACT
 			const result = await dataTableAggregateService.getManyAndCount(currentUser, {
@@ -145,7 +147,7 @@ describe('dataTableAggregate', () => {
 				name: 'dataTable1',
 				columns: [],
 			});
-			projectRelationRepository.find.mockResolvedValueOnce([]);
+			projectRelationRepository.getRelationsForUser.mockResolvedValueOnce([]);
 
 			// ACT
 			const result = await dataTableAggregateService.getManyAndCount(currentUser, {
@@ -170,7 +172,7 @@ describe('dataTableAggregate', () => {
 				name: 'dataTable2',
 				columns: [],
 			});
-			projectRelationRepository.find.mockResolvedValueOnce([
+			projectRelationRepository.getRelationsForUser.mockResolvedValueOnce([
 				{
 					userId: user.id,
 					projectId: project1.id,
@@ -219,7 +221,7 @@ describe('dataTableAggregate', () => {
 				name: 'dataTable3',
 				columns: [],
 			});
-			projectRelationRepository.find.mockResolvedValueOnce([
+			projectRelationRepository.getRelationsForUser.mockResolvedValueOnce([
 				{
 					userId: user.id,
 					projectId: project1.id,
@@ -252,7 +254,7 @@ describe('dataTableAggregate', () => {
 				columns: [],
 			});
 
-			projectRelationRepository.find.mockResolvedValueOnce([
+			projectRelationRepository.getRelationsForUser.mockResolvedValueOnce([
 				{
 					userId: currentUser.id,
 					projectId: project1.id,
