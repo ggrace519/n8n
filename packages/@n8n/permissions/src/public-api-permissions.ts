@@ -48,26 +48,114 @@ export const OWNER_API_KEY_SCOPES: ApiKeyScope[] = API_KEY_SCOPES.filter(
 );
 
 /**
- * API-key scopes available for a given principal: the scopes of its global
- * role intersected with the set addressable via a public API key. Accepts any
- * `AuthPrincipal`-shaped input (a user, or a role row with its scopes loaded).
+ * API-key scopes a principal may hold by virtue of a **project** role. The
+ * key-level gate only checks that the key carries the scope, so a project-derived
+ * scope is safe only when every public-API route requiring it also restricts the
+ * caller to resources they can reach (`projectScope`, `assertProjectScope`,
+ * `getProjectWithScope`, or a list filtered to their projects). Each scope here
+ * was audited against its routes.
+ *
+ * Deliberately absent until their routes gain a per-project check: `project:update`
+ * and `project:delete` (handlers act on any project id), `credential:list` (lists
+ * every project credential), `insights:read` (instance-wide summary), and
+ * `workflow:import` (conflict reports describe workflows in other projects).
  */
-export const getApiKeyScopesForRole = (principal: {
-	role: { scopes: Array<{ slug: string }> };
-}): ApiKeyScope[] => {
-	const held = new Set((principal.role.scopes ?? []).map((scope) => scope.slug));
-	// Legacy public-API scopes ride along with their coupled modern scope
-	// (e.g. workflow:activate with workflow:publish).
+export const PROJECT_CHECKED_API_KEY_SCOPES: ApiKeyScope[] = [
+	'credential:create',
+	'credential:read',
+	'credential:update',
+	'credential:delete',
+	'credential:move',
+	'dataTable:create',
+	'dataTable:read',
+	'dataTable:update',
+	'dataTable:delete',
+	'dataTable:list',
+	'dataTableColumn:read',
+	'dataTableColumn:create',
+	'dataTableColumn:update',
+	'dataTableColumn:delete',
+	'dataTableRow:read',
+	'dataTableRow:create',
+	'dataTableRow:update',
+	'dataTableRow:upsert',
+	'dataTableRow:delete',
+	'execution:read',
+	'execution:list',
+	'execution:delete',
+	'execution:retry',
+	'execution:stop',
+	'executionTags:list',
+	'executionTags:update',
+	'folder:create',
+	'folder:read',
+	'folder:update',
+	'folder:delete',
+	'folder:list',
+	'testRun:read',
+	'testRun:list',
+	'testRun:create',
+	'testRun:cancel',
+	'project:export',
+	'workflow:create',
+	'workflow:read',
+	'workflow:update',
+	'workflow:delete',
+	'workflow:list',
+	'workflow:move',
+	'workflow:export',
+	'workflow:activate',
+	'workflow:deactivate',
+	'workflowTags:list',
+	'workflowTags:update',
+];
+
+/** Held scopes plus the legacy public-API scopes coupled to them (workflow:activate ⇔ workflow:publish). */
+const withCoupledScopes = (scopes: Iterable<string>): Set<string> => {
+	const held = new Set(scopes);
 	for (const [hidden, coupledTo] of Object.entries(COUPLED_HIDDEN_SCOPES) as Array<
 		[Scope, Scope]
 	>) {
 		if (held.has(coupledTo)) held.add(hidden);
 	}
-	return API_KEY_SCOPES.filter((scope) => {
-		const backingScope = API_KEY_SCOPE_BACKED_BY[scope];
-		return held.has(backingScope ?? scope);
-	});
+	return held;
 };
+
+const isBackedBy = (scope: ApiKeyScope, held: Set<string>) =>
+	held.has(API_KEY_SCOPE_BACKED_BY[scope] ?? scope);
+
+/**
+ * API-key scopes available to a principal: every catalog scope backed by its
+ * global role, plus the {@link PROJECT_CHECKED_API_KEY_SCOPES} backed by any of
+ * its project roles.
+ */
+export const getApiKeyScopesForPrincipal = (
+	globalScopes: Iterable<string>,
+	projectScopes: Iterable<string>,
+): ApiKeyScope[] => {
+	const heldGlobally = withCoupledScopes(globalScopes);
+	const heldInProjects = withCoupledScopes(projectScopes);
+	const projectGrantable = new Set(PROJECT_CHECKED_API_KEY_SCOPES);
+
+	return API_KEY_SCOPES.filter(
+		(scope) =>
+			isBackedBy(scope, heldGlobally) ||
+			(projectGrantable.has(scope) && isBackedBy(scope, heldInProjects)),
+	);
+};
+
+/**
+ * API-key scopes backed by a principal's global role alone. For contexts with no
+ * project relations to consult (e.g. the scopes-column backfill migration); user
+ * key issuance goes through `ApiKeyScopesService`, which adds project roles.
+ */
+export const getApiKeyScopesForRole = (principal: {
+	role: { scopes: Array<{ slug: string }> };
+}): ApiKeyScope[] =>
+	getApiKeyScopesForPrincipal(
+		(principal.role.scopes ?? []).map((scope) => scope.slug),
+		[],
+	);
 
 /** Scopes that only an instance owner's API key may hold (none in fair-code). */
 export const getOwnerOnlyApiKeyScopes = (): ApiKeyScope[] => [];

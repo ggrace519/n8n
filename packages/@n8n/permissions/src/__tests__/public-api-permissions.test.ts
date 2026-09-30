@@ -2,9 +2,16 @@ import { RESOURCES } from '@/constants';
 import {
 	API_KEY_SCOPES,
 	API_KEY_SCOPE_BACKED_BY,
+	getApiKeyScopesForPrincipal,
 	getApiKeyScopesForRole,
+	PROJECT_CHECKED_API_KEY_SCOPES,
 } from '@/public-api-permissions';
-import { GLOBAL_ADMIN_SCOPES, GLOBAL_OWNER_SCOPES } from '@/roles/scopes/global-scopes';
+import {
+	GLOBAL_ADMIN_SCOPES,
+	GLOBAL_MEMBER_SCOPES,
+	GLOBAL_OWNER_SCOPES,
+} from '@/roles/scopes/global-scopes';
+import { PERSONAL_PROJECT_OWNER_SCOPES } from '@/roles/scopes/project-scopes';
 import { ALL_SCOPES } from '@/scope-information';
 import type { Scope } from '@/types';
 
@@ -48,6 +55,53 @@ describe('public API key scopes', () => {
 		const redundant = Object.keys(API_KEY_SCOPE_BACKED_BY).filter((scope) => rbacScopes.has(scope));
 
 		expect(redundant).toEqual([]);
+	});
+
+	describe('project-derived scopes', () => {
+		const member = () =>
+			getApiKeyScopesForPrincipal(GLOBAL_MEMBER_SCOPES, PERSONAL_PROJECT_OWNER_SCOPES);
+
+		test('a member with a personal project gets exactly the project-checked scopes plus their global ones', () => {
+			const expected = new Set([
+				...PROJECT_CHECKED_API_KEY_SCOPES,
+				...getApiKeyScopesForPrincipal(GLOBAL_MEMBER_SCOPES, []),
+			]);
+
+			expect(member().sort()).toEqual([...expected].sort());
+		});
+
+		test.each([
+			'project:update',
+			'project:delete',
+			'credential:list',
+			'insights:read',
+			'workflow:import',
+		] as const)('never derives %s from a project role', (scope) => {
+			expect(member()).not.toContain(scope);
+		});
+
+		test('still grants those scopes when the global role holds them', () => {
+			const scopes = getApiKeyScopesForPrincipal(GLOBAL_OWNER_SCOPES, []);
+
+			expect(scopes).toEqual(expect.arrayContaining(['project:update', 'credential:list']));
+		});
+
+		test('does not grant a project-checked scope no project role backs', () => {
+			const scopes = getApiKeyScopesForPrincipal([], ['workflow:read']);
+
+			// `executionTags:list` is bridged to `workflow:read` (API_KEY_SCOPE_BACKED_BY).
+			expect(scopes.sort()).toEqual(['executionTags:list', 'workflow:read']);
+		});
+
+		test('couples legacy activate/deactivate to project-held publish/unpublish', () => {
+			const scopes = getApiKeyScopesForPrincipal([], ['workflow:publish', 'workflow:unpublish']);
+
+			expect(scopes.sort()).toEqual(['workflow:activate', 'workflow:deactivate']);
+		});
+
+		test('every project-checked scope is in the API key catalog', () => {
+			expect(PROJECT_CHECKED_API_KEY_SCOPES.filter((s) => !API_KEY_SCOPES.includes(s))).toEqual([]);
+		});
 	});
 
 	test('does not grant a bridged scope to a principal lacking the backing scope', () => {
