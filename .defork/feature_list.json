@@ -8,7 +8,8 @@
     "A": "Green build — clean-room fair-code replacements for purged .ee plumbing",
     "E": "Enterprise subsystem fair-code rebuilds in packages/cli (clean-room)",
     "B": "Re-add chosen feature modules (fair-code)",
-    "C": "AI-native innovations (INNOVATIONS.md) — on innovation/<slug> branches, after green build"
+    "C": "AI-native innovations (INNOVATIONS.md) — on innovation/<slug> branches, after green build",
+    "H": "Health: make develop cleanly promotable to master (security debt, red suites, open defects) — after A/B/E, before C"
   },
   "verify_notes": "Per-item greps MUST use `grep -ran` (forced text scan — a NUL byte or binary-flagged file makes plain grep silently skip it; this hid real references twice) and MUST cover packages/cli/src AND packages/cli/test, without filtering out test files. Orphaned specs that import a purged module are part of the item: rebuild them or delete them deliberately (A8d precedent) — never leave them unrunnable. The definitive gate is A10-cli-green.",
   "items": [
@@ -363,6 +364,63 @@
       "title": "Guardrailed structured generation + LLM-as-judge eval suite",
       "passes": false,
       "blocked_by": "C2-ai-workflow-composer"
+    },
+    {
+      "id": "H1-api-key-scope-pruning",
+      "phase": "H",
+      "title": "Prune stored API-key scopes to the grantable set when a user's global role (or a custom role's scopes) changes",
+      "passes": false,
+      "closes_issues": [
+        "#53"
+      ]
+    },
+    {
+      "id": "H2-dependabot-critical-high",
+      "phase": "H",
+      "title": "Close Dependabot critical + high alerts on develop (verify resolved lockfile versions)",
+      "passes": false
+    },
+    {
+      "id": "H3-public-api-red",
+      "phase": "H",
+      "title": "Public-API integration suite fully green: executions beforeAll, LDAP, projects 404s, roles validation",
+      "passes": false,
+      "closes_issues": [
+        "#50"
+      ]
+    },
+    {
+      "id": "H4-public-api-project-checks",
+      "phase": "H",
+      "title": "Per-project access checks on project/credential-list/insights/import routes; widen PROJECT_CHECKED_API_KEY_SCOPES",
+      "passes": false,
+      "closes_issues": [
+        "#51"
+      ]
+    },
+    {
+      "id": "H5-editor-ui-red-suite",
+      "phase": "H",
+      "title": "editor-ui unit suite green (18 files / 136 tests; 3 clusters in docs/red-frontend-suite-triage.md)",
+      "passes": false
+    },
+    {
+      "id": "H6-open-defects",
+      "phase": "H",
+      "title": "Close remaining defects: #13 unshare orphan cleanup, #45 expectedVersionId required, #20 multi-main fencing, #52 Confluence credentials",
+      "passes": false,
+      "closes_issues": [
+        "#13",
+        "#45",
+        "#20",
+        "#52"
+      ]
+    },
+    {
+      "id": "H7-promotion-ready",
+      "phase": "H",
+      "title": "Full pnpm build + test suites on develop match or beat master; open develop->master promotion PR for Greg",
+      "passes": false
     }
   ]
 }
