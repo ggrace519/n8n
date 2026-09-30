@@ -16,6 +16,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-25 — External-secrets role-sync tests match the fork's scope policy (#47)
+
+**Fixed:** two role-sync tests crashed while iterating missing entries in the
+fork's intentionally empty external-secrets scope map. Three neighboring tests
+iterated an empty list, so their scope assertions never ran. Replace these five
+cases with a nine-case matrix covering project admin, editor, and personal-owner
+roles with the setting enabled, disabled, or absent. Each case checks the entire
+scope list against the role's base definition, with personal-space settings
+disabled, so both extra and missing scopes are detected. Production behavior is
+unchanged.
+
+**Provenance:** derived from the surviving fair-code tests, `AuthRolesService`,
+and this fork's `@n8n/permissions` settings and role definitions; no Enterprise
+source was read.
+
+**Verification:** the full `auth.roles.service.test.ts` file passes **36/36**
+(previously **30 passed / 2 failed**). Package lint and test-file formatting pass;
+independent review found no issues. Package typecheck remains red with 63
+pre-existing errors across 16 other files, none in this test file.
+
 ### 2026-09-20 — Personal-project sharing/publishing scopes made a single source of truth (#36)
 
 **Fixed:** the personal-space security settings (`personalProject.sharing.enabled`,
