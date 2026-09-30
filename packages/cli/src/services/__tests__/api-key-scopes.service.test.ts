@@ -1,5 +1,10 @@
 import type { ProjectRelation, ProjectRelationRepository, User } from '@n8n/db';
-import { GLOBAL_MEMBER_SCOPES, GLOBAL_OWNER_SCOPES, type Scope } from '@n8n/permissions';
+import {
+	GLOBAL_CHAT_USER_SCOPES,
+	GLOBAL_MEMBER_SCOPES,
+	GLOBAL_OWNER_SCOPES,
+	type Scope,
+} from '@n8n/permissions';
 import { mock } from 'vitest-mock-extended';
 
 import { ApiKeyScopesService } from '../api-key-scopes.service';
@@ -45,12 +50,25 @@ describe('ApiKeyScopesService', () => {
 			expect(scopes).not.toContain('credential:list');
 		});
 
-		test('grants a user with no project relations only their global scopes', async () => {
-			projectRelationRepository.findAllByUser.mockResolvedValue([]);
-
+		test('skips the project lookup when the global role already backs every project-checked scope', async () => {
 			const scopes = await service.getGrantableScopes(userWithGlobalScopes(GLOBAL_OWNER_SCOPES));
 
 			expect(scopes).toContain('project:delete');
+			expect(projectRelationRepository.findAllByUser).not.toHaveBeenCalled();
+		});
+
+		test('derives nothing from project roles for a user not entitled to API keys', async () => {
+			// A chat-only user keeps a viewer relation on their personal project.
+			projectRelationRepository.findAllByUser.mockResolvedValue([
+				relationWithScopes(['workflow:read', 'credential:read', 'execution:read']),
+			]);
+
+			const scopes = await service.getGrantableScopes(
+				userWithGlobalScopes(GLOBAL_CHAT_USER_SCOPES),
+			);
+
+			expect(scopes).toEqual([]);
+			expect(projectRelationRepository.findAllByUser).not.toHaveBeenCalled();
 		});
 	});
 

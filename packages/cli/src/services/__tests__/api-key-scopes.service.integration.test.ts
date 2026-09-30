@@ -1,7 +1,7 @@
 import { createTeamProject, linkUserToProject, testDb } from '@n8n/backend-test-utils';
 import { Container } from '@n8n/di';
 
-import { createMember, createOwner } from '@test-integration/db/users';
+import { createChatUser, createMember, createOwner } from '@test-integration/db/users';
 
 import { ApiKeyScopesService } from '../api-key-scopes.service';
 
@@ -33,13 +33,12 @@ describe('ApiKeyScopesService', () => {
 		expect(scopes).not.toContain('credential:list');
 	});
 
-	test('a team-project viewer gains nothing beyond what their project roles allow', async () => {
-		const member = await createMember();
+	test('a chat user derives no scopes from the projects they can view', async () => {
+		const chatUser = await createChatUser();
 		const project = await createTeamProject();
-		await linkUserToProject(member, project, 'project:viewer');
+		await linkUserToProject(chatUser, project, 'project:viewer');
 
-		expect(await service.canGrant(member, ['workflow:read', 'execution:read'])).toBe(true);
-		expect(await service.canGrant(member, ['project:update'])).toBe(false);
+		expect(await service.getGrantableScopes(chatUser)).toEqual([]);
 	});
 
 	test('an owner can still grant instance-wide scopes from their global role', async () => {

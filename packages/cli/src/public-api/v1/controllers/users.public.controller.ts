@@ -16,6 +16,7 @@ import {
 	Body,
 	Delete,
 	Get,
+	GlobalScope,
 	Licensed,
 	Param,
 	Patch,
@@ -61,6 +62,10 @@ export class UsersPublicController {
 
 	@Get('/')
 	@ApiKeyScope('user:list')
+	// Members hold global `user:list` for the sharing picker, which exposes far less
+	// than this listing (MFA state, roles); require the same authority as reading
+	// any single user.
+	@GlobalScope('user:read')
 	@ApiSummary('Retrieve all users')
 	@ApiDescription('Retrieve all users from your instance. Only available for the instance owner.')
 	@ApiTags(['User'])

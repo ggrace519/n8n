@@ -7,6 +7,7 @@ import type {
 } from '@n8n/db';
 import {
 	GLOBAL_CHAT_USER_SCOPES,
+	GLOBAL_MEMBER_SCOPES,
 	getApiKeyScopesForRole,
 	type Scope as ScopeType,
 } from '@n8n/permissions';
@@ -147,6 +148,12 @@ describe('ScopedJwtStrategy', () => {
 		it('limits apiKeyScopes to those permitted by the acting role', async () => {
 			const subject = makeUser('subject-id', GLOBAL_CHAT_USER_SCOPES, false, 'global:chatUser');
 			userRepository.findOne.mockResolvedValue(subject);
+			// A chat user keeps a viewer relation on their personal project.
+			projectRelationRepository.findAllByUser.mockResolvedValue([
+				{
+					role: { scopes: [{ slug: 'workflow:read' }, { slug: 'credential:read' }] },
+				} as ProjectRelation,
+			]);
 
 			const grant = await strategy.buildTokenGrant(makeTokenExchangeJwt());
 
@@ -155,7 +162,7 @@ describe('ScopedJwtStrategy', () => {
 		});
 
 		it("adds apiKeyScopes from the acting user's project roles", async () => {
-			const subject = makeUser('subject-id', [], false, 'global:member');
+			const subject = makeUser('subject-id', GLOBAL_MEMBER_SCOPES, false, 'global:member');
 			userRepository.findOne.mockResolvedValue(subject);
 			projectRelationRepository.findAllByUser.mockResolvedValue([
 				{ role: { scopes: [{ slug: 'workflow:read' }] } } as ProjectRelation,
@@ -166,8 +173,8 @@ describe('ScopedJwtStrategy', () => {
 			if (!grant) throw new Error('expected grant');
 			expect(projectRelationRepository.findAllByUser).toHaveBeenCalledWith('subject-id');
 			expect(grant.apiKeyScopes).toContain('workflow:read');
-			// Project roles only widen the audited subset, never global-only scopes.
-			expect(grant.scopes).toEqual([]);
+			// Project roles widen API-key scopes only, never the global grant.
+			expect(grant.scopes).not.toContain('workflow:read');
 		});
 
 		it('builds a grant with actor scopes when the act claim resolves', async () => {

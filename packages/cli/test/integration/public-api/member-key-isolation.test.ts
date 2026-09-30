@@ -89,8 +89,31 @@ describe('Public API: member key confined to own projects', () => {
 		expect(ids).not.toContain(victimWorkflow.id);
 	});
 
-	test("cannot read another member's credential", async () => {
+	test("cannot update, publish, or transfer another member's workflow", async () => {
+		const attackerProject = await Container.get(ProjectRepository).getPersonalProjectForUserOrFail(
+			attacker.id,
+		);
+
+		await attackerAgent
+			.put(`/workflows/${victimWorkflow.id}`)
+			.send({ name: 'hijacked', nodes: [], connections: {}, settings: {} })
+			.expect(403);
+		await attackerAgent.post(`/workflows/${victimWorkflow.id}/activate`).expect(403);
+		await attackerAgent
+			.put(`/workflows/${victimWorkflow.id}/transfer`)
+			.send({ destinationProjectId: attackerProject.id })
+			.expect(403);
+	});
+
+	test("cannot read or delete another member's credential", async () => {
 		await attackerAgent.get(`/credentials/${victimCredential.id}`).expect(403);
+		await attackerAgent.delete(`/credentials/${victimCredential.id}`).expect(403);
+	});
+
+	test('cannot list every user on the instance', async () => {
+		expect(attacker.apiKeys[0].scopes).toContain('user:list');
+
+		await attackerAgent.get('/users').expect(403);
 	});
 
 	test("cannot list folders in another member's or a foreign team project", async () => {

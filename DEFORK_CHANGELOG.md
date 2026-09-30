@@ -47,6 +47,20 @@ route; 47 qualify. Five stay excluded until their routes gain a per-project chec
 These routes are unchanged and remain reachable by owners and admins through
 their global role. Follow-up: #51.
 
+**Review follow-ups (same change):**
+- Project roles widen scopes only for users entitled to API keys at all
+  (`apiKey:create`). A chat-only user keeps a viewer relation on their personal
+  project, and would otherwise have gained read scopes through token exchange.
+- The project lookup is skipped when the global role already backs every
+  project-checked scope (owners, admins). This saves a query on each
+  token-exchange request.
+- `GET /api/v1/users` now also requires global `user:read`, the same as reading a
+  single user. Members hold `user:list` for the sharing picker, which exposes far
+  less than this listing (MFA state, roles). Now that members can hold keys, it
+  would otherwise have been open to them.
+- Existing keys keep their scopes after the owner's global role is lowered. This
+  predates this change and is tracked in #53.
+
 **Also fixed (tests):**
 - Two vacuous specs asserted against the empty owner-only scope list and could
   never catch a regression. They are replaced by real cases: each excluded scope
@@ -62,10 +76,11 @@ sets, and `ProjectRelationRepository`. No Enterprise source was read.
 - `@n8n/permissions` unit tests: 120/120.
 - New `ApiKeyScopesService` unit and integration tests pass.
 - `api-keys.api.test.ts`: 51/51.
-- The new `member-key-isolation.test.ts` passes 7/7: a member key with every
-  grantable scope is refused another member's workflow, credential and folders,
-  and sees none of their workflows or executions. Removing the route's
-  `projectScope` turns it red.
+- The new `member-key-isolation.test.ts` passes 9/9: a member key with every
+  grantable scope is refused another member's workflow (read, update, publish,
+  transfer, delete), credential (read, delete) and folders, sees none of their
+  workflows or executions, and cannot list users. Removing either the route's
+  `projectScope` or the new `/users` gate turns it red.
 - `test/integration/public-api/` goes from 111 failures on `develop` to 9, with
   no new failures (compared by test name). The 9 that remain are #50.
 
