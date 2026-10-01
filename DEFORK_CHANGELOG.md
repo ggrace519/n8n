@@ -16,6 +16,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — No more Confluence error on every startup (#52)
+
+**Fixed:** every `n8n start` logged `Failed to load Custom API options for the
+node "n8n-nodes-base.confluence": Unknown credential name
+"confluenceCloudOAuth2Api"`. The node is an upstream *hidden scaffold* (#35688):
+it references Confluence credential types that were never added. It is now
+unregistered from nodes-base until those credentials exist. Its source and tests
+stay in place, so re-registering is a one-line change.
+
+**Verification:**
+- Full `pnpm build` 69/69; the Confluence node tests still pass (31/31).
+- A real `n8n start` reaches "Editor is now accessible" with no Confluence error.
+
 ### 2026-09-30 — Dependabot critical and high alerts closed (except two needing majors)
 
 **Security:** the default branch carried 4 critical and 20 high Dependabot alerts.
