@@ -16,6 +16,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — Second Dependabot pass: newly published high advisories
+
+After the first pass cleared every critical alert, GitHub's rescan surfaced 21
+new high alerts. This closes all of them except #59.
+
+- **Version bumps:**
+  - `axios` 1.18.0 → 1.20.0 (catalog). The repo's `patches/axios.patch` still
+    applies.
+  - `electron` 41.10.3 → 41.10.6, used by `@n8n/local-gateway`.
+  - `undici` catalog floors raised to `^6.28.1` / `^7.29.1`.
+  - `@grpc/grpc-js` floor `^1.14.5`.
+- **`nodemailer` 9.1.1 → 10.0.10 (major).** The only declared breaking change
+  is Node ≥ 20, which the repo already exceeds. Its TypeScript rewrite moved
+  `auth` from the connection options to the transport options, so the cli mailer
+  now types its config as `SMTPTransport.Options`, as the EmailSend node already
+  does. Version 10.0.11 was skipped: it was exactly at the 3-day maturity line.
+- **Re-arming pins replaced with floors again:** `brace-expansion@<2.1.4 → 2.1.4`
+  and `brace-expansion@5 → 5.0.9` (root and `.github/scripts`) now sit below new
+  fixes. They become `brace-expansion@2: ^2.1.6` and `brace-expansion@5: ^5.0.11`.
+- **Python task runner:** `urllib3` 2.7.0 → 2.8.0 (pin, constraint and
+  `uv.lock`).
+
+**Verification:**
+- Full `pnpm build`: 69/69. The first attempt failed on the nodemailer types,
+  which led to the mailer fix above.
+- **Real SMTP send** through nodemailer 10.0.10 to a local sink: `250 OK`.
+- **Email consumers:** cli node-mailer spec passes; nodes-base EmailSend, Gmail
+  and Brevo 140/140.
+- **HTTP consumers (axios, undici):** core 1987/1987; HTTP Request node 165/165.
+- **Other suites:** local-gateway 35/35; `.github/scripts` 493/493; Python task
+  runner 261 passed.
+- **cli unit:** only the known 4-file baseline.
+- **Resolved versions**, all from the lockfile: axios 1.20.0 with the patch,
+  brace-expansion 2.1.7 / 5.0.12, grpc-js 1.14.5, undici 6.29.0 / 7.30.0,
+  nodemailer 10.0.10, electron 41.10.6. All clear the 3-day maturity guard.
+
 ### 2026-09-30 — Dependabot critical and high alerts closed (except two needing majors)
 
 **Security:** the default branch carried 4 critical and 20 high Dependabot alerts.
