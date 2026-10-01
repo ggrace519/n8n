@@ -369,25 +369,28 @@
       "id": "H1-api-key-scope-pruning",
       "phase": "H",
       "title": "Prune stored API-key scopes to the grantable set when a user's global role (or a custom role's scopes) changes",
-      "passes": false,
+      "passes": true,
       "closes_issues": [
         "#53"
-      ]
+      ],
+      "verified": "2026-09-30: merged #58. Request-time intersection in ApiKeyAuthStrategy + prune on role change; demotion spec mutation-checked. Full cli integration 5146/0 failed."
     },
     {
       "id": "H2-dependabot-critical-high",
       "phase": "H",
       "title": "Close Dependabot critical + high alerts on develop (verify resolved lockfile versions)",
-      "passes": false
+      "passes": false,
+      "notes": "2026-09-30: merged #60 -- vm2 (critical), jsonata+tar (critical, .github/scripts), fast-uri re-arming pins, undici, manifest alignments. REMAINING: #59 (extract-zip via @puppeteer/browsers 3, html-minifier via mjml 5) -- parent major bumps. Re-check alert counts after GitHub rescan before flipping."
     },
     {
       "id": "H3-public-api-red",
       "phase": "H",
       "title": "Public-API integration suite fully green: executions beforeAll, LDAP, projects 404s, roles validation",
-      "passes": false,
+      "passes": true,
       "closes_issues": [
         "#50"
-      ]
+      ],
+      "verified": "2026-09-30: merged #61 (+#55). public-API suite 1036/1036 (was 111 failing); ENTIRE cli integration suite 271 files / 5146 passed / 0 failed. Root causes were clean-room rebuild gaps (personal-project membership, data-table listing, LDAP password handling, project:list, export scopes, admin listing), not stale tests."
     },
     {
       "id": "H4-public-api-project-checks",
@@ -402,7 +405,8 @@
       "id": "H5-editor-ui-red-suite",
       "phase": "H",
       "title": "editor-ui unit suite green (18 files / 136 tests; 3 clusters in docs/red-frontend-suite-triage.md)",
-      "passes": false
+      "passes": false,
+      "notes": "2026-09-30 ROOT CAUSE FOUND: the clean-room environments.store resolves $vars via projectsStore.currentProjectId (reads the route). Experiment removing that read: 14/18 files, 130/136 tests go green (clusters #1 AND #2 -- the dup-element errors are fallout, not the testing-library dom@9/@10 split). Backend resolves $vars by the WORKFLOW's owning project (workflow-helpers getVariables), so the fix is to scope by the edited workflow's home project -- product-semantics change, awaiting Greg. Remaining 6 tests/4 files = cluster #3 (instanceRoleScopes project Create-vs-Manage drift in @n8n/permissions; FocusSidebar paywall; WorkflowExecutionsPreview; NodesListPanel 9-vs-8)."
     },
     {
       "id": "H6-open-defects",
