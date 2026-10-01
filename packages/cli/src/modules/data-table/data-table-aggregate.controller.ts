@@ -1,6 +1,6 @@
 import { ListDataTableQueryDto } from '@n8n/api-types';
 import { AuthenticatedRequest } from '@n8n/db';
-import { Get, Query, RestController } from '@n8n/decorators';
+import { Get, GlobalScope, Query, RestController } from '@n8n/decorators';
 
 import { DataTableAggregateService } from './data-table-aggregate.service';
 import { DataTableService } from './data-table.service';
@@ -12,9 +12,8 @@ export class DataTableAggregateController {
 		private readonly dataTableService: DataTableService,
 	) {}
 
-	// No global scope: members list the tables of projects whose role grants
-	// dataTable:listProject; the service scopes results to the caller.
 	@Get('/')
+	@GlobalScope('dataTable:list')
 	async listDataTables(
 		req: AuthenticatedRequest,
 		_res: Response,
@@ -24,6 +23,7 @@ export class DataTableAggregateController {
 	}
 
 	@Get('/limits')
+	@GlobalScope('dataTable:list')
 	async getDataTablesSize(req: AuthenticatedRequest) {
 		return await this.dataTableService.getDataTablesSize(req.user);
 	}

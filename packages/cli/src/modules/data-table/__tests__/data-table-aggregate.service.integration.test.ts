@@ -1,6 +1,5 @@
 import { createTeamProject, testDb, testModules } from '@n8n/backend-test-utils';
 import {
-	type Role,
 	GLOBAL_MEMBER_ROLE,
 	GLOBAL_OWNER_ROLE,
 	ProjectRelationRepository,
@@ -9,6 +8,7 @@ import {
 	PROJECT_ADMIN_ROLE,
 	GLOBAL_ADMIN_ROLE,
 	PROJECT_CHAT_USER_ROLE,
+	PROJECT_VIEWER_ROLE,
 } from '@n8n/db';
 import { Container } from '@n8n/di';
 import type { EntityManager } from '@n8n/typeorm';
@@ -87,7 +87,7 @@ describe('dataTableAggregate', () => {
 				{
 					userId: user.id,
 					projectId: project2.id,
-					role: { slug: 'project:viewer' } as Role,
+					role: PROJECT_VIEWER_ROLE,
 					user,
 					project: project2,
 					createdAt: new Date(),
@@ -116,6 +116,39 @@ describe('dataTableAggregate', () => {
 				]),
 			);
 			expect(result.count).toBe(2);
+		});
+
+		it('should return only tables of projects whose role grants listing to a member', async () => {
+			const currentUser = await createUser({ role: GLOBAL_MEMBER_ROLE });
+			const project3 = await createTeamProject();
+			const visible = await dataTableService.createDataTable(project1.id, {
+				name: 'viewerTable',
+				columns: [],
+			});
+			await dataTableService.createDataTable(project2.id, { name: 'chatOnlyTable', columns: [] });
+			await dataTableService.createDataTable(project3.id, { name: 'unrelatedTable', columns: [] });
+			const relation = (project: Project, role: typeof PROJECT_VIEWER_ROLE) => ({
+				userId: currentUser.id,
+				projectId: project.id,
+				role,
+				user: currentUser,
+				project,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+				setUpdateDate: vi.fn(),
+			});
+			projectRelationRepository.getRelationsForUser.mockResolvedValueOnce([
+				relation(project1, PROJECT_VIEWER_ROLE),
+				relation(project2, PROJECT_CHAT_USER_ROLE),
+			]);
+
+			const result = await dataTableAggregateService.getManyAndCount(currentUser, {
+				skip: 0,
+				take: 10,
+			});
+
+			expect(result.data.map((table) => table.id)).toEqual([visible.id]);
+			expect(result.count).toBe(1);
 		});
 
 		it('should return an empty array if user has no access to any project', async () => {
@@ -186,7 +219,7 @@ describe('dataTableAggregate', () => {
 				{
 					userId: user.id,
 					projectId: project2.id,
-					role: { slug: 'project:viewer' } as Role,
+					role: PROJECT_VIEWER_ROLE,
 					user,
 					project: project2,
 					createdAt: new Date(),

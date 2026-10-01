@@ -290,6 +290,7 @@ export class ProjectService {
 
 	/** Replace ALL member relations of a project with the given set. */
 	async syncProjectRelations(projectId: string, relations: RelationPayload[]): Promise<void> {
+		this.assertTeamProject(await this.getProject(projectId));
 		await this.roleService.checkRolesExist(
 			relations.map((relation) => relation.role),
 			'project',
@@ -313,7 +314,7 @@ export class ProjectService {
 	}
 
 	async deleteUserFromProject(projectId: string, userId: string): Promise<void> {
-		await this.getProject(projectId);
+		this.assertTeamProject(await this.getProject(projectId));
 		const relation = await this.projectRelationRepository.findRelation(projectId, userId);
 		if (!relation) return;
 

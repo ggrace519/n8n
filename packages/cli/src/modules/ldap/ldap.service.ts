@@ -93,7 +93,18 @@ export class LdapService {
 	 * plaintext yields '' rather than an error, which would silently drop it.
 	 */
 	private decryptStoredPassword(value: string): string {
-		return value.startsWith(ENCRYPTED_VALUE_PREFIX) ? this.cipher.decrypt(value) : value;
+		if (!value.startsWith(ENCRYPTED_VALUE_PREFIX)) return value;
+		try {
+			return this.cipher.decrypt(value);
+		} catch (error) {
+			// E.g. encrypted under a different encryption key. Treat it as unset so the
+			// config still loads and an admin can re-enter it, rather than locking
+			// both LDAP startup and the settings endpoints behind a bad row.
+			this.logger.warn('Could not decrypt the stored LDAP bind password; treating it as unset', {
+				error,
+			});
+			return '';
+		}
 	}
 
 	getConfig(): LdapConfig {

@@ -47,18 +47,33 @@ clean-room source for each fix.
 - **Export permissions.** Export is now a read operation, so viewers can export
   workflows they can read, and editors gain `project:export`. Every exporter
   re-checks each bundled item.
-- **Data-table listing for members.** `GET /rest/data-tables-global` and
-  `/limits` required *global* `dataTable:list`, so members got 403 instead of
-  their own tables. The services already scope results to the caller.
+- **Data-table overview for members.** `GET /rest/data-tables-global` and
+  `/limits` are upstream fair-code routes gated on global `dataTable:list`
+  (#18394), but the clean-room member role never held it. Members got 403, and
+  the editor hid the data-tables UI from them. Members (not chat users) now hold
+  global `dataTable:list`; the service still lists only projects whose role
+  grants `dataTable:listProject`.
 - **Missing projects.** Project user-management calls on a missing project now
   return 404 (previously a 400, or a silent 204).
 - **LDAP password at rest.** `LdapService` holds the bind password decrypted in
   memory and encrypts it when persisting. Legacy plaintext rows are recognised
   by the ciphertext marker, because CBC-decrypting short plaintext returns `''`
   rather than throwing, so the old try/catch could silently drop a password.
+  A stored password that can't be decrypted (for example, one encrypted under
+  another key) is logged and treated as unset. It no longer blocks LDAP
+  startup and the settings endpoints.
 - **Error messages.** Unknown role scopes report `Invalid scope` instead of
   zod's 180-item enum dump. The SSO "another method is active" guard uses the
   pinned wording and still names the active method.
+
+**Review follow-ups:**
+- Membership guards now also cover `syncProjectRelations` and
+  `deleteUserFromProject`.
+- The dead `PublicApiKeyService.apiKeyHasValidScopes` is deleted. It read raw
+  stored scopes and would have bypassed the request-time narrowing (#53).
+- New role-scope-set tests cover `project:list`, viewer and editor export, and
+  member `dataTable:list`. A positive data-table spec checks that a member sees
+  only tables of projects whose role grants listing.
 
 **Tests:**
 - `initActiveWorkflowManager` swapped in an `InstanceSettings` mock the manager

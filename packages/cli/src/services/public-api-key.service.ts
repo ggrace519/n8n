@@ -10,7 +10,6 @@ import { Logger } from '@n8n/backend-common';
 import type { User } from '@n8n/db';
 import { ApiKey, ApiKeyRepository, withTransaction } from '@n8n/db';
 import { Service } from '@n8n/di';
-import type { ApiKeyScope } from '@n8n/permissions';
 import { hasGlobalScope } from '@n8n/permissions';
 import {
 	In,
@@ -353,16 +352,6 @@ export class PublicApiKeyService {
 		const decoded = this.jwtService.decode(apiKey);
 		return decoded?.exp ?? null;
 	};
-
-	async apiKeyHasValidScopes(apiKey: string, endpointScope: ApiKeyScope) {
-		const apiKeyData = await this.apiKeyRepository.findOne({
-			where: { apiKey, audience: API_KEY_AUDIENCE },
-			select: { scopes: true },
-		});
-		if (!apiKeyData) return false;
-
-		return apiKeyData.scopes.includes(endpointScope);
-	}
 
 	/**
 	 * Drop every stored key scope the user can no longer grant, e.g. after their

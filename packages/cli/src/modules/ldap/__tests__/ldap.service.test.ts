@@ -92,6 +92,22 @@ describe('LdapService bind password', () => {
 		expect(cipher.decrypt(lastStoredConfig().bindingAdminPassword)).toBe('secretPassword123');
 	});
 
+	test('loads an undecryptable password as unset instead of failing', async () => {
+		// E.g. a row encrypted under another encryption key. A wrong-key decrypt
+		// usually throws, but not always, so the failure is simulated.
+		settingsRepository.findByKey.mockResolvedValue(
+			storedRow({ bindingAdminPassword: cipher.encrypt('secretPassword123') }),
+		);
+		vi.spyOn(cipher, 'decrypt').mockImplementationOnce(() => {
+			throw new Error('bad decrypt');
+		});
+
+		const config = await createService().loadConfig();
+
+		expect(config.bindingAdminPassword).toBe('');
+		expect(logger.warn).toHaveBeenCalled();
+	});
+
 	test('stores an empty password as empty', async () => {
 		await createService().updateConfig({ ...LDAP_DEFAULT_CONFIGURATION, bindingAdminPassword: '' });
 
