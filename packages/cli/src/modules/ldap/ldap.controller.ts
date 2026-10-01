@@ -1,5 +1,4 @@
 import { LdapSyncDto, UpdateLdapConfigurationDto } from '@n8n/api-types';
-import type { LdapConfig } from '@n8n/constants';
 import type { AuthenticatedRequest } from '@n8n/db';
 import { Body, Get, GlobalScope, Licensed, Post, Put, RestController } from '@n8n/decorators';
 import type { Response } from 'express';
@@ -8,6 +7,7 @@ import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { EventService } from '@/events/event.service';
 
 import { getLdapSynchronizationsWithCount } from './helpers';
+import { toLdapConfigUpdate, toLdapConfigurationResponse } from './ldap-config.redaction';
 import { LdapService } from './ldap.service';
 
 @RestController('/ldap')
@@ -21,7 +21,7 @@ export class LdapController {
 	@Licensed('feat:ldap')
 	@GlobalScope('ldap:manage')
 	async getConfig() {
-		return await this.ldapService.loadConfig();
+		return toLdapConfigurationResponse(await this.ldapService.loadConfig());
 	}
 
 	@Put('/config')
@@ -38,7 +38,8 @@ export class LdapController {
 			throw new BadRequestError(strict.error.issues[0]?.message ?? 'Invalid LDAP configuration');
 		}
 		try {
-			const updated = await this.ldapService.updateConfig(payload as unknown as LdapConfig);
+			const current = await this.ldapService.loadConfig();
+			const updated = await this.ldapService.updateConfig(toLdapConfigUpdate(payload, current));
 			this.eventService.emit('ldap-settings-updated', {
 				userId: req.user.id,
 				loginIdAttribute: updated.loginIdAttribute,
@@ -53,7 +54,7 @@ export class LdapController {
 				loginLabel: updated.loginLabel,
 				loginEnabled: updated.loginEnabled,
 			});
-			return updated;
+			return toLdapConfigurationResponse(updated);
 		} catch (error) {
 			throw new BadRequestError(error instanceof Error ? error.message : String(error));
 		}

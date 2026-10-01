@@ -110,5 +110,10 @@ export type Role = RoleObject;
 /** A validated role slug (any built-in or custom role). */
 export type RoleSlug = z.infer<typeof roleSchema>;
 
-/** Validates a fully-qualified scope string against the known catalog. */
-export const scopeSchema = z.enum(ALL_SCOPES as [Scope, ...Scope[]]);
+/**
+ * Validates a fully-qualified scope string against the known catalog. Reports a
+ * short 'Invalid scope' rather than zod's default, which lists all ~180 scopes.
+ */
+export const scopeSchema = z.enum(ALL_SCOPES as [Scope, ...Scope[]], {
+	errorMap: () => ({ message: 'Invalid scope' }),
+});

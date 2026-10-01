@@ -16,6 +16,82 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — Integration suites green: rules lost in the clean-room rebuild restored (#50)
+
+The public-API and neighbouring integration specs were red on `develop`, but it
+went unnoticed because CI only runs the `:changed` test variants. Once #26's
+member-key failures were gone, each remaining cluster traced to a real gap in
+the rebuilt code, not to a stale test. The surviving fair-code specs were the
+clean-room source for each fix.
+
+**Security / authorization:**
+- **Personal projects could gain members.** A user could add others to their
+  own personal project, even as admin, bypassing its single-owner model and the
+  personal-space sharing setting. Membership changes now require a team project
+  (403 otherwise).
+- **Chat users could list data tables.** The global data-table listing trusted
+  any project relation. It now requires the relation's role to grant
+  `dataTable:listProject`, as `getDataTablesSize` already did.
+- **LDAP bind password exposure.** `GET /rest/ldap/config` returned the bind
+  password's ciphertext to the browser. It is now redacted like the public API,
+  and PUT maps the placeholder back to the stored password.
+
+**Fixed:**
+- **Admin project listing.** Owners and admins listed only projects they belong
+  to. With global `project:list` they now see every project, for
+  `GET /projects` and the sharing-candidates admin path.
+- **Listing a project's members.** No project role held `project:list`, so
+  members got "Project not found" when listing their own project's users. The
+  owner, admin, editor and viewer roles now hold `project:list` with
+  `project:read`. It is not in the API-key allowlist.
+- **Export permissions.** Export is now a read operation, so viewers can export
+  workflows they can read, and editors gain `project:export`. Every exporter
+  re-checks each bundled item.
+- **Data-table overview for members.** `GET /rest/data-tables-global` and
+  `/limits` are upstream fair-code routes gated on global `dataTable:list`
+  (#18394), but the clean-room member role never held it. Members got 403, and
+  the editor hid the data-tables UI from them. Members (not chat users) now hold
+  global `dataTable:list`; the service still lists only projects whose role
+  grants `dataTable:listProject`.
+- **Missing projects.** Project user-management calls on a missing project now
+  return 404 (previously a 400, or a silent 204).
+- **LDAP password at rest.** `LdapService` holds the bind password decrypted in
+  memory and encrypts it when persisting. Legacy plaintext rows are recognised
+  by the ciphertext marker, because CBC-decrypting short plaintext returns `''`
+  rather than throwing, so the old try/catch could silently drop a password.
+  A stored password that can't be decrypted (for example, one encrypted under
+  another key) is logged and treated as unset. It no longer blocks LDAP
+  startup and the settings endpoints.
+- **Error messages.** Unknown role scopes report `Invalid scope` instead of
+  zod's 180-item enum dump. The SSO "another method is active" guard uses the
+  pinned wording and still names the active method.
+
+**Review follow-ups:**
+- Membership guards now also cover `syncProjectRelations` and
+  `deleteUserFromProject`.
+- The dead `PublicApiKeyService.apiKeyHasValidScopes` is deleted. It read raw
+  stored scopes and would have bypassed the request-time narrowing (#53).
+- New role-scope-set tests cover `project:list`, viewer and editor export, and
+  member `dataTable:list`. A positive data-table spec checks that a member sees
+  only tables of projects whose role grants listing.
+
+**Tests:**
+- `initActiveWorkflowManager` swapped in an `InstanceSettings` mock the manager
+  never saw, so all 75 public-API executions specs were skipped. It now marks
+  the real instance as leader.
+- New `LdapService` unit tests cover the encryption boundary; mutation-checked.
+
+**Verification (stacked on #55/#58):**
+- `test/integration/public-api/` plus LDAP, SAML and auth: 31 files,
+  **1036/1036**. It was 111 failing on `develop`.
+- Project, services, public-API, users and api-keys specs: **1202/1202**.
+- Data-table integration **527/527** and unit **153/153**.
+- n8n-packages, public-API and api-keys: **1360/1360**; n8n-packages unit
+  **513/513**.
+- **Entire cli integration suite: 271 files, 5147 passed, 0 failed** (12 skipped).
+- Full cli unit suite: no new failures.
+- Full `pnpm build`: 69/69.
+
 ### 2026-09-30 — API keys lose the scopes their owner's role no longer backs (#53)
 
 **Fixed:** lowering a user's global role (for example admin → member) left

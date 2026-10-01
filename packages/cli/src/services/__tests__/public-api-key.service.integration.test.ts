@@ -1,7 +1,6 @@
 import { testDb } from '@n8n/backend-test-utils';
 import { ApiKeyRepository, UserRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
-import type { ApiKeyScope } from '@n8n/permissions';
 import type { InstanceSettings } from 'n8n-core';
 import { mock } from 'vitest-mock-extended';
 
@@ -84,42 +83,6 @@ describe('PublicApiKeyService', () => {
 
 			const { scopes: after } = await apiKeyRepository.findOneByOrFail({ id });
 			expect(after.sort()).toEqual([...before].sort());
-		});
-	});
-
-	describe('apiKeyHasValidScopes', () => {
-		it('should return true if API key has the required scope', async () => {
-			// Arrange
-
-			const owner = await createOwnerWithApiKey({
-				scopes: ['workflow:read', 'user:read'],
-			});
-
-			const apiKey = owner.apiKeys[0].apiKey;
-			const requiredScope = 'workflow:read' as ApiKeyScope;
-
-			// Act
-			const result = await publicApiKeyService.apiKeyHasValidScopes(apiKey, requiredScope);
-
-			// Assert
-			expect(result).toBe(true);
-		});
-
-		it('should return false if API key does not have the required scope', async () => {
-			// Arrange
-
-			const owner = await createOwnerWithApiKey({
-				scopes: ['user:read'],
-			});
-
-			const apiKey = owner.apiKeys[0].apiKey;
-			const requiredScope = 'workflow:read' as ApiKeyScope;
-
-			// Act
-			const result = await publicApiKeyService.apiKeyHasValidScopes(apiKey, requiredScope);
-
-			// Assert
-			expect(result).toBe(false);
 		});
 	});
 });

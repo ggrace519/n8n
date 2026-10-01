@@ -5,13 +5,13 @@ import { ResponseError } from '@/errors/response-errors/abstract/response.error'
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { getLdapSynchronizationsWithCount } from '@/modules/ldap/helpers';
 import { LdapConnectionError, LdapRejectionError } from '@/modules/ldap/ldap.errors';
+import {
+	toLdapConfigUpdate,
+	toLdapConfigurationResponse,
+} from '@/modules/ldap/ldap-config.redaction';
 import { LdapService } from '@/modules/ldap/ldap.service';
 
-import {
-	toLdapConfigurationResponse,
-	toLdapConfigUpdate,
-	toLdapSyncHistoryResponse,
-} from './ldap.mapper';
+import { toLdapSyncHistoryResponse } from './ldap.mapper';
 import type { LdapRequest } from '../../../types';
 import type { PublicAPIEndpoint } from '../../shared/handler.types';
 import {

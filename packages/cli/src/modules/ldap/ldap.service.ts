@@ -30,6 +30,9 @@ import {
 } from './helpers';
 import { LdapConnectionError } from './ldap.errors';
 
+/** Base64 of the "Salted__" header every `Cipher.encrypt` output starts with. */
+const ENCRYPTED_VALUE_PREFIX = 'U2FsdGVkX1';
+
 /**
  * LDAP single sign-on: configuration lifecycle (persisted as a
  * load-on-startup settings row under `features.ldap`), directory access via
@@ -65,15 +68,43 @@ export class LdapService {
 		this.scheduleSync();
 	}
 
+	/**
+	 * Load config from the settings row. The bind password is encrypted at rest
+	 * and held decrypted in memory.
+	 */
 	async loadConfig(): Promise<LdapConfig> {
 		const row = await this.settingsRepository.findByKey(LDAP_FEATURE_NAME);
 		if (row?.value) {
-			this.config = {
+			const stored = {
 				...LDAP_DEFAULT_CONFIGURATION,
 				...jsonParse<Partial<LdapConfig>>(row.value, { fallbackValue: {} }),
 			};
+			this.config = {
+				...stored,
+				bindingAdminPassword: this.decryptStoredPassword(stored.bindingAdminPassword),
+			};
 		}
 		return this.config;
+	}
+
+	/**
+	 * Rows written by this service hold ciphertext; older or imported rows may hold
+	 * plaintext. Decide by the ciphertext marker, not by trying: decrypting short
+	 * plaintext yields '' rather than an error, which would silently drop it.
+	 */
+	private decryptStoredPassword(value: string): string {
+		if (!value.startsWith(ENCRYPTED_VALUE_PREFIX)) return value;
+		try {
+			return this.cipher.decrypt(value);
+		} catch (error) {
+			// E.g. encrypted under a different encryption key. Treat it as unset so the
+			// config still loads and an admin can re-enter it, rather than locking
+			// both LDAP startup and the settings endpoints behind a bad row.
+			this.logger.warn('Could not decrypt the stored LDAP bind password; treating it as unset', {
+				error,
+			});
+			return '';
+		}
 	}
 
 	getConfig(): LdapConfig {
@@ -85,21 +116,16 @@ export class LdapService {
 			assertAuthenticationMethodCanBeEnabled('ldap');
 		}
 
-		// Encrypt a newly-supplied admin password; keep the stored (already
-		// encrypted) one when the caller did not change it.
-		if (
-			newConfig.bindingAdminPassword &&
-			newConfig.bindingAdminPassword !== this.config.bindingAdminPassword
-		) {
-			newConfig.bindingAdminPassword = this.cipher.encrypt(newConfig.bindingAdminPassword);
-		}
-
 		const wasLoginEnabled = this.config.loginEnabled;
 		this.config = { ...newConfig };
 
+		const { bindingAdminPassword } = this.config;
 		await this.settingsRepository.upsertByKey(
 			LDAP_FEATURE_NAME,
-			JSON.stringify(this.config),
+			JSON.stringify({
+				...this.config,
+				bindingAdminPassword: bindingAdminPassword ? this.cipher.encrypt(bindingAdminPassword) : '',
+			}),
 			true,
 			{},
 		);
@@ -294,14 +320,8 @@ export class LdapService {
 	}
 
 	private async bindAdmin(client: Client): Promise<void> {
-		let password = this.config.bindingAdminPassword;
 		try {
-			password = this.cipher.decrypt(password);
-		} catch {
-			// Stored plaintext (e.g. never re-saved after an import) — use as-is.
-		}
-		try {
-			await client.bind(this.config.bindingAdminDn, password);
+			await client.bind(this.config.bindingAdminDn, this.config.bindingAdminPassword);
 		} catch (e) {
 			throw new LdapConnectionError(e instanceof Error ? e.message : String(e));
 		}
