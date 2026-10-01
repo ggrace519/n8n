@@ -25,7 +25,14 @@ import { useWorkflowHistoryStore } from '@/features/workflows/workflowHistory/wo
 import { useAddExecutionToDataset } from '@/features/ai/evaluation/composables/useAddExecutionToDataset';
 
 import { ElDropdown, ElDropdownItem, ElDropdownMenu } from 'element-plus';
-import { N8nButton, N8nIconButton, N8nSpinner, N8nText, N8nTooltip } from '@n8n/design-system';
+import {
+	N8nBadge,
+	N8nButton,
+	N8nIconButton,
+	N8nSpinner,
+	N8nText,
+	N8nTooltip,
+} from '@n8n/design-system';
 import VoteButtons from './VoteButtons.vue';
 
 type RetryDropdownRef = InstanceType<typeof ElDropdown>;
@@ -203,6 +210,10 @@ const activeExecution = computed(() => {
 });
 
 const vote = computed(() => activeExecution.value?.annotation?.vote || null);
+
+/** Custom data the execution highlighted via `$execution.customData`, as key/value pairs. */
+const highlightedData = computed(() => Object.entries(activeExecution.value?.customData ?? {}));
+const isHighlightedDataOpen = ref(false);
 
 async function onDeleteExecution(): Promise<void> {
 	// Prepend the message with a note about annotations if they exist
@@ -461,6 +472,45 @@ const onVoteClick = async (voteValue: AnnotationVote) => {
 					:execution="activeExecution"
 				/>
 
+				<ElDropdown
+					v-if="isAnnotationEnabled && activeExecution"
+					trigger="click"
+					placement="bottom-end"
+					@visible-change="isHighlightedDataOpen = $event"
+				>
+					<N8nButton
+						variant="subtle"
+						size="medium"
+						icon="ellipsis"
+						:title="locale.baseText('executionDetails.additionalActions')"
+						:class="{
+							[$style.highlightDataButton]: true,
+							[$style.highlightDataButtonActive]: highlightedData.length > 0,
+							[$style.highlightDataButtonOpen]: isHighlightedDataOpen,
+						}"
+						data-test-id="execution-preview-ellipsis-button"
+					>
+						<N8nBadge v-if="highlightedData.length > 0" theme="primary" :class="$style.badge">
+							{{ highlightedData.length }}
+						</N8nBadge>
+					</N8nButton>
+
+					<template #dropdown>
+						<div :class="$style.highlightedData" data-test-id="execution-preview-highlighted-data">
+							<N8nText bold size="small">{{ locale.baseText('generic.annotationData') }}</N8nText>
+							<dl v-if="highlightedData.length > 0" :class="$style.highlightedDataList">
+								<template v-for="[key, value] in highlightedData" :key="key">
+									<dt>{{ key }}</dt>
+									<dd>{{ value }}</dd>
+								</template>
+							</dl>
+							<N8nText v-else size="small" color="text-light">
+								{{ locale.baseText('executionDetails.highlightedData.empty') }}
+							</N8nText>
+						</div>
+					</template>
+				</ElDropdown>
+
 				<N8nIconButton
 					variant="subtle"
 					:title="locale.baseText('executionDetails.deleteExecution')"
@@ -602,5 +652,30 @@ const onVoteClick = async (voteValue: AnnotationVote) => {
 
 .badge {
 	border: 0;
+}
+
+.highlightedData {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing--2xs);
+	padding: var(--spacing--xs) var(--spacing--sm);
+	max-width: 320px;
+}
+
+.highlightedDataList {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: var(--spacing--4xs) var(--spacing--xs);
+	margin: 0;
+	font-size: var(--font-size--2xs);
+
+	dt {
+		color: var(--color--text--tint-1);
+	}
+
+	dd {
+		margin: 0;
+		word-break: break-all;
+	}
 }
 </style>

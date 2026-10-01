@@ -1367,6 +1367,7 @@
 	"executions.empty.heading": "No executions yet",
 	"executions.empty.description": "Each run of a workflow is called an execution, and you'll see them listed here",
 	"executionDetails.additionalActions": "Additional Actions",
+	"executionDetails.highlightedData.empty": "This execution has no highlighted data. Set it with $execution.customData.",
 	"executionDetails.confirmMessage.confirmButtonText": "Yes, delete",
 	"executionDetails.confirmMessage.headline": "Delete Execution?",
 	"executionDetails.confirmMessage.message": "Are you sure that you want to delete the current execution?",
