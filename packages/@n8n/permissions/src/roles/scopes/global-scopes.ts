@@ -45,6 +45,13 @@ export const GLOBAL_MEMBER_SCOPES: Scope[] = [
 	...pick(['user'], ['list']),
 	...pick(['chatHub'], ['message']),
 	...pick(['banner'], ['dismiss']),
+	// Own public-API keys only: the key service scopes create/update/rotate to the
+	// caller's keys, and managing other users' keys stays behind `apiKey:manage`.
+	...pick(['apiKey'], ['create', 'update']),
+	// The cross-project data-table overview: the service lists only tables of
+	// projects whose role grants `dataTable:listProject`; seeing every project's
+	// tables stays behind global `dataTable:listProject` (owners/admins).
+	...pick(['dataTable'], ['list']),
 ];
 
 /** A chat-only user can converse with chat-enabled workflows and nothing else. */

@@ -62,7 +62,7 @@ export function assertAuthenticationMethodCanBeEnabled(
 	const current = getCurrentAuthenticationMethod();
 	if (current !== 'email' && current !== authenticationMethod) {
 		throw new UserError(
-			`Cannot enable ${authenticationMethod} login while ${current} login is active. Disable ${current} first.`,
+			`Cannot switch ${authenticationMethod} login enabled state when an authentication method other than email or ${authenticationMethod} is active (currently ${current}). Disable ${current} first.`,
 		);
 	}
 }

@@ -16,8 +16,9 @@ export const allOps = (resources: Resource[]): Scope[] =>
 		(RESOURCES[resource] as readonly string[]).map((op) => `${resource}:${op}` as Scope),
 	);
 
-/** Read-only operations, used to grade viewer-style roles. */
-export const READ_OPS = ['read', 'list', 'get', 'listProject', 'readRow', 'readColumn'];
+/** Read-only operations, used to grade viewer-style roles. Exporting only reads
+ * (every exporter re-checks each item it bundles), so it is one of them. */
+export const READ_OPS = ['read', 'list', 'get', 'listProject', 'readRow', 'readColumn', 'export'];
 
 /** Mutating operations available to editor-style roles (no sharing/ownership).
  * Editors may `connect` (use) credentials but not `move` them — relocation is
@@ -34,7 +35,6 @@ export const WRITE_OPS = [
 	'publish',
 	'unpublish',
 	'import',
-	'export',
 	'writeRow',
 	'writeColumn',
 	'retry',

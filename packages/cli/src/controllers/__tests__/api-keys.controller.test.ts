@@ -4,6 +4,7 @@ import { Container } from '@n8n/di';
 import { mock } from 'vitest-mock-extended';
 
 import { EventService } from '@/events/event.service';
+import { ApiKeyScopesService } from '@/services/api-key-scopes.service';
 import { PublicApiKeyService } from '@/services/public-api-key.service';
 
 import { ApiKeysController } from '../api-keys.controller';
@@ -11,6 +12,7 @@ import { ApiKeysController } from '../api-keys.controller';
 describe('ApiKeysController', () => {
 	const publicApiKeyService = mockInstance(PublicApiKeyService);
 	const eventService = mockInstance(EventService);
+	const apiKeyScopesService = mockInstance(ApiKeyScopesService);
 
 	const controller = Container.get(ApiKeysController);
 
@@ -29,7 +31,7 @@ describe('ApiKeysController', () => {
 
 			const req = mock<AuthenticatedRequest>({ user: mock<User>({ id: '123' }) });
 
-			publicApiKeyService.apiKeyHasValidScopesForRole.mockReturnValue(true);
+			apiKeyScopesService.canGrant.mockResolvedValue(true);
 
 			publicApiKeyService.createPublicApiKeyForUser.mockResolvedValue(apiKeyData);
 
@@ -64,7 +66,7 @@ describe('ApiKeysController', () => {
 
 			const req = mock<AuthenticatedRequest>({ user: mock<User>({ id: '123' }) });
 
-			publicApiKeyService.apiKeyHasValidScopesForRole.mockReturnValue(false);
+			apiKeyScopesService.canGrant.mockResolvedValue(false);
 
 			// Act and Assert
 
@@ -78,7 +80,7 @@ describe('ApiKeysController', () => {
 
 			const req = mock<AuthenticatedRequest>({ user: mock<User>({ id: '123' }) });
 
-			publicApiKeyService.apiKeyHasValidScopesForRole.mockReturnValue(false);
+			apiKeyScopesService.canGrant.mockResolvedValue(false);
 
 			// Act and Assert
 

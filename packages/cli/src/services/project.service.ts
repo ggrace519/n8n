@@ -77,17 +77,25 @@ export class ProjectService {
 		return await this.projectRepository.getAccessibleProjects(user.id);
 	}
 
+	/** Owners and admins list every project; everyone else, the ones they belong to. */
 	async getAccessibleProjectsAndCount(
 		user: User,
 		options: ListProjectsQueryDto,
 	): Promise<[Project[], number]> {
+		if (hasGlobalScope(user, 'project:list')) {
+			return await this.projectRepository.findAllProjectsAndCount(options);
+		}
 		return await this.projectRepository.getAccessibleProjectsAndCount(user.id, options);
 	}
 
+	/** Share targets: every project for owners and admins; otherwise own projects plus peers' personal ones. */
 	async getShareableProjectsAndCount(
 		user: User,
 		options: ListProjectsQueryDto,
 	): Promise<[Project[], number]> {
+		if (hasGlobalScope(user, 'project:list')) {
+			return await this.projectRepository.findAllProjectsAndCount(options);
+		}
 		return await this.projectRepository.getShareableProjectsAndCount(user.id, options);
 	}
 
@@ -202,6 +210,13 @@ export class ProjectService {
 	//            membership
 	// ----------------------------------
 
+	/** A personal project has exactly one member, its owner; only team projects take more. */
+	private assertTeamProject(project: Project): void {
+		if (project.type !== 'team') {
+			throw new ForbiddenError('Members can only be managed on team projects');
+		}
+	}
+
 	/** Add a user to a project, or update their role if already a member. */
 	async addUser(projectId: string, { userId, role }: RelationPayload): Promise<void> {
 		await this.projectRelationRepository.upsertRelation(projectId, userId, role);
@@ -209,6 +224,7 @@ export class ProjectService {
 
 	/** Add users to a project (idempotent; existing members get the new role). */
 	async addUsersToProject(projectId: string, relations: RelationPayload[]): Promise<void> {
+		this.assertTeamProject(await this.getProject(projectId));
 		await this.roleService.checkRolesExist(
 			relations.map((relation) => relation.role),
 			'project',
@@ -233,6 +249,7 @@ export class ProjectService {
 		conflicts: Array<{ userId: string; currentRole: string; requestedRole: string }>;
 	}> {
 		const project = await this.getProject(projectId);
+		this.assertTeamProject(project);
 
 		await this.roleService.checkRolesExist(
 			relations.map((relation) => relation.role),
@@ -273,6 +290,7 @@ export class ProjectService {
 
 	/** Replace ALL member relations of a project with the given set. */
 	async syncProjectRelations(projectId: string, relations: RelationPayload[]): Promise<void> {
+		this.assertTeamProject(await this.getProject(projectId));
 		await this.roleService.checkRolesExist(
 			relations.map((relation) => relation.role),
 			'project',
@@ -282,20 +300,21 @@ export class ProjectService {
 	}
 
 	async changeUserRoleInProject(projectId: string, userId: string, role: string): Promise<void> {
+		this.assertTeamProject(await this.getProject(projectId));
 		await this.roleService.checkRolesExist([role], 'project');
 		this.checkRolesLicensed([role]);
 
+		// A user outside the project gets the same not-found as a missing project.
 		const relation = await this.projectRelationRepository.findRelation(projectId, userId);
 		if (!relation) {
-			throw new NotFoundError(
-				`Could not find a relation between the user "${userId}" and the project "${projectId}"`,
-			);
+			throw new NotFoundError(`Could not find project with ID: ${projectId}`);
 		}
 
 		await this.projectRelationRepository.upsertRelation(projectId, userId, role);
 	}
 
 	async deleteUserFromProject(projectId: string, userId: string): Promise<void> {
+		this.assertTeamProject(await this.getProject(projectId));
 		const relation = await this.projectRelationRepository.findRelation(projectId, userId);
 		if (!relation) return;
 

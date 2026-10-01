@@ -1,4 +1,4 @@
-import type { Scope } from '@n8n/permissions';
+import type { ApiKeyScope, Scope } from '@n8n/permissions';
 import type { FindOperator } from '@n8n/typeorm';
 import type express from 'express';
 import type {
@@ -461,7 +461,7 @@ export type AuthenticationInformation = {
  */
 export interface TokenGrant {
 	scopes: string[];
-	apiKeyScopes?: string[];
+	apiKeyScopes?: ApiKeyScope[];
 	actor?: User;
 	subject: User;
 }

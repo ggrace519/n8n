@@ -16,7 +16,6 @@ import {
 	SharedWorkflowRepository,
 } from '@n8n/db';
 import { Container } from '@n8n/di';
-import { getOwnerOnlyApiKeyScopes } from '@n8n/permissions';
 import { randomString } from 'n8n-workflow';
 import validator from 'validator';
 import { mock } from 'vitest-mock-extended';
@@ -311,8 +310,6 @@ describe('Public API endpoints with API key scopes', () => {
 					const admin = await createAdminWithApiKey();
 					const payload = { newRoleName: 'global:member' };
 
-					const ownerOnlyScopes = getOwnerOnlyApiKeyScopes();
-
 					/**
 					 * Act
 					 */
@@ -327,9 +324,11 @@ describe('Public API endpoints with API key scopes', () => {
 					expect(response.status).toBe(204);
 
 					const formerAdminApiKey = await apiKeyRepository.findOneByOrFail({ userId: admin.id });
-					for (const ownerScope of ownerOnlyScopes) {
-						expect(formerAdminApiKey.scopes).not.toContain(ownerScope);
-					}
+					expect(formerAdminApiKey.scopes).not.toContain('user:create');
+					expect(formerAdminApiKey.scopes).not.toContain('project:delete');
+					expect(formerAdminApiKey.scopes).toEqual(
+						expect.arrayContaining(['workflow:read', 'tag:read']),
+					);
 				});
 
 				it('should remove all API keys when user downgrading to chatUser', async () => {

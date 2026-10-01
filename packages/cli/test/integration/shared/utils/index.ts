@@ -41,10 +41,10 @@ export { setupTestServer } from './test-server';
  */
 export async function initActiveWorkflowManager() {
 	mockInstance(BinaryDataConfig);
-	mockInstance(InstanceSettings, {
-		isMultiMain: false,
-		n8nFolder: '/tmp/n8n-test',
-	});
+	// The manager may already hold the real InstanceSettings (the test server can
+	// construct it first), so give that instance a role rather than swapping in a
+	// mock the manager never sees.
+	Container.get(InstanceSettings).markAsLeader();
 
 	mockInstance(Push);
 	const { ActiveWorkflowManager } = await import('@/active-workflow-manager.js');

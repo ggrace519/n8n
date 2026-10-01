@@ -49,6 +49,208 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
   node 27/27.
 - `.github/scripts`: `node --test` 493/493, identical before and after.
 
+### 2026-09-30 — Integration suites green: rules lost in the clean-room rebuild restored (#50)
+
+The public-API and neighbouring integration specs were red on `develop`, but it
+went unnoticed because CI only runs the `:changed` test variants. Once #26's
+member-key failures were gone, each remaining cluster traced to a real gap in
+the rebuilt code, not to a stale test. The surviving fair-code specs were the
+clean-room source for each fix.
+
+**Security / authorization:**
+- **Personal projects could gain members.** A user could add others to their
+  own personal project, even as admin, bypassing its single-owner model and the
+  personal-space sharing setting. Membership changes now require a team project
+  (403 otherwise).
+- **Chat users could list data tables.** The global data-table listing trusted
+  any project relation. It now requires the relation's role to grant
+  `dataTable:listProject`, as `getDataTablesSize` already did.
+- **LDAP bind password exposure.** `GET /rest/ldap/config` returned the bind
+  password's ciphertext to the browser. It is now redacted like the public API,
+  and PUT maps the placeholder back to the stored password.
+
+**Fixed:**
+- **Admin project listing.** Owners and admins listed only projects they belong
+  to. With global `project:list` they now see every project, for
+  `GET /projects` and the sharing-candidates admin path.
+- **Listing a project's members.** No project role held `project:list`, so
+  members got "Project not found" when listing their own project's users. The
+  owner, admin, editor and viewer roles now hold `project:list` with
+  `project:read`. It is not in the API-key allowlist.
+- **Export permissions.** Export is now a read operation, so viewers can export
+  workflows they can read, and editors gain `project:export`. Every exporter
+  re-checks each bundled item.
+- **Data-table overview for members.** `GET /rest/data-tables-global` and
+  `/limits` are upstream fair-code routes gated on global `dataTable:list`
+  (#18394), but the clean-room member role never held it. Members got 403, and
+  the editor hid the data-tables UI from them. Members (not chat users) now hold
+  global `dataTable:list`; the service still lists only projects whose role
+  grants `dataTable:listProject`.
+- **Missing projects.** Project user-management calls on a missing project now
+  return 404 (previously a 400, or a silent 204).
+- **LDAP password at rest.** `LdapService` holds the bind password decrypted in
+  memory and encrypts it when persisting. Legacy plaintext rows are recognised
+  by the ciphertext marker, because CBC-decrypting short plaintext returns `''`
+  rather than throwing, so the old try/catch could silently drop a password.
+  A stored password that can't be decrypted (for example, one encrypted under
+  another key) is logged and treated as unset. It no longer blocks LDAP
+  startup and the settings endpoints.
+- **Error messages.** Unknown role scopes report `Invalid scope` instead of
+  zod's 180-item enum dump. The SSO "another method is active" guard uses the
+  pinned wording and still names the active method.
+
+**Review follow-ups:**
+- Membership guards now also cover `syncProjectRelations` and
+  `deleteUserFromProject`.
+- The dead `PublicApiKeyService.apiKeyHasValidScopes` is deleted. It read raw
+  stored scopes and would have bypassed the request-time narrowing (#53).
+- New role-scope-set tests cover `project:list`, viewer and editor export, and
+  member `dataTable:list`. A positive data-table spec checks that a member sees
+  only tables of projects whose role grants listing.
+
+**Tests:**
+- `initActiveWorkflowManager` swapped in an `InstanceSettings` mock the manager
+  never saw, so all 75 public-API executions specs were skipped. It now marks
+  the real instance as leader.
+- New `LdapService` unit tests cover the encryption boundary; mutation-checked.
+
+**Verification (stacked on #55/#58):**
+- `test/integration/public-api/` plus LDAP, SAML and auth: 31 files,
+  **1036/1036**. It was 111 failing on `develop`.
+- Project, services, public-API, users and api-keys specs: **1202/1202**.
+- Data-table integration **527/527** and unit **153/153**.
+- n8n-packages, public-API and api-keys: **1360/1360**; n8n-packages unit
+  **513/513**.
+- **Entire cli integration suite: 271 files, 5147 passed, 0 failed** (12 skipped).
+- Full cli unit suite: no new failures.
+- Full `pnpm build`: 69/69.
+
+### 2026-09-30 — API keys lose the scopes their owner's role no longer backs (#53)
+
+**Fixed:** lowering a user's global role (for example admin → member) left
+their existing public-API keys with every scope they were issued. That included
+scopes whose routes check only the key (`project:delete`, `user:create`,
+`credential:list`, …), so the demoted user kept instance-wide API reach until
+the key was deleted. The pruning hook meant to prevent this stripped
+`getOwnerOnlyApiKeyScopes()`, which is empty in fair-code, so it did nothing.
+
+- **At request time**, `ApiKeyAuthStrategy` narrows a key's stored scopes to what
+  its owner can grant *now* (`ApiKeyScopesService`). This covers every path that
+  changes what a role backs: role changes, custom-role scope edits, and SSO role
+  mapping. It costs no query for owners and admins and one for members, and
+  applies to public-API keys only (MCP keys don't use these scopes).
+- **On a role change**, `UserService.changeUserRole` now prunes the stored scopes
+  (`PublicApiKeyService.pruneScopesToGrantable`), so key listings stay accurate.
+  The no-op `removeOwnerOnlyScopesFromApiKeys` and `getOwnerOnlyApiKeyScopes`
+  are deleted.
+- `GET /api/v1/discover` now describes the caller's effective scopes from the
+  authentication grant, not the stored key row. This also fixes a 401 for
+  token-exchange (bearer) callers, which have no `x-n8n-api-key` header.
+- `TokenGrant.apiKeyScopes` is typed `ApiKeyScope[]` rather than `string[]`.
+
+**Tests:** three specs asserted against the empty owner-only list and could
+never fail; they now assert real pruning. New: a key issued to an admin who is
+demoted directly in the DB (bypassing the role-change hook) loses `user:create`
+and `project:delete` at request time; disabling the intersection turns it red.
+
+**Provenance:** this repo's fair-code `ApiKeyAuthStrategy`, `UserService`,
+`PublicApiKeyService`, and the surviving public-API specs. No Enterprise source
+was read.
+
+**Verification:**
+- Full `pnpm build` passes: 69/69.
+- Public-API integration: 9 failing, all #50, with no new failures against the
+  `develop` baseline.
+- cli `tsc`: the same 63 known errors.
+
+### 2026-09-30 — Members can use the public API through their project roles (#26)
+
+**Fixed:** members could not use the public API in any meaningful way. They held
+no `apiKey:create`/`apiKey:update` scope, so they couldn't create a key at all.
+Key scopes were also derived from the **global** role only, while a member's real
+authority sits on their project roles. That capped a member's key at 6 of 88
+scopes, and 102 public-API integration specs failed.
+
+- Members now hold `apiKey:create` and `apiKey:update`. The key service already
+  limits these to the caller's own keys; managing other users' keys stays behind
+  `apiKey:manage` (owner/admin).
+- A key may now carry, in addition to what the global role backs, any scope in
+  `PROJECT_CHECKED_API_KEY_SCOPES` that one of the user's project roles backs.
+  `ApiKeyScopesService` resolves this for key creation, key update,
+  `GET /api-keys/scopes`, and token-exchange grants.
+
+**Decision: an audited allowlist, not "global ∪ all project scopes".** The
+public-API key gate only checks that the key carries a scope. A project-derived
+scope is therefore safe only when every route requiring it also restricts the
+caller to resources they can reach. All 52 candidate scopes were audited route by
+route; 47 qualify. Five stay excluded until their routes gain a per-project check:
+
+- `project:update`: the handlers act on any project id, including adding users.
+- `project:delete`: no check that the caller can reach the project.
+- `credential:list`: lists every project credential on the instance.
+- `insights:read`: returns an instance-wide summary.
+- `workflow:import`: conflict reports describe workflows in other projects.
+
+These routes are unchanged and remain reachable by owners and admins through
+their global role. Follow-up: #51.
+
+**Review follow-ups (same change):**
+- Project roles widen scopes only for users entitled to API keys at all
+  (`apiKey:create`). A chat-only user keeps a viewer relation on their personal
+  project, and would otherwise have gained read scopes through token exchange.
+- The project lookup is skipped when the global role already backs every
+  project-checked scope (owners, admins). This saves a query on each
+  token-exchange request.
+- `GET /api/v1/users` now also requires global `user:read`, the same as reading a
+  single user. Members hold `user:list` for the sharing picker, which exposes far
+  less than this listing (MFA state, roles). Now that members can hold keys, it
+  would otherwise have been open to them.
+- The legacy scopes `workflow:activate`/`workflow:deactivate` are now derived
+  **only** from `workflow:publish`/`workflow:unpublish`. Project role sets also
+  carry them directly (via `allOps`), so without this a personal owner with
+  personal publishing disabled (#36) could still put `workflow:activate` on a
+  key. The route itself re-checks `workflow:publish`, so this was never
+  exploitable, but the key would have carried a scope it shouldn't.
+- Existing keys keep their scopes after the owner's global role is lowered. This
+  predates this change and is tracked in #53.
+
+**Also fixed (tests):**
+- Two vacuous specs asserted against the empty owner-only scope list and could
+  never catch a regression. They are replaced by real cases: each excluded scope
+  is refused with 400, and a key with every grantable scope is accepted.
+- A token-exchange spec expected no key scopes for a "chat user" built with
+  `workflow:read`. It now uses the real chat-user scope set.
+
+**Provenance:** the fair-code specs `api-keys.api.test.ts` and the public-API
+suites, the public-API handlers and middleware, `@n8n/permissions` role and scope
+sets, and `ProjectRelationRepository`. No Enterprise source was read.
+
+**Verification:**
+- `@n8n/permissions` unit tests: 120/120.
+- New `ApiKeyScopesService` unit and integration tests pass.
+- `api-keys.api.test.ts`: 51/51.
+- The new `member-key-isolation.test.ts` passes 9/9: a member key with every
+  grantable scope is refused another member's workflow (read, update, publish,
+  transfer, delete), credential (read, delete) and folders, sees none of their
+  workflows or executions, and cannot list users. Removing either the route's
+  `projectScope` or the new `/users` gate turns it red.
+- `test/integration/public-api/` goes from 111 failures on `develop` to 9, with
+  no new failures (compared by test name). The 9 that remain are #50.
+
+### 2026-09-30 — nodes-langchain workflow tests load again (#49)
+
+**Fixed:** three nodes-langchain test files (Agent v3, AgentTool v3, OpenAI v1
+workflow tests) failed to load with `SyntaxError: Invalid or unexpected token`,
+so their 13 tests never ran. The shared `NodeTestHarness` they import uses
+legacy decorators (`@Memoized`), and the package's Vitest config didn't enable
+the decorator transform the way `nodes-base` does. The transform is now
+enabled. Test-only; no runtime change.
+
+**Provenance:** this repo's own fair-code test config (`nodes-base/vite.config.ts`).
+
+**Verification:** full nodes-langchain suite **205/205 files, 2812/2812 tests**
+(previously 3 files failed to load).
+
 ### 2026-09-25 — External-secrets role-sync tests match the fork's scope policy (#47)
 
 **Fixed:** two role-sync tests crashed while iterating missing entries in the

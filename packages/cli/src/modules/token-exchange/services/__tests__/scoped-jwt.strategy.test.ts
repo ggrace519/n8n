@@ -1,9 +1,21 @@
-import type { AuthenticatedRequest, User, UserRepository } from '@n8n/db';
-import { getApiKeyScopesForRole, type Scope as ScopeType } from '@n8n/permissions';
+import type {
+	AuthenticatedRequest,
+	ProjectRelation,
+	ProjectRelationRepository,
+	User,
+	UserRepository,
+} from '@n8n/db';
+import {
+	GLOBAL_CHAT_USER_SCOPES,
+	GLOBAL_MEMBER_SCOPES,
+	getApiKeyScopesForRole,
+	type Scope as ScopeType,
+} from '@n8n/permissions';
 import type { InstanceSettings } from 'n8n-core';
 import type { Mocked } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
+import { ApiKeyScopesService } from '@/services/api-key-scopes.service';
 import { JwtService } from '@/services/jwt.service';
 
 import { TOKEN_EXCHANGE_ISSUER, type IssuedJwtPayload } from '../../token-exchange.types';
@@ -55,10 +67,17 @@ function makeBearerReq(token: string): AuthenticatedRequest {
 describe('ScopedJwtStrategy', () => {
 	let strategy: ScopedJwtStrategy;
 	let userRepository: Mocked<UserRepository>;
+	let projectRelationRepository: Mocked<ProjectRelationRepository>;
 
 	beforeEach(() => {
 		userRepository = mock<UserRepository>();
-		strategy = new ScopedJwtStrategy(jwtService, userRepository);
+		projectRelationRepository = mock<ProjectRelationRepository>();
+		projectRelationRepository.findAllByUser.mockResolvedValue([]);
+		strategy = new ScopedJwtStrategy(
+			jwtService,
+			userRepository,
+			new ApiKeyScopesService(projectRelationRepository),
+		);
 	});
 
 	describe('buildTokenGrant', () => {
@@ -127,13 +146,35 @@ describe('ScopedJwtStrategy', () => {
 		});
 
 		it('limits apiKeyScopes to those permitted by the acting role', async () => {
-			const subject = makeUser('subject-id', ['workflow:read'], false, 'global:chatUser');
+			const subject = makeUser('subject-id', GLOBAL_CHAT_USER_SCOPES, false, 'global:chatUser');
 			userRepository.findOne.mockResolvedValue(subject);
+			// A chat user keeps a viewer relation on their personal project.
+			projectRelationRepository.findAllByUser.mockResolvedValue([
+				{
+					role: { scopes: [{ slug: 'workflow:read' }, { slug: 'credential:read' }] },
+				} as ProjectRelation,
+			]);
 
 			const grant = await strategy.buildTokenGrant(makeTokenExchangeJwt());
 
 			if (!grant) throw new Error('expected grant');
 			expect(grant.apiKeyScopes).toEqual([]);
+		});
+
+		it("adds apiKeyScopes from the acting user's project roles", async () => {
+			const subject = makeUser('subject-id', GLOBAL_MEMBER_SCOPES, false, 'global:member');
+			userRepository.findOne.mockResolvedValue(subject);
+			projectRelationRepository.findAllByUser.mockResolvedValue([
+				{ role: { scopes: [{ slug: 'workflow:read' }] } } as ProjectRelation,
+			]);
+
+			const grant = await strategy.buildTokenGrant(makeTokenExchangeJwt());
+
+			if (!grant) throw new Error('expected grant');
+			expect(projectRelationRepository.findAllByUser).toHaveBeenCalledWith('subject-id');
+			expect(grant.apiKeyScopes).toContain('workflow:read');
+			// Project roles widen API-key scopes only, never the global grant.
+			expect(grant.scopes).not.toContain('workflow:read');
 		});
 
 		it('builds a grant with actor scopes when the act claim resolves', async () => {

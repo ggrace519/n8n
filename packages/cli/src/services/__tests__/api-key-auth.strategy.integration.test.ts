@@ -9,10 +9,11 @@ import { randomString } from 'n8n-workflow';
 import { mock } from 'vitest-mock-extended';
 
 import { TOKEN_EXCHANGE_ISSUER } from '@/modules/token-exchange/token-exchange.types';
-import { createOwnerWithApiKey } from '@test-integration/db/users';
+import { createAdminWithApiKey, createOwnerWithApiKey } from '@test-integration/db/users';
 import { retryUntil } from '@test-integration/retry-until';
 
 import { ApiKeyAuthStrategy } from '../api-key-auth.strategy';
+import { ApiKeyScopesService } from '../api-key-scopes.service';
 import { JwtService } from '../jwt.service';
 import { API_KEY_ISSUER } from '../public-api-key.service';
 
@@ -61,6 +62,7 @@ describe('ApiKeyAuthStrategy', () => {
 			Container.get(ApiKeyRepository),
 			jwtService,
 			Container.get(Logger),
+			Container.get(ApiKeyScopesService),
 		);
 	});
 
@@ -85,6 +87,23 @@ describe('ApiKeyAuthStrategy', () => {
 			// role scopes come from the user's role and are independent of the key's apiKeyScopes
 			expect(grant.scopes.length).toBeGreaterThan(1);
 			expect(grant.apiKeyScopes).toEqual(['workflow:read', 'workflow:list']);
+		});
+
+		it("narrows a key's scopes to what its owner can grant after their role was lowered", async () => {
+			const admin = await createAdminWithApiKey();
+			const [apiKey] = admin.apiKeys;
+			expect(apiKey.scopes).toEqual(expect.arrayContaining(['user:create', 'project:delete']));
+
+			// Lower the role directly, bypassing the role-change flow's own pruning.
+			await Container.get(UserRepository).update(admin.id, { role: { slug: 'global:member' } });
+
+			const grant = await strategy.buildTokenGrant(apiKey.apiKey);
+
+			if (!grant) throw new Error('expected grant');
+			expect(grant.apiKeyScopes).not.toContain('user:create');
+			expect(grant.apiKeyScopes).not.toContain('project:delete');
+			// Still usable for what a member can reach through their personal project.
+			expect(grant.apiKeyScopes).toEqual(expect.arrayContaining(['workflow:read', 'tag:read']));
 		});
 
 		it('accepts legacy (non-JWT) api keys by looking up the record directly', async () => {

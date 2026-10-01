@@ -26,7 +26,7 @@ const PROJECT_RESOURCES: Resource[] = [
  */
 const FULL_PROJECT_SCOPES: Scope[] = [
 	...allOps(PROJECT_RESOURCES),
-	...pick(['project'], ['read', 'update', 'delete', 'export']),
+	...pick(['project'], ['list', 'read', 'update', 'delete', 'export']),
 ];
 
 /**
@@ -58,13 +58,13 @@ export const REGULAR_PROJECT_ADMIN_SCOPES: Scope[] = FULL_PROJECT_SCOPES.filter(
  */
 export const PROJECT_EDITOR_SCOPES: Scope[] = [
 	...pick(PROJECT_RESOURCES, [...READ_OPS, ...WRITE_OPS]),
-	...pick(['project'], ['read']),
+	...pick(['project'], ['list', 'read', 'export']),
 ];
 
 /** Read-only access to a project's resources. */
 export const PROJECT_VIEWER_SCOPES: Scope[] = [
 	...pick(PROJECT_RESOURCES, READ_OPS),
-	...pick(['project'], ['read']),
+	...pick(['project'], ['list', 'read']),
 ];
 
 /** Chat-only access: run chat-enabled workflows/agents, read nothing else. */

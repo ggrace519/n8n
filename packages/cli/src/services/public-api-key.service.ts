@@ -10,8 +10,7 @@ import { Logger } from '@n8n/backend-common';
 import type { User } from '@n8n/db';
 import { ApiKey, ApiKeyRepository, withTransaction } from '@n8n/db';
 import { Service } from '@n8n/di';
-import type { ApiKeyScope, AuthPrincipal } from '@n8n/permissions';
-import { getApiKeyScopesForRole, getOwnerOnlyApiKeyScopes, hasGlobalScope } from '@n8n/permissions';
+import { hasGlobalScope } from '@n8n/permissions';
 import {
 	In,
 	Raw,
@@ -25,6 +24,7 @@ import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { UserManagementMailer } from '@/user-management/email';
 
+import { ApiKeyScopesService } from './api-key-scopes.service';
 import { JwtService } from './jwt.service';
 
 export const API_KEY_AUDIENCE: ApiKeyAudience = 'public-api';
@@ -43,6 +43,7 @@ export class PublicApiKeyService {
 		private readonly jwtService: JwtService,
 		private readonly mailer: UserManagementMailer,
 		private readonly logger: Logger,
+		private readonly apiKeyScopesService: ApiKeyScopesService,
 	) {}
 
 	async createPublicApiKeyForUser(
@@ -352,41 +353,27 @@ export class PublicApiKeyService {
 		return decoded?.exp ?? null;
 	};
 
-	apiKeyHasValidScopesForRole(role: AuthPrincipal, apiKeyScopes: ApiKeyScope[]) {
-		const scopesForRole = getApiKeyScopesForRole(role);
-		return apiKeyScopes.every((scope) => scopesForRole.includes(scope));
-	}
+	/**
+	 * Drop every stored key scope the user can no longer grant, e.g. after their
+	 * global role was lowered. Request-time checks already ignore such scopes
+	 * (see ApiKeyAuthStrategy); this keeps the stored keys and their listing truthful.
+	 */
+	async pruneScopesToGrantable(user: User) {
+		const grantable = new Set(await this.apiKeyScopesService.getGrantableScopes(user));
 
-	async apiKeyHasValidScopes(apiKey: string, endpointScope: ApiKeyScope) {
-		const apiKeyData = await this.apiKeyRepository.findOne({
-			where: { apiKey, audience: API_KEY_AUDIENCE },
-			select: { scopes: true },
-		});
-		if (!apiKeyData) return false;
-
-		return apiKeyData.scopes.includes(endpointScope);
-	}
-
-	async removeOwnerOnlyScopesFromApiKeys(user: User, tx?: EntityManager) {
-		const manager = tx ?? this.apiKeyRepository.manager;
-
-		const ownerOnlyScopes = getOwnerOnlyApiKeyScopes();
-
-		const userApiKeys = await manager.find(ApiKey, {
+		const userApiKeys = await this.apiKeyRepository.find({
 			where: { userId: user.id, audience: API_KEY_AUDIENCE },
 		});
 
-		const keysWithOwnerScopes = userApiKeys.filter((apiKey) =>
-			apiKey.scopes.some((scope) => ownerOnlyScopes.includes(scope)),
-		);
-
-		return await Promise.all(
-			keysWithOwnerScopes.map(
-				async (currentApiKey) =>
-					await manager.update(ApiKey, currentApiKey.id, {
-						scopes: currentApiKey.scopes.filter((scope) => !ownerOnlyScopes.includes(scope)),
-					}),
-			),
+		await Promise.all(
+			userApiKeys
+				.filter((apiKey) => apiKey.scopes.some((scope) => !grantable.has(scope)))
+				.map(
+					async (apiKey) =>
+						await this.apiKeyRepository.update(apiKey.id, {
+							scopes: apiKey.scopes.filter((scope) => grantable.has(scope)),
+						}),
+				),
 		);
 	}
 }

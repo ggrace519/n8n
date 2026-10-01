@@ -333,7 +333,6 @@ describe('UserService', () => {
 				{ id: user.id },
 				{ role: { slug: 'global:admin' } },
 			);
-			expect(publicApiKeyService.removeOwnerOnlyScopesFromApiKeys).not.toHaveBeenCalled();
 			expect(publicApiKeyService.deleteAllApiKeysForUser).not.toHaveBeenCalled();
 		});
 
@@ -349,12 +348,14 @@ describe('UserService', () => {
 			expect(ownershipService.invalidateProjectOwnerCacheByUserId).toHaveBeenCalledWith(user.id);
 		});
 
-		it('removes higher privilege scopes from API tokens of user who is demoted from admin', async () => {
+		it('prunes API key scopes to what the user can grant under their new role', async () => {
 			const user = new User();
 			user.id = uuid();
 			user.role = new Role();
 			user.role.slug = 'global:admin';
 			roleService.checkRolesExist.mockResolvedValueOnce();
+			const reloaded = new User();
+			userRepository.findOneOrFail.mockResolvedValueOnce(reloaded);
 
 			await userService.changeUserRole(user, { newRoleName: 'global:member' });
 
@@ -363,7 +364,12 @@ describe('UserService', () => {
 				{ id: user.id },
 				{ role: { slug: 'global:member' } },
 			);
-			expect(publicApiKeyService.removeOwnerOnlyScopesFromApiKeys).toHaveBeenCalled();
+			// Pruning must see the new role, so it runs on a user reloaded after the update.
+			expect(userRepository.findOneOrFail).toHaveBeenCalledWith({
+				where: { id: user.id },
+				relations: { role: true },
+			});
+			expect(publicApiKeyService.pruneScopesToGrantable).toHaveBeenCalledWith(reloaded);
 			expect(publicApiKeyService.deleteAllApiKeysForUser).not.toHaveBeenCalled();
 		});
 
@@ -409,7 +415,6 @@ describe('UserService', () => {
 			);
 
 			// Ensure all their API keys are revoked
-			expect(publicApiKeyService.removeOwnerOnlyScopesFromApiKeys).not.toHaveBeenCalled();
 			expect(publicApiKeyService.deleteAllApiKeysForUser).toHaveBeenCalledWith(user, manager);
 		});
 
@@ -441,7 +446,6 @@ describe('UserService', () => {
 			);
 
 			// Ensure all their API keys are revoked
-			expect(publicApiKeyService.removeOwnerOnlyScopesFromApiKeys).not.toHaveBeenCalled();
 			expect(publicApiKeyService.deleteAllApiKeysForUser).toHaveBeenCalledWith(user, manager);
 		});
 
@@ -473,7 +477,6 @@ describe('UserService', () => {
 			);
 
 			// Ensure all their API keys are revoked.
-			expect(publicApiKeyService.removeOwnerOnlyScopesFromApiKeys).not.toHaveBeenCalled();
 			expect(publicApiKeyService.deleteAllApiKeysForUser).toHaveBeenCalledWith(user, manager);
 		});
 
