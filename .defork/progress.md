@@ -1573,3 +1573,33 @@ standing push/PR/merge-into-develop authority (promotion stays his).
 
 ### NEXT
 H1 (#53, security) → H2 (Dependabot criticals/highs) → H3/H4 → H5 → H6 → H7.
+
+## 2026-09-30 (cont.) — H1 + H3 done, H2 mostly, H5 root-caused
+
+**Merged into develop:** #54 (langchain tests, #49), #55 (member API keys, #26), #58 (key
+scope narrowing, #53), #61 (rebuild-gap fixes, #50), #60 (Dependabot criticals/highs).
+**Entire cli integration suite: 271 files, 5146 passed, 0 failed.** cli unit: only the
+4-file baseline left (concurrency, oauth-clients, frontend.service, user-management-mailer).
+
+### What the red suites really were
+Not stale tests: clean-room rebuild gaps the surviving fair-code specs pinned —
+personal projects accepting members, chat users listing data tables, LDAP password
+ciphertext sent to the browser, no `project:list` on project roles, `export` classed as
+a write op, member role missing global `dataTable:list`, admin listing branch lost.
+Lesson: when a fair-code upstream file gates on a scope the rebuilt role lacks, the gap
+is the ROLE, not the gate (I first removed the gate; review caught it; restored it).
+
+### H5 (editor-ui) — needs Greg's call
+Root cause: rebuilt `environments.store` scopes `$vars` by the route's project; upstream
+specs auto-mock vue-router, so every NDV test touching `$vars` crashed and leaked DOM.
+Removing the route read greens 130/136. Proposal: scope by the edited workflow's home
+project (matches backend `getVariables`). Cluster #3 (6 tests) also needs product calls.
+
+### Tooling notes
+- codex CLI: `~/.codex/config.toml` model `gpt-6-sol` is rejected for the ChatGPT account.
+- grok CLI: read-only sandbox refuses to start (`/run/podman/podman.sock` deny path).
+- `ci-pull-requests.yml` startup-fails on every run (#57).
+
+### NEXT
+H5 (after Greg's decision) → H4 (#51 per-project route checks) → H6 (#13/#45/#20/#52 + #59)
+→ H7 promotion readiness.
