@@ -48,7 +48,9 @@ export const useEvaluationStore = defineStore(STORES.EVALUATION, () => {
 	 */
 	const isEvaluationEnabled = computed(() => {
 		const evaluation = settingsStore.settings.evaluation;
-		if (!evaluation) return false;
+		// Evaluations ship ungated in this fork; only an explicit backend quota of 0
+		// (with no config override) turns them off.
+		if (!evaluation) return true;
 		return (
 			evaluation.quota !== 0 ||
 			evaluation.configEvalsEnabled === true ||
