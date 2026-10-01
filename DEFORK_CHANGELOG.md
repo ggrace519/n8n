@@ -16,6 +16,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — Dependabot critical and high alerts closed (except two needing majors)
+
+**Security:** the default branch carried 4 critical and 20 high Dependabot alerts.
+
+- **Critical, runtime:** `vm2` 3.11.5 → 3.11.6. This is the sandbox behind the
+  Code, Function and FunctionItem nodes (nodes-base) and the langchain Code node.
+  It was pinned through the `vm2` catalog entry.
+- **Re-arming pins replaced with floors:**
+  - root override `fast-uri: 3.1.6` pinned the vulnerable version exactly;
+  - `.github/scripts` override `fast-uri@3: 3.1.5` pinned a version below the fix.
+
+  Both are now `^3.1.7`.
+- **`.github/scripts` (a separate lockfile, not a workspace member):** new floors
+  for `jsonata` (critical), `tar` (critical), and `undici` 6/7. They resolve to
+  jsonata 2.2.2, tar 7.5.22, undici 6.29.0 / 7.30.0 and fast-uri 3.1.8. All are
+  at least 5 days old, which clears the repo's 3-day maturity guard;
+  `--ignore-workspace` bypasses that guard, so this was checked by hand.
+- **Manifest alignment only:** `ws` (cli, mcp-browser), `@faker-js/faker` (cli,
+  editor-ui), `browserslist` (editor-ui) and `tmp` (scan-community-package)
+  already resolved to patched versions through root overrides, but their
+  manifests declared vulnerable ranges, which is what Dependabot flags.
+- **Not fixed here (#59):** `extract-zip` and `html-minifier` have no patched
+  release. Both are dropped by parent major bumps (`@puppeteer/browsers` 3,
+  `mjml` 5), which need their own branches.
+
+**Verification:**
+- Root lockfile diff touches only `vm2` and `fast-uri`. Every resolved version was
+  confirmed in the lockfile, not just the manifest floor.
+- Full `pnpm build`: 69/69.
+- `vm2` consumers: nodes-base Code/Function/FunctionItem 38/38, langchain Code
+  node 27/27.
+- `.github/scripts`: `node --test` 493/493, identical before and after.
+
 ### 2026-09-30 — Integration suites green: rules lost in the clean-room rebuild restored (#50)
 
 The public-API and neighbouring integration specs were red on `develop`, but it
