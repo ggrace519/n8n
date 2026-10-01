@@ -184,14 +184,10 @@ export const GLOBAL_CUSTOM_ROLE_SCOPE_GROUPS = {
 	tag: {
 		Manage: ['tag:create', 'tag:read', 'tag:update', 'tag:delete', 'tag:list'] as Scope[],
 	},
+	// Creating team projects only: managing existing projects is granted per
+	// project through project roles, not instance-wide from a custom role.
 	project: {
-		Manage: [
-			'project:create',
-			'project:read',
-			'project:update',
-			'project:delete',
-			'project:list',
-		] as Scope[],
+		Create: ['project:create'] as Scope[],
 	},
 	insights: {
 		View: ['insights:list', 'insights:read'] as Scope[],
