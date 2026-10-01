@@ -38,16 +38,15 @@ describe('ApiKeyScopesService', () => {
 			);
 		});
 
-		test('does not derive project-management scopes from a project role', async () => {
+		test('does not derive instance-wide scopes from a project role', async () => {
 			projectRelationRepository.findAllByUser.mockResolvedValue([
-				relationWithScopes(['project:update', 'project:delete', 'credential:list']),
+				relationWithScopes(['project:create', 'user:create']),
 			]);
 
 			const scopes = await service.getGrantableScopes(userWithGlobalScopes(GLOBAL_MEMBER_SCOPES));
 
-			expect(scopes).not.toContain('project:update');
-			expect(scopes).not.toContain('project:delete');
-			expect(scopes).not.toContain('credential:list');
+			expect(scopes).not.toContain('project:create');
+			expect(scopes).not.toContain('user:create');
 		});
 
 		test('skips the project lookup when the global role already backs every project-checked scope', async () => {

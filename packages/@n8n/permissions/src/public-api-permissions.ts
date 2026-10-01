@@ -55,10 +55,8 @@ export const OWNER_API_KEY_SCOPES: ApiKeyScope[] = API_KEY_SCOPES.filter(
  * `getProjectWithScope`, or a list filtered to their projects). Each scope here
  * was audited against its routes.
  *
- * Deliberately absent until their routes gain a per-project check: `project:update`
- * and `project:delete` (handlers act on any project id), `credential:list` (lists
- * every project credential), `insights:read` (instance-wide summary), and
- * `workflow:import` (conflict reports describe workflows in other projects).
+ * `project:update`/`project:delete`, `credential:list`, `insights:read` and
+ * `workflow:import` joined once their routes gained those checks (#51).
  */
 export const PROJECT_CHECKED_API_KEY_SCOPES: ApiKeyScope[] = [
 	'credential:create',
@@ -97,6 +95,11 @@ export const PROJECT_CHECKED_API_KEY_SCOPES: ApiKeyScope[] = [
 	'testRun:create',
 	'testRun:cancel',
 	'project:export',
+	'project:update',
+	'project:delete',
+	'credential:list',
+	'insights:read',
+	'workflow:import',
 	'workflow:create',
 	'workflow:read',
 	'workflow:update',

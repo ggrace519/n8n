@@ -71,7 +71,7 @@ describe('PublicApiKeyService', () => {
 
 			const { scopes } = await apiKeyRepository.findOneByOrFail({ id: apiKeyId });
 			expect(scopes).not.toContain('user:create');
-			expect(scopes).not.toContain('project:delete');
+			expect(scopes).not.toContain('project:create');
 			expect(scopes).toEqual(expect.arrayContaining(['workflow:read', 'tag:read']));
 		});
 
