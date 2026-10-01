@@ -16,6 +16,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — Review decisions must name the version reviewed (#45)
+
+**Security (hardening):** `expectedVersionId` on a workflow-review decision was
+optional. A client that omitted it was protected only against a re-pin that
+*raced* the decision, not against one that landed before the decision arrived.
+In that case an unreviewed version could be approved.
+
+- **DTO:** `DecideWorkflowReviewRequestDto.expectedVersionId` is now required. It
+  may be `null` when the request has no pinned version. A decision without it is
+  rejected with 400.
+- **Backend:** the version is always compared. A decision naming a superseded
+  version gets 409; `null` matches only an unpinned request.
+- **Editor:** a decision always sends the version shown: the loaded detail, or
+  the list item when the detail failed to load. It refuses to decide a review it
+  has not loaded.
+
+**Verification:**
+- DTO tests 41/41, including a missing-`expectedVersionId` case.
+- Review integration 77/77. The race spec now asserts that the publish uses the
+  pin read inside the deciding transaction; the 409 spec covers a superseded
+  version.
+- Service unit 31/31; editor workflow-review specs 219/219, including the
+  list-item fallback and the unloaded-review refusal.
+
 ### 2026-09-30 — Dependabot critical and high alerts closed (except two needing majors)
 
 **Security:** the default branch carried 4 critical and 20 high Dependabot alerts.
