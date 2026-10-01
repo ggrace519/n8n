@@ -7,6 +7,7 @@ import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import type { UserManagementMailer } from '@/user-management/email';
 
+import type { ApiKeyScopesService } from '../api-key-scopes.service';
 import type { JwtService } from '../jwt.service';
 import { PublicApiKeyService } from '../public-api-key.service';
 
@@ -20,8 +21,15 @@ describe('PublicApiKeyService', () => {
 	const jwtService = mock<JwtService>();
 	const mailer = mock<UserManagementMailer>();
 	const logger = mock<Logger>();
+	const apiKeyScopesService = mock<ApiKeyScopesService>();
 
-	const service = new PublicApiKeyService(apiKeyRepository, jwtService, mailer, logger);
+	const service = new PublicApiKeyService(
+		apiKeyRepository,
+		jwtService,
+		mailer,
+		logger,
+		apiKeyScopesService,
+	);
 
 	const hasGlobalScopeMock = vi.mocked(hasGlobalScope);
 
