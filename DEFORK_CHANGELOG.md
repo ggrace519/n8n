@@ -16,6 +16,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — editor-ui suite green; four clean-room frontend gaps closed
+
+The editor-ui unit suite carried a standing-red baseline: **18 files, 136
+tests**, documented in `docs/red-frontend-suite-triage.md`. The failures traced
+to rebuilt code drifting from what the surviving upstream specs and the backend
+expect. Greg made the product calls for the last three items below.
+
+- **`$vars` used the wrong project.** The rebuilt environments store scoped
+  expression variables by the project in the URL. At execution time the backend
+  resolves `$vars` against the **workflow's owning project**, so editor previews
+  could show another project's variables, for example after opening a workflow
+  by direct link. Reading the route also crashed every node-details spec that
+  auto-mocks the router. That one cause was 130 of the 136 failures, including
+  the "found multiple elements" fallout (the duplicate testing-library versions
+  were not the cause). The store now scopes by the open workflow's home project.
+- **Custom instance roles offered too much.** The project option was "Manage",
+  granting create, read, update, delete and list on every project. It is now
+  "Create", matching the upstream UI, its tooltip ("Create new projects") and
+  its spec. Existing custom roles keep their stored scopes.
+- **Highlighted execution data was missing.** Data set with
+  `$execution.customData` was shown nowhere: the dropdown left with a purged
+  component, leaving orphaned styles and strings in the preview. It is rebuilt
+  as an ellipsis button with a count badge that opens a key/value list.
+- **Evaluations were hidden on real instances.** The rebuilt feature (E13) hung
+  on a license quota that defaults to 0. It now ships ungated, like Folders and
+  Insights (A13).
+- The evaluations paywall test ID now matches the one the spec pins.
+
+**Verification:**
+- editor-ui: **992 of 993 files passing** in the full run. The remaining file
+  (node-creator triggers) passes after the evaluations change: 18 files /
+  306 tests in the re-run of node-creator and evaluation specs.
+- editor-ui typecheck: 0 errors.
+- New `environments.store` unit tests pin the scoping.
+- `@n8n/permissions` 134/134; roles UI 191/191; cli license and evaluation
+  unit 83/83; evaluation integration 136/136.
+
 ### 2026-09-30 — Dependabot critical and high alerts closed (except two needing majors)
 
 **Security:** the default branch carried 4 critical and 20 high Dependabot alerts.

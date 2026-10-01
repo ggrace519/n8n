@@ -670,7 +670,7 @@ const onVoteClick = async (voteValue: AnnotationVote) => {
 	font-size: var(--font-size--2xs);
 
 	dt {
-		color: var(--color--text--tint-1);
+		color: var(--text-color--subtler);
 	}
 
 	dd {
