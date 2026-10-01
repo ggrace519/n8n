@@ -207,7 +207,9 @@ const isVariablesEnabled = computed(
 );
 
 const contextSchema = computed(() => {
-	const $vars = environmentsStore.variablesAsObject;
+	const $vars = environmentsStore.variablesAsObjectForProject(
+		workflowDocumentStore.value.homeProject?.id,
+	);
 
 	const schemaSource: Record<string, unknown> = {
 		$now: DateTime.now().toISO(),
@@ -266,7 +268,11 @@ const contextItems = computed(() => {
 				return renderItem;
 			}
 
-			if (isVarsOpen && environmentsStore.scopedVariables.length === 0) {
+			if (
+				isVarsOpen &&
+				environmentsStore.variablesForProject(workflowDocumentStore.value.homeProject?.id)
+					.length === 0
+			) {
 				const variablesEmptyNotice: RenderNotice = {
 					type: 'notice',
 					id: 'notice-variablesEmpty',
