@@ -54,6 +54,17 @@ describe('UserManagementMailer', () => {
 	});
 
 	describe('when SMTP is configured', () => {
+		// The revocation date is rendered with Intl's en-GB short month, which is
+		// "Sept" in September; pin the clock so the assertion is calendar-independent.
+		beforeEach(() => {
+			vi.useFakeTimers({ toFake: ['Date'] });
+			vi.setSystemTime(new Date('2026-01-15T12:00:00Z'));
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
 		const config = mock<GlobalConfig>({
 			userManagement: {
 				emails: {
@@ -191,7 +202,7 @@ describe('UserManagementMailer', () => {
 			expect(callBody).toContain('Test 123');
 			expect(callBody).toContain('aaa5');
 			expect(callBody).toContain('Jan Ostrówka');
-			expect(callBody).toMatch(/\d{1,2} [A-Z][a-z]{2} \d{4}/);
+			expect(callBody).toContain('15 Jan 2026');
 		});
 
 		it('falls back to the revoker email when no name is set', async () => {
@@ -241,7 +252,7 @@ describe('UserManagementMailer', () => {
 			const callBody = nodeMailer.sendMail.mock.calls[0][0].body as string;
 			expect(callBody).toContain('Claude Code');
 			expect(callBody).toContain('Jan Ostrówka');
-			expect(callBody).toMatch(/\d{1,2} [A-Z][a-z]{2} \d{4}/);
+			expect(callBody).toContain('15 Jan 2026');
 		});
 
 		it('should send project share notifications', async () => {
