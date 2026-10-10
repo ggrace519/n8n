@@ -489,16 +489,8 @@ describe('Member', () => {
 		expect(newApiKey.rawApiKey).toBeDefined();
 	});
 
-	// Scopes a member's project roles back but whose public-API routes act on any
-	// project or list instance-wide, plus a global-only scope.
-	test.each([
-		'project:update',
-		'project:delete',
-		'credential:list',
-		'insights:read',
-		'workflow:import',
-		'user:create',
-	] as const)(
+	// Instance-wide operations no project role can back.
+	test.each(['project:create', 'user:create', 'variable:create'] as const)(
 		'POST /api-keys should refuse a scope not grantable to the user: %s',
 		async (scope) => {
 			const newApiKeyResponse = await testServer

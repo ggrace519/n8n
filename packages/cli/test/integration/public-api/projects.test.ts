@@ -299,7 +299,7 @@ describe('Projects in Public API', () => {
 			 */
 			testServer.license.setQuota('quota:maxTeamProjects', -1);
 			testServer.license.enable('feat:projectRole:admin');
-			const owner = await createMemberWithApiKey();
+			const owner = await createMemberWithApiKey({ scopes: ['tag:read'] });
 			const project = await createTeamProject();
 
 			/**
@@ -392,7 +392,7 @@ describe('Projects in Public API', () => {
 			 */
 			testServer.license.setQuota('quota:maxTeamProjects', -1);
 			testServer.license.enable('feat:projectRole:admin');
-			const member = await createMemberWithApiKey();
+			const member = await createMemberWithApiKey({ scopes: ['tag:read'] });
 			const project = await createTeamProject();
 
 			/**
@@ -613,7 +613,7 @@ describe('Projects in Public API', () => {
 		it('if missing scope, should reject with 403', async () => {
 			testServer.license.setQuota('quota:maxTeamProjects', -1);
 			testServer.license.enable('feat:projectRole:admin');
-			const member = await createMemberWithApiKey();
+			const member = await createMemberWithApiKey({ scopes: ['tag:read'] });
 			const project = await createTeamProject();
 
 			const payload = {
@@ -856,7 +856,7 @@ describe('Projects in Public API', () => {
 		it('if missing scope, should reject with 403', async () => {
 			testServer.license.setQuota('quota:maxTeamProjects', -1);
 			testServer.license.enable('feat:projectRole:admin');
-			const member = await createMemberWithApiKey();
+			const member = await createMemberWithApiKey({ scopes: ['tag:read'] });
 
 			const response = await testServer
 				.publicApiAgentFor(member)
@@ -1009,7 +1009,7 @@ describe('Projects in Public API', () => {
 		it('if missing scope, should reject with 403', async () => {
 			testServer.license.setQuota('quota:maxTeamProjects', -1);
 			testServer.license.enable('feat:projectRole:admin');
-			const member = await createMemberWithApiKey();
+			const member = await createMemberWithApiKey({ scopes: ['tag:read'] });
 			const project = await createTeamProject();
 
 			const response = await testServer

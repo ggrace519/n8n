@@ -351,8 +351,9 @@ describe('GET /credentials', () => {
 		expect(response.body.nextCursor).toBeNull();
 	});
 
-	test('should reject for member (missing credential:list scope)', async () => {
-		const response = await authMemberAgent.get('/credentials');
+	test('should reject a key missing the credential:list scope', async () => {
+		const member = await createMemberWithApiKey({ scopes: ['tag:read'] });
+		const response = await testServer.publicApiAgentFor(member).get('/credentials');
 
 		expect(response.statusCode).toBe(403);
 		expect(response.body).toHaveProperty('message', 'Forbidden');

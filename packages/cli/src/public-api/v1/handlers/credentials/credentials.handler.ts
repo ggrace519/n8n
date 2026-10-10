@@ -1,6 +1,6 @@
 import { LicenseState } from '@n8n/backend-common';
 import type { CredentialsEntity } from '@n8n/db';
-import { CredentialsRepository, SharedCredentialsRepository } from '@n8n/db';
+import { SharedCredentialsRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
 import { hasGlobalScope } from '@n8n/permissions';
 import { z } from 'zod';
@@ -31,6 +31,8 @@ import {
 	saveCredential,
 	toJsonSchema,
 	updateCredential,
+	getProjectCredentialsPage,
+	getReadableCredentialsPage,
 } from './credentials.service';
 import type { CredentialTypeRequest, CredentialRequest } from '../../../types';
 import type { PublicAPIEndpoint } from '../../shared/handler.types';
@@ -61,15 +63,11 @@ const credentialsHandlers: CredentialsHandlers = {
 			const offset = Number(req.query.offset) || 0;
 			const limit = Math.min(Number(req.query.limit) || 100, 250);
 
-			const repo = Container.get(CredentialsRepository);
-			const [credentials, count] = await repo.findAndCount({
-				take: limit,
-				skip: offset,
-				select: ['id', 'name', 'type', 'createdAt', 'updatedAt'],
-				relations: ['shared', 'shared.project'],
-				order: { createdAt: 'DESC' },
-				where: { usageScope: 'project' },
-			});
+			// The key gate only checks the key's scope; without the global scope the
+			// caller sees just the credentials they can read.
+			const { credentials, count } = hasGlobalScope(req.user, 'credential:list')
+				? await getProjectCredentialsPage(offset, limit)
+				: await getReadableCredentialsPage(req.user, offset, limit);
 
 			const data = credentials.map((credential: CredentialsEntity) => {
 				const shared = buildSharedForCredential(credential);
@@ -127,20 +125,22 @@ const credentialsHandlers: CredentialsHandlers = {
 			}
 		},
 	],
+	// Scope gates run before payload validation, so a caller without access learns
+	// nothing about a credential from validation errors.
 	createCredential: [
+		publicApiScope('credential:create'),
 		validCredentialType,
 		validCredentialsProperties,
-		publicApiScope('credential:create'),
 		async (req, res) => {
 			const savedCredential = await saveCredential(req.body, req.user);
 			return res.json(savedCredential);
 		},
 	],
 	updateCredential: [
-		validCredentialTypeForUpdate,
-		validCredentialsPropertiesForUpdate,
 		publicApiScope('credential:update'),
 		projectScope('credential:update', 'credential'),
+		validCredentialTypeForUpdate,
+		validCredentialsPropertiesForUpdate,
 		async (req, res) => {
 			const { id: credentialId } = req.params;
 

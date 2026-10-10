@@ -16,6 +16,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — Public-API routes re-check per-project access; member keys widened (#51)
+
+**Security:** five public-API routes relied only on the API key carrying a
+scope. That was safe only because members couldn't hold those scopes; each now
+re-checks the caller's access itself.
+
+- **Project update, delete and membership** (`PUT/DELETE /projects/:id`, the
+  `/users` routes): the scope must hold *on that project* unless held globally.
+  Otherwise the caller gets the same 404 as for a missing project. Without this,
+  any key with `project:update` could add itself as admin of any team project.
+- **`GET /credentials`:** lists only credentials the caller can read, unless
+  `credential:list` is held globally. Before, it listed every project credential
+  on the instance.
+- **`GET /insights/summary`:** needs `insights:list` globally (as the REST route
+  does), or a `projectId` whose role grants it.
+- **Package import:** collisions with existing workflows or data tables no longer
+  reveal their name, owning project or archived state unless the importer can
+  read them.
+- **Credential create and update:** scope gates now run before payload
+  validators, so validation errors reveal nothing about credentials a caller
+  can't access.
+
+With those checks in place, `project:update`, `project:delete`,
+`credential:list`, `insights:read` and `workflow:import` join the project-derived
+API-key allowlist, so a team-project admin's key can manage their project.
+Remaining smaller findings: #69.
+
+**Verification:**
+- **Full cli integration: 271 files, 5148 passed, 0 failed.**
+- **Isolation suite: 14/14.** A member key holding all five scopes cannot
+  rename, delete or join a foreign team project, list others' credentials, or
+  read another project's insights, but can rename a team project it
+  administers. Removing the project check turns it red.
+- n8n-packages unit 513/513, integration 393/393; `@n8n/permissions` 133/133.
+- "Missing scope" specs now mint keys that genuinely lack the scope, rather than
+  relying on members never holding it.
+
 ### 2026-09-30 — Second Dependabot pass: newly published high advisories
 
 After the first pass cleared every critical alert, GitHub's rescan surfaced 21
