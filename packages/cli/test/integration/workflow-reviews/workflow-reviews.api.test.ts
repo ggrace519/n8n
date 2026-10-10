@@ -314,7 +314,7 @@ describe('workflow reviews API', () => {
 			vi.spyOn(Container.get(WorkflowService), 'activateWorkflow').mockResolvedValue(workflow);
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			// The sentinel has to be released on closure, or the workflow could never
@@ -370,7 +370,7 @@ describe('workflow reviews API', () => {
 			// Close it so a second one may be opened.
 			await reviewerAgent
 				.post(`/workflow-review-requests/${first.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 			const second = await openReview();
 
@@ -389,7 +389,7 @@ describe('workflow reviews API', () => {
 			const first = await openReview();
 			await reviewerAgent
 				.post(`/workflow-review-requests/${first.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 			await openReview();
 
@@ -419,7 +419,7 @@ describe('workflow reviews API', () => {
 
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			const response = await authorAgent
@@ -443,7 +443,7 @@ describe('workflow reviews API', () => {
 			vi.spyOn(Container.get(WorkflowService), 'activateWorkflow').mockResolvedValue(workflow);
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			// Simulate the history row being pruned: the FK nulls the pin.
@@ -538,7 +538,7 @@ describe('workflow reviews API', () => {
 			const review = await openReview();
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'changes_requested' })
+				.send({ decision: 'changes_requested', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			const newVersionId = await addHistoryVersion(uuid());
@@ -560,7 +560,7 @@ describe('workflow reviews API', () => {
 			vi.spyOn(Container.get(WorkflowService), 'activateWorkflow').mockResolvedValue(workflow);
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			// The version is created before the payload literal: an `await` inside it
@@ -631,7 +631,7 @@ describe('workflow reviews API', () => {
 
 			const response = await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'changes_requested' })
+				.send({ decision: 'changes_requested', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			expect(response.body.data.decision).toBe('changes_requested');
@@ -647,7 +647,7 @@ describe('workflow reviews API', () => {
 
 			const response = await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			expect(response.body.data.decision).toBe('approved');
@@ -669,7 +669,7 @@ describe('workflow reviews API', () => {
 
 			const response = await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			expect(response.body.data.decision).toBe('approved');
@@ -752,7 +752,7 @@ describe('workflow reviews API', () => {
 
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(409);
 
 			stalePin.mockRestore();
@@ -789,9 +789,13 @@ describe('workflow reviews API', () => {
 					return true;
 				});
 
+			// The reviewer names the version the transaction will see, so the decision
+			// is valid; what is under test is that the publish uses the pin read inside
+			// the deciding transaction, not the one `decide` loaded before the re-pin.
+			// (Naming the superseded version is the 409 case above.)
 			const response = await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: newVersionId })
 				.expect(200);
 
 			expect(activateSpy).toHaveBeenCalledWith(expect.anything(), workflow.id, {
@@ -804,7 +808,7 @@ describe('workflow reviews API', () => {
 			const review = await openReview();
 			await authorAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(403);
 		});
 
@@ -812,7 +816,7 @@ describe('workflow reviews API', () => {
 			const review = await openReview();
 			await viewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(403);
 		});
 
@@ -820,7 +824,7 @@ describe('workflow reviews API', () => {
 			const review = await openReview();
 			await outsiderAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(404);
 		});
 
@@ -830,12 +834,12 @@ describe('workflow reviews API', () => {
 
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(409);
 		});
 
@@ -859,7 +863,7 @@ describe('workflow reviews API', () => {
 
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(500);
 		});
 
@@ -880,7 +884,7 @@ describe('workflow reviews API', () => {
 			vi.spyOn(Container.get(WorkflowService), 'activateWorkflow').mockResolvedValue(workflow);
 			await reviewerAgent
 				.post(`/workflow-review-requests/${first.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 			await openReview();
 
@@ -970,7 +974,7 @@ describe('workflow reviews API', () => {
 			vi.spyOn(Container.get(WorkflowService), 'activateWorkflow').mockResolvedValue(workflow);
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			const open = await reviewerAgent
@@ -1132,7 +1136,7 @@ describe('workflow reviews API', () => {
 			const review = await openReview();
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'changes_requested' })
+				.send({ decision: 'changes_requested', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			await expect(assertCanPublish()).rejects.toMatchObject({
@@ -1146,7 +1150,7 @@ describe('workflow reviews API', () => {
 			vi.spyOn(Container.get(WorkflowService), 'activateWorkflow').mockResolvedValue(workflow);
 			await reviewerAgent
 				.post(`/workflow-review-requests/${review.id}/decision`)
-				.send({ decision: 'approved' })
+				.send({ decision: 'approved', expectedVersionId: pinnedVersionId })
 				.expect(200);
 
 			await expect(assertCanPublish()).resolves.toBeUndefined();
