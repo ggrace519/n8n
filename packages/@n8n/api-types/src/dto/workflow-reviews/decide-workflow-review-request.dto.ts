@@ -5,11 +5,10 @@ import { Z } from '../../zod-class';
 export class DecideWorkflowReviewRequestDto extends Z.class({
 	decision: workflowReviewRequestDecisionSchema.exclude(['pending']),
 	/**
-	 * The version the reviewer inspected. When sent, the decision is rejected
-	 * with a conflict if the author re-pinned the request in the meantime, so an
-	 * unreviewed version can never be approved. Optional for compatibility with
-	 * clients that do not send it yet — those remain protected only against a
-	 * re-pin racing the decision, not against one that landed before it.
+	 * The version the reviewer inspected (`null` when the request has no pinned
+	 * version). Required: the decision is rejected with a conflict if the author
+	 * re-pinned the request in the meantime, so an unreviewed version can never be
+	 * approved -- whether the re-pin raced the decision or landed before it.
 	 */
-	expectedVersionId: n8nIdSchema.optional(),
+	expectedVersionId: n8nIdSchema.nullable(),
 }) {}
