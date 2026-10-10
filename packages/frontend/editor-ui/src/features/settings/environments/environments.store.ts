@@ -4,7 +4,11 @@ import { useRootStore } from '@n8n/stores/useRootStore';
 
 import * as environmentsApi from './environments.api';
 import type { VariablesListOptions } from './environments.api';
-import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
+import { useWorkflowsStore } from '@/app/stores/workflows.store';
+import {
+	createWorkflowDocumentId,
+	useWorkflowDocumentStore,
+} from '@/app/stores/workflowDocument.store';
 import type {
 	CreateEnvironmentVariablePayload,
 	EnvironmentVariable,
@@ -13,33 +17,29 @@ import type {
 
 export const useEnvironmentsStore = defineStore('environments', () => {
 	const rootStore = useRootStore();
-	const projectsStore = useProjectsStore();
+	const workflowsStore = useWorkflowsStore();
 
 	/** All variables visible to the current user (global + accessible projects). */
 	const variables = ref<EnvironmentVariable[]>([]);
 
 	/**
-	 * The variables that apply to the current project context: all global
-	 * variables plus the variables of the project currently in scope. Both a
-	 * global and a project variable can share a key here — consumers that need a
-	 * single resolved value use {@link variablesAsObject}.
+	 * The variables `$vars` sees for a workflow in the given project: all global
+	 * variables plus that project's. This mirrors execution, where the backend
+	 * resolves `$vars` against the workflow's owning project. Both a global and a
+	 * project variable can share a key here — use {@link variablesAsObjectForProject}
+	 * for the single resolved value.
 	 */
-	const scopedVariables = computed<EnvironmentVariable[]>(() => {
-		const projectId = projectsStore.currentProjectId;
+	function variablesForProject(projectId: string | undefined): EnvironmentVariable[] {
 		return variables.value.filter(
 			(variable) => !variable.project || variable.project.id === projectId,
 		);
-	});
+	}
 
-	/**
-	 * The scoped variables resolved to a `key -> value` map for expression
-	 * evaluation (`$vars`). A project variable overrides a global one of the
-	 * same key.
-	 */
-	const variablesAsObject = computed<Record<string, string>>(() => {
+	/** {@link variablesForProject} as a `key -> value` map; a project variable overrides a global one. */
+	function variablesAsObjectForProject(projectId: string | undefined): Record<string, string> {
 		const globals: Record<string, string> = {};
 		const projectScoped: Record<string, string> = {};
-		for (const variable of scopedVariables.value) {
+		for (const variable of variablesForProject(projectId)) {
 			if (variable.project) {
 				projectScoped[variable.key] = variable.value;
 			} else {
@@ -47,7 +47,21 @@ export const useEnvironmentsStore = defineStore('environments', () => {
 			}
 		}
 		return { ...globals, ...projectScoped };
-	});
+	}
+
+	/** Home project of the workflow open in the editor (not the project in the URL). */
+	const editorWorkflowProjectId = computed(
+		() =>
+			useWorkflowDocumentStore(createWorkflowDocumentId(workflowsStore.workflowId)).homeProject?.id,
+	);
+
+	/** Variables in scope for the workflow open in the editor. */
+	const scopedVariables = computed(() => variablesForProject(editorWorkflowProjectId.value));
+
+	/** `$vars` for the workflow open in the editor. */
+	const variablesAsObject = computed(() =>
+		variablesAsObjectForProject(editorWorkflowProjectId.value),
+	);
 
 	function setVariables(data: EnvironmentVariable[]) {
 		variables.value = data;
@@ -86,6 +100,8 @@ export const useEnvironmentsStore = defineStore('environments', () => {
 		variables,
 		scopedVariables,
 		variablesAsObject,
+		variablesForProject,
+		variablesAsObjectForProject,
 		setVariables,
 		fetchAllVariables,
 		createVariable,

@@ -13,7 +13,7 @@ function openDocs() {
 </script>
 
 <template>
-	<div :class="$style.container" data-test-id="evaluations-paywall">
+	<div :class="$style.container" data-test-id="evaluations-unlicensed">
 		<N8nEmptyState
 			:icon="{ type: 'icon', value: 'flask-conical' }"
 			:heading="i18n.baseText('evaluations.paywall.title')"

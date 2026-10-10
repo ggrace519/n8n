@@ -47,9 +47,12 @@ const FAIR_CODE_LICENSED_FEATURES: readonly BooleanLicenseFeature[] = [
 ];
 
 /** Numeric quotas those fair-code features need to be fully usable (an ungated
- * Insights dashboard capped at 7 days of history is only half-open). */
+ * Insights dashboard capped at 7 days of history is only half-open). The
+ * evaluations quota doubles as their on/off switch (0 = off), so it is what ships
+ * the rebuilt evaluations ungated. */
 const FAIR_CODE_UNLIMITED_QUOTAS: readonly NumericLicenseFeature[] = [
 	LICENSE_QUOTAS.INSIGHTS_MAX_HISTORY_DAYS,
+	LICENSE_QUOTAS.WORKFLOWS_WITH_EVALUATION_LIMIT,
 ];
 
 export type FeatureReturnType = Partial<

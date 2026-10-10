@@ -104,7 +104,11 @@ const valueParameter = computed<INodeProperties>(() => {
 const value = computed(() => assignment.value.value);
 
 const resolvedAdditionalExpressionData = computed(() => {
-	return { $vars: environmentsStore.variablesAsObject };
+	return {
+		$vars: environmentsStore.variablesAsObjectForProject(
+			workflowDocumentStore.value.homeProject?.id,
+		),
+	};
 });
 
 const { resolvedExpressionString, isExpression } = useResolvedExpression({
