@@ -42,6 +42,12 @@ describe('global role scope sets', () => {
 		expect(GLOBAL_MEMBER_SCOPES).not.toContain('dataTable:listProject');
 	});
 
+	test('a member manages only their own MCP OAuth clients and holds no MCP admin or key scopes', () => {
+		expect(GLOBAL_MEMBER_SCOPES).toContain('mcp:oauth');
+		expect(GLOBAL_MEMBER_SCOPES).not.toContain('mcp:manage');
+		expect(GLOBAL_MEMBER_SCOPES).not.toContain('mcpApiKey:create');
+	});
+
 	test('a chat user cannot open the data-table overview', () => {
 		expect(GLOBAL_CHAT_USER_SCOPES).not.toContain('dataTable:list');
 	});
