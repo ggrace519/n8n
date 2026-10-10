@@ -136,8 +136,9 @@ export class SharedCredentialsRepository extends Repository<SharedCredentials> {
 		)?.project;
 	}
 
-	async getAllRelationsForCredentials(credentialIds: string[]) {
-		return await this.find({
+	/** Pass `trx` from inside a transaction so the read sees its uncommitted sharing changes. */
+	async getAllRelationsForCredentials(credentialIds: string[], trx?: EntityManager) {
+		return await (trx ?? this.manager).find(SharedCredentials, {
 			where: {
 				credentialsId: In(credentialIds),
 			},

@@ -210,13 +210,19 @@ export const useReviewInboxStore = defineStore('workflowReviewInbox', () => {
 	 * Returns the response so callers can surface the auto-publish outcome.
 	 */
 	async function decideOnReview(id: string, decision: WorkflowReviewDecisionInput) {
-		// Bind the decision to the workflow version the reviewer saw, when known, so a
-		// racing edit is rejected (409) instead of silently deciding a stale version.
-		// Omit when unknown/null — the server matches against IsNull() in that case.
-		const expectedVersionId =
-			detail.value?.id === id ? (detail.value.workflowVersionId ?? undefined) : undefined;
-		const payload: DecideWorkflowReviewRequestDto =
-			expectedVersionId !== undefined ? { decision, expectedVersionId } : { decision };
+		// Bind the decision to the workflow version the reviewer saw, so any re-pin
+		// since then is rejected (409) instead of deciding a version nobody reviewed.
+		// The decide UI renders the loaded detail, or the list item when the detail
+		// failed to load; both carry the version shown.
+		const shown =
+			detail.value?.id === id ? detail.value : items.value.find((item) => item.id === id);
+		if (!shown) {
+			throw new Error(`Cannot decide review ${id}: it is not loaded`);
+		}
+		const payload: DecideWorkflowReviewRequestDto = {
+			decision,
+			expectedVersionId: shown.workflowVersionId,
+		};
 		const summary = await decideWorkflowReviewRequest(rootStore.restApiContext, id, payload);
 
 		const item = items.value.find((candidate) => candidate.id === id);
