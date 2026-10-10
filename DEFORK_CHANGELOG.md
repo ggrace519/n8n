@@ -16,6 +16,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — cli unit suite fully green (last 9 tests)
+
+The cli unit suite's last red baseline: 4 files, 9 tests.
+
+- **Evaluation concurrency ran unbounded by default.** The rebuilt resolver
+  fell back to unlimited whenever neither the env nor the license set a cap.
+  The precedence the surviving specs pin is restored:
+  1. an explicitly set `N8N_CONCURRENCY_EVALUATION_LIMIT` wins, including `-1`
+     for unlimited;
+  2. then a license-issued quota;
+  3. then the plan default (Community 1, Business 3, Enterprise 5).
+
+  This fork reports Community, so **evaluations now run one at a time unless the
+  env raises the cap.** That's a behavior change for anyone relying on the old
+  unlimited default.
+- **Members can manage the MCP OAuth clients they authorized** (Greg's call).
+  The rebuilt member role lacked `mcp:oauth`, so members got 403 listing or
+  revoking their own connected clients. The service already limits
+  non-managers to their own; MCP API keys stay owner/admin-only.
+- **The revocation-email specs failed every September.** Intl's en-GB short
+  month is "Sept", which a three-letter regex rejects. The specs now pin the
+  clock.
+
+**Verification:**
+- **cli unit: 869/869 files, 14719/14719 tests.** First fully green run on this
+  fork.
+- **cli integration: 271 files, 5146 passed, 0 failed.**
+- `@n8n/permissions` 135/135; OAuth-server and MCP 1592/1592; concurrency,
+  frontend.service and evaluation specs 131/131.
+
 ### 2026-09-30 — Dependabot critical and high alerts closed (except two needing majors)
 
 **Security:** the default branch carried 4 critical and 20 high Dependabot alerts.
