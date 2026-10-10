@@ -40,6 +40,41 @@ In that case an unreviewed version could be approved.
 - Service unit 31/31; editor workflow-review specs 219/219, including the
   list-item fallback and the unloaded-review refusal.
 
+### 2026-09-30 — Unsharing a credential now removes the access it revoked (#13)
+
+**Fixed (data retention):** when a credential was unshared from a project,
+cleanup of the per-user dynamic-credential data that sharing had justified did
+nothing. The cleanup runs inside the transaction that deletes the sharing rows,
+but its access check read those rows **outside** the transaction. It still saw
+the old sharing, decided every user kept access, and left their stored
+credential data in place.
+
+`SharedCredentialsRepository.getAllRelationsForCredentials` and
+`SharedWorkflowRepository.getAllRelationsForWorkflows` now accept the active
+transaction, and `userHasScopes` passes it through.
+
+**Verification:**
+- New gate specs: a sharee who loses access loses their stored connection; one
+  who retains access through another project keeps it.
+- Reverting only the pass-through makes the first spec fail, which proves the
+  cause.
+- Resolvable credentials 39/39; credentials, workflows, dynamic-credentials and
+  public-API integration 1395/1395; permissions and credentials unit 371/371;
+  `@n8n/db` 411/411.
+
+### 2026-09-30 — No more Confluence error on every startup (#52)
+
+**Fixed:** every `n8n start` logged `Failed to load Custom API options for the
+node "n8n-nodes-base.confluence": Unknown credential name
+"confluenceCloudOAuth2Api"`. The node is an upstream *hidden scaffold* (#35688):
+it references Confluence credential types that were never added. It is now
+unregistered from nodes-base until those credentials exist. Its source and tests
+stay in place, so re-registering is a one-line change.
+
+**Verification:**
+- Full `pnpm build` 69/69; the Confluence node tests still pass (31/31).
+- A real `n8n start` reaches "Editor is now accessible" with no Confluence error.
+
 ### 2026-09-30 — cli unit suite fully green (last 9 tests)
 
 The cli unit suite's last red baseline: 4 files, 9 tests.
