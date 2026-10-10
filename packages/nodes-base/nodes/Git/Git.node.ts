@@ -17,7 +17,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'path';
 import type { LogOptions, SimpleGit, SimpleGitOptions } from 'simple-git';
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import { URL, fileURLToPath } from 'url';
 
 import {
