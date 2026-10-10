@@ -57,9 +57,10 @@ export async function userHasScopes(
 
 	if (workflowId) {
 		const workflowRoles = await roleService.rolesWithScope('workflow', scopes, trx);
-		const relations = await Container.get(SharedWorkflowRepository).getAllRelationsForWorkflows([
-			workflowId,
-		]);
+		const relations = await Container.get(SharedWorkflowRepository).getAllRelationsForWorkflows(
+			[workflowId],
+			trx,
+		);
 		if (relations.length === 0) {
 			throw new NotFoundError(`Workflow with ID "${workflowId}" does not exist.`);
 		}
@@ -73,7 +74,7 @@ export async function userHasScopes(
 		const credentialRoles = await roleService.rolesWithScope('credential', scopes, trx);
 		const relations = await Container.get(
 			SharedCredentialsRepository,
-		).getAllRelationsForCredentials([credentialId]);
+		).getAllRelationsForCredentials([credentialId], trx);
 		if (relations.length === 0) {
 			throw new NotFoundError(`Credential with ID "${credentialId}" does not exist.`);
 		}

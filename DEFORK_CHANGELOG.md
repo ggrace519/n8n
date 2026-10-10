@@ -16,6 +16,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — Unsharing a credential now removes the access it revoked (#13)
+
+**Fixed (data retention):** when a credential was unshared from a project,
+cleanup of the per-user dynamic-credential data that sharing had justified did
+nothing. The cleanup runs inside the transaction that deletes the sharing rows,
+but its access check read those rows **outside** the transaction. It still saw
+the old sharing, decided every user kept access, and left their stored
+credential data in place.
+
+`SharedCredentialsRepository.getAllRelationsForCredentials` and
+`SharedWorkflowRepository.getAllRelationsForWorkflows` now accept the active
+transaction, and `userHasScopes` passes it through.
+
+**Verification:**
+- New gate specs: a sharee who loses access loses their stored connection; one
+  who retains access through another project keeps it.
+- Reverting only the pass-through makes the first spec fail, which proves the
+  cause.
+- Resolvable credentials 39/39; credentials, workflows, dynamic-credentials and
+  public-API integration 1395/1395; permissions and credentials unit 371/371;
+  `@n8n/db` 411/411.
+
 ### 2026-09-30 — No more Confluence error on every startup (#52)
 
 **Fixed:** every `n8n start` logged `Failed to load Custom API options for the
