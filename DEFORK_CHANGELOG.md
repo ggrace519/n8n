@@ -38,6 +38,19 @@ transaction, and `userHasScopes` passes it through.
   public-API integration 1395/1395; permissions and credentials unit 371/371;
   `@n8n/db` 411/411.
 
+### 2026-09-30 — No more Confluence error on every startup (#52)
+
+**Fixed:** every `n8n start` logged `Failed to load Custom API options for the
+node "n8n-nodes-base.confluence": Unknown credential name
+"confluenceCloudOAuth2Api"`. The node is an upstream *hidden scaffold* (#35688):
+it references Confluence credential types that were never added. It is now
+unregistered from nodes-base until those credentials exist. Its source and tests
+stay in place, so re-registering is a one-line change.
+
+**Verification:**
+- Full `pnpm build` 69/69; the Confluence node tests still pass (31/31).
+- A real `n8n start` reaches "Editor is now accessible" with no Confluence error.
+
 ### 2026-09-30 — cli unit suite fully green (last 9 tests)
 
 The cli unit suite's last red baseline: 4 files, 9 tests.
