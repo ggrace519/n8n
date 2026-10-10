@@ -76,20 +76,30 @@ describe('public API key scopes', () => {
 			expect(member().sort()).toEqual([...expected].sort());
 		});
 
-		test.each([
-			'project:update',
-			'project:delete',
-			'credential:list',
-			'insights:read',
-			'workflow:import',
-		] as const)('never derives %s from a project role', (scope) => {
-			expect(member()).not.toContain(scope);
+		// Instance-wide operations no project role can back.
+		test.each(['user:create', 'project:create', 'variable:create'] as const)(
+			'never derives %s from a project role',
+			(scope) => {
+				expect(member()).not.toContain(scope);
+			},
+		);
+
+		test('derives the scopes whose routes gained per-project checks (#51)', () => {
+			expect(member()).toEqual(
+				expect.arrayContaining([
+					'project:update',
+					'project:delete',
+					'credential:list',
+					'insights:read',
+					'workflow:import',
+				]),
+			);
 		});
 
-		test('still grants those scopes when the global role holds them', () => {
+		test('still grants instance-wide scopes when the global role holds them', () => {
 			const scopes = getApiKeyScopesForPrincipal(GLOBAL_OWNER_SCOPES, []);
 
-			expect(scopes).toEqual(expect.arrayContaining(['project:update', 'credential:list']));
+			expect(scopes).toEqual(expect.arrayContaining(['user:create', 'project:create']));
 		});
 
 		test('does not grant a project-checked scope no project role backs', () => {

@@ -63,7 +63,7 @@ catalog:
   '@lezer/lr': 1.4.5
   '@modelcontextprotocol/ext-apps': 1.3.2
   '@modelcontextprotocol/node': 2.0.0
-  '@modelcontextprotocol/sdk': 1.26.0
+  '@modelcontextprotocol/sdk': 1.31.0
   '@modelcontextprotocol/server': 2.0.0
   '@mozilla/readability': ^0.6.0
   '@n8n_io/ai-assistant-sdk': 1.25.0
@@ -124,7 +124,7 @@ catalog:
   '@vitest/coverage-v8': 4.1.11
   agent-browser: 0.26.0
   ai: ^7.0.48
-  axios: 1.18.0
+  axios: 1.20.0
   basic-auth: 2.0.1
   cache-manager: 5.2.3
   callsites: 3.1.0
@@ -137,7 +137,7 @@ catalog:
   cross-env: ^7.0.3
   csv-parse: 7.0.2
   dotenv: 17.2.3
-  electron: 41.10.3
+  electron: 41.10.6
   esbuild: ^0.28.1
   eslint: 9.29.0
   eslint-plugin-n8n-nodes-base: ^1.16.7
@@ -179,7 +179,7 @@ catalog:
   mysql2: 3.23.1
   nanoid: 3.3.18
   nock: 14.0.14
-  nodemailer: 9.1.1
+  nodemailer: 10.0.10
   openai: 6.46.0
   oracledb: 6.10.0
   oxlint: ^1.61.0
@@ -284,9 +284,9 @@ catalogs:
     '@typescript/native': 'npm:typescript@7.0.2'
     typescript: 'npm:@typescript/typescript6@6.0.2'
   undici-v6:
-    undici: ^6.27.0
+    undici: ^6.28.1
   undici-v7:
-    undici: ^7.29.0
+    undici: ^7.29.1
 
 minimumReleaseAge: 4320
 

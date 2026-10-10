@@ -291,7 +291,7 @@ describe('useReviewInboxStore', () => {
 			expect(workflowReviewsApi.decideWorkflowReviewRequest).toHaveBeenCalledWith(
 				expect.anything(),
 				'req-1',
-				{ decision: 'approved' },
+				{ decision: 'approved', expectedVersionId: createDetail().workflowVersionId },
 			);
 			expect(store.items).toEqual([]);
 			expect(store.openCount).toBe(1);
@@ -360,6 +360,35 @@ describe('useReviewInboxStore', () => {
 			const response = await store.decideOnReview('req-1', 'approved');
 
 			expect(response.autoPublish).toEqual({ status: 'published' });
+		});
+
+		it('binds the decision to the list item version when the detail is not loaded', async () => {
+			const store = await seedStoreWithOpenItem({
+				items: [{ ...openItem, workflowVersionId: 'ver-listed' }],
+			});
+			vi.mocked(workflowReviewsApi.decideWorkflowReviewRequest).mockResolvedValue({
+				id: 'req-1',
+				state: 'open',
+				decision: 'changes_requested',
+				workflowVersionId: 'ver-listed',
+				createdAt: '2024-01-01T00:00:00.000Z',
+				updatedAt: '2024-01-02T00:00:00.000Z',
+			});
+
+			await store.decideOnReview('req-1', 'changes_requested');
+
+			expect(workflowReviewsApi.decideWorkflowReviewRequest).toHaveBeenCalledWith(
+				expect.anything(),
+				'req-1',
+				{ decision: 'changes_requested', expectedVersionId: 'ver-listed' },
+			);
+		});
+
+		it('refuses to decide a review it has not loaded', async () => {
+			const store = await seedStoreWithOpenItem();
+
+			await expect(store.decideOnReview('req-unknown', 'approved')).rejects.toThrow('not loaded');
+			expect(workflowReviewsApi.decideWorkflowReviewRequest).not.toHaveBeenCalled();
 		});
 
 		it('rethrows an API error and leaves the state untouched', async () => {

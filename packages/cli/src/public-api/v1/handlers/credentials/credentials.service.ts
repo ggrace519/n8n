@@ -12,6 +12,7 @@ import {
 	type INodePropertyOptions,
 } from 'n8n-workflow';
 
+import { CredentialsFinderService } from '@/credentials/credentials-finder.service';
 import { CredentialsService } from '@/credentials/credentials.service';
 import {
 	validateAccessToReferencedSecretProviders,
@@ -52,6 +53,37 @@ export type CredentialListSharedItem = {
  * Build the shared array for a credential list item from credential.shared.
  * Each entry has id, name from the project and role, createdAt, updatedAt from the shared relation.
  */
+/** A page of every project credential, newest first, for callers holding `credential:list` globally. */
+export async function getProjectCredentialsPage(offset: number, limit: number) {
+	const [credentials, count] = await Container.get(CredentialsRepository).findAndCount({
+		take: limit,
+		skip: offset,
+		select: ['id', 'name', 'type', 'createdAt', 'updatedAt'],
+		relations: ['shared', 'shared.project'],
+		order: { createdAt: 'DESC' },
+		where: { usageScope: 'project' },
+	});
+	return { credentials, count };
+}
+
+/**
+ * A page of the project credentials `user` can read, newest first. Without the
+ * global scope a caller reaches only their projects' credentials, a small set,
+ * so it is paged in memory.
+ */
+export async function getReadableCredentialsPage(user: User, offset: number, limit: number) {
+	const readable = await Container.get(CredentialsFinderService).findCredentialsForUser(user, [
+		'credential:read',
+	]);
+	const credentials = (
+		await Container.get(CredentialsRepository).getManyByIds(
+			readable.map((credential) => credential.id),
+			{ withSharings: true },
+		)
+	).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+	return { credentials: credentials.slice(offset, offset + limit), count: credentials.length };
+}
+
 export function buildSharedForCredential(
 	credential: CredentialsEntity,
 ): CredentialListSharedItem[] {
