@@ -21,7 +21,10 @@ import * as utils from '../shared/utils/';
  * own projects.
  */
 describe('Public API: member key confined to own projects', () => {
-	const testServer = utils.setupTestServer({ endpointGroups: ['publicApi'] });
+	const testServer = utils.setupTestServer({
+		endpointGroups: ['publicApi'],
+		modules: ['insights'],
+	});
 
 	let attacker: User;
 	let attackerAgent: SuperAgentTest;
@@ -108,6 +111,61 @@ describe('Public API: member key confined to own projects', () => {
 	test("cannot read or delete another member's credential", async () => {
 		await attackerAgent.get(`/credentials/${victimCredential.id}`).expect(403);
 		await attackerAgent.delete(`/credentials/${victimCredential.id}`).expect(403);
+	});
+
+	describe('project management (#51)', () => {
+		beforeEach(() => {
+			testServer.license.enable('feat:projectRole:admin');
+		});
+
+		test('the key holds project:update and project:delete via the personal-owner role', () => {
+			expect(attacker.apiKeys[0].scopes).toEqual(
+				expect.arrayContaining(['project:update', 'project:delete']),
+			);
+		});
+
+		test('cannot rename, delete, or join a team project it is not part of', async () => {
+			await attackerAgent.put(`/projects/${teamProject.id}`).send({ name: 'hijacked' }).expect(404);
+			await attackerAgent.delete(`/projects/${teamProject.id}`).expect(404);
+			await attackerAgent
+				.post(`/projects/${teamProject.id}/users`)
+				.send({ relations: [{ userId: attacker.id, role: 'project:admin' }] })
+				.expect(404);
+
+			const project = await Container.get(ProjectRepository).findOneByOrFail({
+				id: teamProject.id,
+			});
+			expect(project.name).not.toBe('hijacked');
+		});
+
+		test('can rename a team project it administers', async () => {
+			const ownTeam = await createTeamProject(undefined, attacker);
+
+			await attackerAgent.put(`/projects/${ownTeam.id}`).send({ name: 'renamed' }).expect(204);
+		});
+	});
+
+	test('lists only the credentials it can read', async () => {
+		expect(attacker.apiKeys[0].scopes).toContain('credential:list');
+
+		const response = await attackerAgent.get('/credentials').expect(200);
+
+		const ids = (response.body.data as Array<{ id: string }>).map((credential) => credential.id);
+		expect(ids).not.toContain(victimCredential.id);
+	});
+
+	test('reads insights only for a project of its own', async () => {
+		expect(attacker.apiKeys[0].scopes).toContain('insights:read');
+		const attackerProject = await Container.get(ProjectRepository).getPersonalProjectForUserOrFail(
+			attacker.id,
+		);
+
+		await attackerAgent.get('/insights/summary').expect(403);
+		await attackerAgent.get('/insights/summary').query({ projectId: victimProject.id }).expect(404);
+		await attackerAgent
+			.get('/insights/summary')
+			.query({ projectId: attackerProject.id })
+			.expect(200);
 	});
 
 	test('cannot list every user on the instance', async () => {

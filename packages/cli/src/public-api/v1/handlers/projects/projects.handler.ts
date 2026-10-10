@@ -8,6 +8,9 @@ import {
 import type { AuthenticatedRequest } from '@n8n/db';
 import { ProjectRelationRepository, ProjectRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
+import type { Scope } from '@n8n/permissions';
+import { hasGlobalScope } from '@n8n/permissions';
+import type express from 'express';
 import pick from 'lodash/pick';
 
 import { ProjectController } from '@/controllers/project.controller';
@@ -25,6 +28,35 @@ import {
 	validCursor,
 } from '../../shared/middlewares/global.middleware';
 import { encodeNextCursor } from '../../shared/services/pagination.service';
+
+/**
+ * The key gate only checks that the key carries `scope`. Callers who hold it
+ * globally (owners, admins) may act on any project; anyone else only on projects
+ * where their project role grants it, and gets the same 404 as for a missing
+ * project otherwise, so the route does not reveal which projects exist.
+ */
+function requireProjectScope(scope: Scope) {
+	return async (
+		req: AuthenticatedRequest<{ projectId: string }>,
+		res: express.Response,
+		next: express.NextFunction,
+	): Promise<void> => {
+		if (hasGlobalScope(req.user, scope)) {
+			next();
+			return;
+		}
+
+		const { projectId } = req.params;
+		const project = await Container.get(ProjectService).getProjectWithScope(req.user, projectId, [
+			scope,
+		]);
+		if (!project) {
+			res.status(404).json({ message: `Could not find project with ID: ${projectId}` });
+			return;
+		}
+		next();
+	};
+}
 
 type GetAll = PaginatedRequest;
 type GetProjectUsersRequest = AuthenticatedRequest<{ projectId: string }> & GetAll;
@@ -71,6 +103,7 @@ const projectHandlers: ProjectHandlers = {
 	updateProject: [
 		isLicensed('feat:projectRole:admin'),
 		apiKeyHasScopeWithGlobalScopeFallback({ scope: 'project:update' }),
+		requireProjectScope('project:update'),
 		async (req, res) => {
 			const payload = UpdateProjectWithRelationsDto.safeParse(req.body);
 			if (payload.error) {
@@ -90,6 +123,7 @@ const projectHandlers: ProjectHandlers = {
 	deleteProject: [
 		isLicensed('feat:projectRole:admin'),
 		apiKeyHasScopeWithGlobalScopeFallback({ scope: 'project:delete' }),
+		requireProjectScope('project:delete'),
 		async (req, res) => {
 			const query = DeleteProjectDto.safeParse(req.query);
 			if (query.error) {
@@ -179,6 +213,7 @@ const projectHandlers: ProjectHandlers = {
 	addUsersToProject: [
 		isLicensed('feat:projectRole:admin'),
 		apiKeyHasScopeWithGlobalScopeFallback({ scope: 'project:update' }),
+		requireProjectScope('project:update'),
 		async (req, res) => {
 			await assertProjectRolesNotManaged();
 
@@ -198,6 +233,7 @@ const projectHandlers: ProjectHandlers = {
 	changeUserRoleInProject: [
 		isLicensed('feat:projectRole:admin'),
 		apiKeyHasScopeWithGlobalScopeFallback({ scope: 'project:update' }),
+		requireProjectScope('project:update'),
 		async (req, res) => {
 			await assertProjectRolesNotManaged();
 
@@ -216,6 +252,7 @@ const projectHandlers: ProjectHandlers = {
 	deleteUserFromProject: [
 		isLicensed('feat:projectRole:admin'),
 		apiKeyHasScopeWithGlobalScopeFallback({ scope: 'project:update' }),
+		requireProjectScope('project:update'),
 		async (req, res) => {
 			await assertProjectRolesNotManaged();
 
