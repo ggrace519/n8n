@@ -52,6 +52,9 @@ export const GLOBAL_MEMBER_SCOPES: Scope[] = [
 	// projects whose role grants `dataTable:listProject`; seeing every project's
 	// tables stays behind global `dataTable:listProject` (owners/admins).
 	...pick(['dataTable'], ['list']),
+	// The MCP clients a member authorized: the OAuth-client service limits a
+	// non-manager to their own; seeing or revoking others' needs `mcp:manage`.
+	...pick(['mcp'], ['oauth']),
 ];
 
 /** A chat-only user can converse with chat-enabled workflows and nothing else. */
