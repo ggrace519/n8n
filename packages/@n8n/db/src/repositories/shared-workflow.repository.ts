@@ -213,8 +213,9 @@ export class SharedWorkflowRepository extends BaseRepository<SharedWorkflow> {
 		});
 	}
 
-	async getAllRelationsForWorkflows(workflowIds: string[]) {
-		return await this.find({
+	/** Pass `trx` from inside a transaction so the read sees its uncommitted sharing changes. */
+	async getAllRelationsForWorkflows(workflowIds: string[], trx?: EntityManager) {
+		return await (trx ?? this.manager).find(SharedWorkflow, {
 			where: {
 				workflowId: In(workflowIds),
 			},

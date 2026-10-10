@@ -1,16 +1,21 @@
-import { WorkflowRepository, type WorkflowEntity } from '@n8n/db';
+import { WorkflowRepository, type User, type WorkflowEntity } from '@n8n/db';
 import { Service } from '@n8n/di';
 import { UnexpectedError } from 'n8n-workflow';
 
 import { WorkflowFinderService } from '@/workflows/workflow-finder.service';
 
+/**
+ * A package workflow id that already exists in the instance. The location and
+ * name are reported only when the importing user can read that workflow;
+ * otherwise only the collision itself is.
+ */
 export interface WorkflowIdConflict {
 	sourceWorkflowId: string;
 	existingWorkflowId: string;
-	/** Owning project of the existing workflow; null when no owner share exists. */
+	/** Owning project of the existing workflow; null when no owner share exists or it is not readable. */
 	existingProjectId: string | null;
-	isArchived: boolean;
-	name: string;
+	isArchived?: boolean;
+	name?: string;
 }
 
 @Service()
@@ -19,6 +24,34 @@ export class WorkflowImportMatchService {
 		private readonly workflowFinderService: WorkflowFinderService,
 		private readonly workflowRepository: WorkflowRepository,
 	) {}
+
+	/** Collisions of `workflowIds` with existing workflows, redacted to what `user` may read. */
+	async findIdConflicts(workflowIds: string[], user: User): Promise<WorkflowIdConflict[]> {
+		const existing = await this.findOwningProjectsByWorkflowId(workflowIds);
+		if (existing.size === 0) return [];
+
+		const readable = await this.workflowFinderService.findWorkflowIdsWithScopeForUser(
+			[...existing.keys()],
+			user,
+			['workflow:read'],
+		);
+
+		return workflowIds.flatMap((id) => {
+			const location = existing.get(id);
+			if (!location) return [];
+			const conflict: WorkflowIdConflict = {
+				sourceWorkflowId: id,
+				existingWorkflowId: id,
+				existingProjectId: null,
+			};
+			if (readable.has(id)) {
+				conflict.existingProjectId = location.projectId;
+				conflict.isArchived = location.isArchived;
+				conflict.name = location.name;
+			}
+			return [conflict];
+		});
+	}
 
 	async findOwningProjectsByWorkflowId(
 		workflowIds: string[],

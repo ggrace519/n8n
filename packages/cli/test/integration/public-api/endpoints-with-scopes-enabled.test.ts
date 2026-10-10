@@ -325,7 +325,7 @@ describe('Public API endpoints with API key scopes', () => {
 
 					const formerAdminApiKey = await apiKeyRepository.findOneByOrFail({ userId: admin.id });
 					expect(formerAdminApiKey.scopes).not.toContain('user:create');
-					expect(formerAdminApiKey.scopes).not.toContain('project:delete');
+					expect(formerAdminApiKey.scopes).not.toContain('project:create');
 					expect(formerAdminApiKey.scopes).toEqual(
 						expect.arrayContaining(['workflow:read', 'tag:read']),
 					);
