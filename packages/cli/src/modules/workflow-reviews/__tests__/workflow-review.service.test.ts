@@ -161,13 +161,19 @@ describe('WorkflowReviewService write guards', () => {
 		});
 
 		it('releases the open sentinel on approval but keeps it on a change request', async () => {
-			await service.decide(reviewer, 'req-1', { decision: 'approved' });
+			await service.decide(reviewer, 'req-1', {
+				decision: 'approved',
+				expectedVersionId: versionId,
+			});
 			expect(linkRepository.takeLinkAtPin).toHaveBeenCalledWith(
 				expect.objectContaining({ clearOpenSentinel: true, expectedVersionId: versionId }),
 				expect.anything(),
 			);
 
-			await service.decide(reviewer, 'req-1', { decision: 'changes_requested' });
+			await service.decide(reviewer, 'req-1', {
+				decision: 'changes_requested',
+				expectedVersionId: versionId,
+			});
 			expect(linkRepository.takeLinkAtPin).toHaveBeenLastCalledWith(
 				expect.objectContaining({ clearOpenSentinel: false }),
 				expect.anything(),

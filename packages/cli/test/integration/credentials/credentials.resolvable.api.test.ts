@@ -509,6 +509,57 @@ describe('Sharing dynamic credentials', () => {
 		expect(response.body.data.scopes).not.toContain('credential:update');
 	});
 
+	test('unsharing removes the stored connection of a sharee who loses access', async () => {
+		const resolvable = await saveResolvableCredential();
+		const shareeProject = await createTeamProject(undefined, memberA);
+		const memberC = await createMember();
+		await linkUserToProject(memberC, shareeProject, 'project:editor');
+		await testServer
+			.authAgentFor(memberA)
+			.put(`/credentials/${resolvable.id}/share`)
+			.send({ shareWithIds: [shareeProject.id] })
+			.expect(200);
+		await seedUserEntry(resolvable.id, memberC.id);
+
+		await testServer
+			.authAgentFor(memberA)
+			.put(`/credentials/${resolvable.id}/share`)
+			.send({ shareWithIds: [] })
+			.expect(200);
+
+		const remaining = await Container.get(DynamicCredentialUserEntryRepository).countBy({
+			credentialId: resolvable.id,
+			userId: memberC.id,
+		});
+		expect(remaining).toBe(0);
+	});
+
+	test('unsharing keeps the stored connection of a sharee who retains access', async () => {
+		const resolvable = await saveResolvableCredential();
+		// memberB is an editor of the credential's home project as well as of the
+		// sharee project, so losing the share does not lose access.
+		const shareeProject = await createTeamProject(undefined, memberA);
+		await linkUserToProject(memberB, shareeProject, 'project:editor');
+		await testServer
+			.authAgentFor(memberA)
+			.put(`/credentials/${resolvable.id}/share`)
+			.send({ shareWithIds: [shareeProject.id] })
+			.expect(200);
+		await seedUserEntry(resolvable.id, memberB.id);
+
+		await testServer
+			.authAgentFor(memberA)
+			.put(`/credentials/${resolvable.id}/share`)
+			.send({ shareWithIds: [] })
+			.expect(200);
+
+		const remaining = await Container.get(DynamicCredentialUserEntryRepository).countBy({
+			credentialId: resolvable.id,
+			userId: memberB.id,
+		});
+		expect(remaining).toBe(1);
+	});
+
 	test('PATCH /credentials/:id — allows setting a shared credential as dynamic', async () => {
 		const staticCred = await saveStaticCredential();
 		const otherProject = await createTeamProject(undefined, memberA);

@@ -343,7 +343,7 @@ export class WorkflowReviewService {
 			// The reviewer states which version they inspected; if the author
 			// re-pinned before this arrived, the decision is about a version that is
 			// no longer under review.
-			if (dto.expectedVersionId !== undefined && dto.expectedVersionId !== pinnedVersionId) {
+			if (dto.expectedVersionId !== pinnedVersionId) {
 				throw new ConflictError(REVIEW_MOVED_ON);
 			}
 

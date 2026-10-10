@@ -16,6 +16,138 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-09-30 — Public-API routes re-check per-project access; member keys widened (#51)
+
+**Security:** five public-API routes relied only on the API key carrying a
+scope. That was safe only because members couldn't hold those scopes; each now
+re-checks the caller's access itself.
+
+- **Project update, delete and membership** (`PUT/DELETE /projects/:id`, the
+  `/users` routes): the scope must hold *on that project* unless held globally.
+  Otherwise the caller gets the same 404 as for a missing project. Without this,
+  any key with `project:update` could add itself as admin of any team project.
+- **`GET /credentials`:** lists only credentials the caller can read, unless
+  `credential:list` is held globally. Before, it listed every project credential
+  on the instance.
+- **`GET /insights/summary`:** needs `insights:list` globally (as the REST route
+  does), or a `projectId` whose role grants it.
+- **Package import:** collisions with existing workflows or data tables no longer
+  reveal their name, owning project or archived state unless the importer can
+  read them.
+- **Credential create and update:** scope gates now run before payload
+  validators, so validation errors reveal nothing about credentials a caller
+  can't access.
+
+With those checks in place, `project:update`, `project:delete`,
+`credential:list`, `insights:read` and `workflow:import` join the project-derived
+API-key allowlist, so a team-project admin's key can manage their project.
+Remaining smaller findings: #69.
+
+**Verification:**
+- **Full cli integration: 271 files, 5148 passed, 0 failed.**
+- **Isolation suite: 14/14.** A member key holding all five scopes cannot
+  rename, delete or join a foreign team project, list others' credentials, or
+  read another project's insights, but can rename a team project it
+  administers. Removing the project check turns it red.
+- n8n-packages unit 513/513, integration 393/393; `@n8n/permissions` 133/133.
+- "Missing scope" specs now mint keys that genuinely lack the scope, rather than
+  relying on members never holding it.
+
+### 2026-09-30 — Second Dependabot pass: newly published high advisories
+
+After the first pass cleared every critical alert, GitHub's rescan surfaced 21
+new high alerts. This closes all of them except #59.
+
+- **Version bumps:**
+  - `axios` 1.18.0 → 1.20.0 (catalog). The repo's `patches/axios.patch` still
+    applies.
+  - `electron` 41.10.3 → 41.10.6, used by `@n8n/local-gateway`.
+  - `undici` catalog floors raised to `^6.28.1` / `^7.29.1`.
+  - `@grpc/grpc-js` floor `^1.14.5`.
+- **`nodemailer` 9.1.1 → 10.0.10 (major).** The only declared breaking change
+  is Node ≥ 20, which the repo already exceeds. Its TypeScript rewrite moved
+  `auth` from the connection options to the transport options, so the cli mailer
+  now types its config as `SMTPTransport.Options`, as the EmailSend node already
+  does. Version 10.0.11 was skipped: it was exactly at the 3-day maturity line.
+- **Re-arming pins replaced with floors again:** `brace-expansion@<2.1.4 → 2.1.4`
+  and `brace-expansion@5 → 5.0.9` (root and `.github/scripts`) now sit below new
+  fixes. They become `brace-expansion@2: ^2.1.6` and `brace-expansion@5: ^5.0.11`.
+- **Python task runner:** `urllib3` 2.7.0 → 2.8.0 (pin, constraint and
+  `uv.lock`).
+
+**Verification:**
+- Full `pnpm build`: 69/69. The first attempt failed on the nodemailer types,
+  which led to the mailer fix above.
+- **Real SMTP send** through nodemailer 10.0.10 to a local sink: `250 OK`.
+- **Email consumers:** cli node-mailer spec passes; nodes-base EmailSend, Gmail
+  and Brevo 140/140.
+- **HTTP consumers (axios, undici):** core 1987/1987; HTTP Request node 165/165.
+- **Other suites:** local-gateway 35/35; `.github/scripts` 493/493; Python task
+  runner 261 passed.
+- **cli unit:** only the known 4-file baseline.
+- **Resolved versions**, all from the lockfile: axios 1.20.0 with the patch,
+  brace-expansion 2.1.7 / 5.0.12, grpc-js 1.14.5, undici 6.29.0 / 7.30.0,
+  nodemailer 10.0.10, electron 41.10.6. All clear the 3-day maturity guard.
+
+### 2026-09-30 — Review decisions must name the version reviewed (#45)
+
+**Security (hardening):** `expectedVersionId` on a workflow-review decision was
+optional. A client that omitted it was protected only against a re-pin that
+*raced* the decision, not against one that landed before the decision arrived.
+In that case an unreviewed version could be approved.
+
+- **DTO:** `DecideWorkflowReviewRequestDto.expectedVersionId` is now required. It
+  may be `null` when the request has no pinned version. A decision without it is
+  rejected with 400.
+- **Backend:** the version is always compared. A decision naming a superseded
+  version gets 409; `null` matches only an unpinned request.
+- **Editor:** a decision always sends the version shown: the loaded detail, or
+  the list item when the detail failed to load. It refuses to decide a review it
+  has not loaded.
+
+**Verification:**
+- DTO tests 41/41, including a missing-`expectedVersionId` case.
+- Review integration 77/77. The race spec now asserts that the publish uses the
+  pin read inside the deciding transaction; the 409 spec covers a superseded
+  version.
+- Service unit 31/31; editor workflow-review specs 219/219, including the
+  list-item fallback and the unloaded-review refusal.
+
+### 2026-09-30 — Unsharing a credential now removes the access it revoked (#13)
+
+**Fixed (data retention):** when a credential was unshared from a project,
+cleanup of the per-user dynamic-credential data that sharing had justified did
+nothing. The cleanup runs inside the transaction that deletes the sharing rows,
+but its access check read those rows **outside** the transaction. It still saw
+the old sharing, decided every user kept access, and left their stored
+credential data in place.
+
+`SharedCredentialsRepository.getAllRelationsForCredentials` and
+`SharedWorkflowRepository.getAllRelationsForWorkflows` now accept the active
+transaction, and `userHasScopes` passes it through.
+
+**Verification:**
+- New gate specs: a sharee who loses access loses their stored connection; one
+  who retains access through another project keeps it.
+- Reverting only the pass-through makes the first spec fail, which proves the
+  cause.
+- Resolvable credentials 39/39; credentials, workflows, dynamic-credentials and
+  public-API integration 1395/1395; permissions and credentials unit 371/371;
+  `@n8n/db` 411/411.
+
+### 2026-09-30 — No more Confluence error on every startup (#52)
+
+**Fixed:** every `n8n start` logged `Failed to load Custom API options for the
+node "n8n-nodes-base.confluence": Unknown credential name
+"confluenceCloudOAuth2Api"`. The node is an upstream *hidden scaffold* (#35688):
+it references Confluence credential types that were never added. It is now
+unregistered from nodes-base until those credentials exist. Its source and tests
+stay in place, so re-registering is a one-line change.
+
+**Verification:**
+- Full `pnpm build` 69/69; the Confluence node tests still pass (31/31).
+- A real `n8n start` reaches "Editor is now accessible" with no Confluence error.
+
 ### 2026-09-30 — cli unit suite fully green (last 9 tests)
 
 The cli unit suite's last red baseline: 4 files, 9 tests.

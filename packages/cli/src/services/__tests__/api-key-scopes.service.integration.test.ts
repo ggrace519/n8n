@@ -29,8 +29,8 @@ describe('ApiKeyScopesService', () => {
 		expect(scopes).toEqual(
 			expect.arrayContaining(['workflow:read', 'workflow:create', 'credential:create']),
 		);
-		expect(scopes).not.toContain('project:delete');
-		expect(scopes).not.toContain('credential:list');
+		expect(scopes).not.toContain('project:create');
+		expect(scopes).not.toContain('user:create');
 	});
 
 	test('a chat user derives no scopes from the projects they can view', async () => {
@@ -44,6 +44,6 @@ describe('ApiKeyScopesService', () => {
 	test('an owner can still grant instance-wide scopes from their global role', async () => {
 		const owner = await createOwner();
 
-		expect(await service.canGrant(owner, ['project:delete', 'credential:list'])).toBe(true);
+		expect(await service.canGrant(owner, ['project:create', 'user:create'])).toBe(true);
 	});
 });
