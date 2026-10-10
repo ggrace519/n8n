@@ -7,10 +7,7 @@ import { WorkflowService } from '@/workflows/workflow.service';
 import { workflowReferences } from './references/workflow-references';
 import { decideWorkflowConflictAction } from './workflow-conflict-policy';
 import { decideWorkflowId } from './workflow-id-policy';
-import {
-	WorkflowImportMatchService,
-	type WorkflowIdConflict,
-} from './workflow-import-match.service';
+import { WorkflowImportMatchService } from './workflow-import-match.service';
 import type {
 	PersistedWorkflowOutcome,
 	PersistedWorkflowPlanItem,
@@ -104,33 +101,14 @@ export class WorkflowImporter {
 			}
 		}
 
-		const idConflicts = await this.collectIdConflicts(sourceCreateIds);
+		// A `source`-policy id must be unique instance-wide (ids are a global primary
+		// key), so an existing workflow anywhere -- even in another project -- blocks it.
+		const idConflicts = await this.workflowImportMatchService.findIdConflicts(
+			sourceCreateIds,
+			context.user,
+		);
 
 		return { items, conflicts, idConflicts, folderConflicts };
-	}
-
-	/**
-	 * For `source`-policy creates, a workflow id is only safe to reuse if it
-	 * exists nowhere else in the instance (ids are a global primary key). Any hit
-	 * — even in another project — blocks the import.
-	 */
-	private async collectIdConflicts(candidateIds: string[]): Promise<WorkflowIdConflict[]> {
-		const existing =
-			await this.workflowImportMatchService.findOwningProjectsByWorkflowId(candidateIds);
-
-		return candidateIds.flatMap((id) => {
-			const location = existing.get(id);
-			if (!location) return [];
-			return [
-				{
-					sourceWorkflowId: id,
-					existingWorkflowId: id,
-					existingProjectId: location.projectId,
-					isArchived: location.isArchived,
-					name: location.name,
-				},
-			];
-		});
 	}
 
 	/**

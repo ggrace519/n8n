@@ -92,7 +92,7 @@ describe('ApiKeyAuthStrategy', () => {
 		it("narrows a key's scopes to what its owner can grant after their role was lowered", async () => {
 			const admin = await createAdminWithApiKey();
 			const [apiKey] = admin.apiKeys;
-			expect(apiKey.scopes).toEqual(expect.arrayContaining(['user:create', 'project:delete']));
+			expect(apiKey.scopes).toEqual(expect.arrayContaining(['user:create', 'project:create']));
 
 			// Lower the role directly, bypassing the role-change flow's own pruning.
 			await Container.get(UserRepository).update(admin.id, { role: { slug: 'global:member' } });
@@ -101,7 +101,7 @@ describe('ApiKeyAuthStrategy', () => {
 
 			if (!grant) throw new Error('expected grant');
 			expect(grant.apiKeyScopes).not.toContain('user:create');
-			expect(grant.apiKeyScopes).not.toContain('project:delete');
+			expect(grant.apiKeyScopes).not.toContain('project:create');
 			// Still usable for what a member can reach through their personal project.
 			expect(grant.apiKeyScopes).toEqual(expect.arrayContaining(['workflow:read', 'tag:read']));
 		});

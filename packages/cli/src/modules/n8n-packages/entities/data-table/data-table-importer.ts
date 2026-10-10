@@ -88,7 +88,8 @@ export class DataTableImporter {
 				request.schemaConflictPolicy,
 			);
 			if (effect.action === 'create') creations.push({ table: packageTable, requirement });
-			else if (effect.action === 'fail') failures.push(effect.failure);
+			else if (effect.action === 'fail')
+				failures.push(await this.redactForUser(context, effect.failure));
 			else if (matchedTargetTable) matchedCount++;
 		}
 
@@ -121,6 +122,23 @@ export class DataTableImporter {
 				table.id,
 			);
 		}
+	}
+
+	/**
+	 * An id conflict names the project holding the existing table; report it only
+	 * when the importing user can read that project's tables.
+	 */
+	private async redactForUser(
+		context: ImportContext,
+		failure: DataTableResolutionFailure,
+	): Promise<DataTableResolutionFailure> {
+		if (!('existingProjectId' in failure) || !failure.existingProjectId) return failure;
+		const canRead = await userHasScopes(context.user, ['dataTable:read'], false, {
+			projectId: failure.existingProjectId,
+		});
+		if (canRead) return failure;
+		const { existingProjectId: _hidden, ...redacted } = failure;
+		return redacted;
 	}
 
 	/** Guards that only apply to tables about to be created: permission, and name uniqueness inside the target project. */
