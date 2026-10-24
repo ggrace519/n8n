@@ -16,6 +16,10 @@ import { DynamicCredentialEntryStorage } from '../credential-resolvers/storage/d
 import { DynamicCredentialUserEntryStorage } from '../credential-resolvers/storage/dynamic-credential-user-entry-storage';
 import type { DynamicCredentialResolver } from '../database/entities/credential-resolver';
 import { DynamicCredentialResolverRepository } from '../database/repositories/credential-resolver.repository';
+import {
+	OAUTH2_RESOLVER_TYPE,
+	OAUTH2_USERINFO_VALIDATION,
+} from '../credential-resolvers/identifiers/oauth2-userinfo-identifier';
 
 /**
  * The API schemas allow longer names/types than the tables do (255 vs 128), so
@@ -45,16 +49,34 @@ export class CredentialResolverCrudService {
 		private readonly entryStorage: DynamicCredentialEntryStorage,
 	) {}
 
-	/**
-	 * Resolver types are contributed by resolver implementations. Only the
-	 * built-in n8n self-connect resolver ships today.
-	 */
+	/** Resolver types contributed by the resolver implementations in this module. */
 	listTypes(): CredentialResolverType[] {
 		return [
 			{
 				name: 'n8n',
 				displayName: 'n8n',
 				description: 'Each user connects their own account through n8n.',
+			},
+			{
+				name: OAUTH2_RESOLVER_TYPE,
+				displayName: 'OAuth2 (OpenID Connect UserInfo)',
+				description:
+					"Identifies external users by their OAuth2 access token, verified against the provider's UserInfo endpoint.",
+				options: [
+					{
+						name: 'metadataUri',
+						displayName: 'Discovery (metadata) URL',
+						type: 'string',
+						required: true,
+					},
+					{
+						name: 'validation',
+						displayName: 'Validation',
+						type: 'options',
+						default: OAUTH2_USERINFO_VALIDATION,
+						options: [{ name: 'UserInfo', value: OAUTH2_USERINFO_VALIDATION }],
+					},
+				],
 			},
 		];
 	}

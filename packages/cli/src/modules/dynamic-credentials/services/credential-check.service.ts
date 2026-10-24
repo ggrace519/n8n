@@ -4,15 +4,19 @@ import { Service } from '@n8n/di';
 import { Cipher } from 'n8n-core';
 import type {
 	CredentialCheckResult,
+	ICredentialContext,
 	CredentialCheckStatus,
 	DynamicCredentialCheckProxyProvider,
-	INode,
 } from 'n8n-workflow';
 import { toCredentialContext } from 'n8n-workflow';
+
+import { OAuthTokenVerifierProxy } from '@/services/oauth-token-verifier-proxy.service';
 
 import { SYSTEM_RESOLVER_ID } from '../constants';
 import { N8NIdentifier } from '../credential-resolvers/identifiers/n8n-identifier';
 import { DynamicCredentialUserEntryStorage } from '../credential-resolvers/storage/dynamic-credential-user-entry-storage';
+import { collectCredentialIds } from './collect-credential-ids';
+import { DynamicCredentialAuthorizationService } from './dynamic-credential-authorization.service';
 
 /**
  * Pre-execution gate exposed through the module's workflow context: tells a
@@ -28,6 +32,8 @@ export class CredentialCheckService implements DynamicCredentialCheckProxyProvid
 		private readonly workflowRepository: WorkflowRepository,
 		private readonly credentialsRepository: CredentialsRepository,
 		private readonly userEntryStorage: DynamicCredentialUserEntryStorage,
+		private readonly authorizationService: DynamicCredentialAuthorizationService,
+		private readonly oauthTokenVerifier: OAuthTokenVerifierProxy,
 	) {}
 
 	async checkCredentialStatus(
@@ -45,19 +51,34 @@ export class CredentialCheckService implements DynamicCredentialCheckProxyProvid
 		);
 		if (resolvable.length === 0) return { readyToExecute: true, credentials: [] };
 
-		const userId = await this.resolveUserId(executionContext, workflowId);
+		const caller = await this.resolveCaller(executionContext, workflowId);
 
 		const credentials: CredentialCheckStatus[] = [];
 		for (const credential of resolvable) {
 			const resolverId =
 				credential.resolverId ?? workflow.settings?.credentialResolverId ?? SYSTEM_RESOLVER_ID;
+			const status = await this.statusFor(credential.id, resolverId, caller?.userId ?? null);
 
 			credentials.push({
 				credentialId: credential.id,
 				credentialName: credential.name,
 				credentialType: credential.type,
 				resolverId,
-				status: await this.statusFor(credential.id, resolverId, userId),
+				status,
+				// A single-use link the caller can follow to connect it — the gate's
+				// identity travels server-side, never in the URL.
+				...(status === 'missing' && caller
+					? {
+							authorizationUrl: await this.authorizationService.issueAuthorizeLink({
+								credentialId: credential.id,
+								resolverId,
+								authorizationHeader: caller.authorizationHeader,
+								source: caller.source,
+								resource: caller.resource,
+								userId: caller.userId,
+							}),
+						}
+					: {}),
 			});
 		}
 
@@ -86,17 +107,31 @@ export class CredentialCheckService implements DynamicCredentialCheckProxyProvid
 		return data === null ? 'missing' : 'configured';
 	}
 
-	private async resolveUserId(
+	private async resolveCaller(
 		executionContext: { credentials?: string },
 		workflowId: string,
-	): Promise<string | null> {
+	): Promise<{
+		userId: string;
+		authorizationHeader: string;
+		source: string;
+		resource?: string;
+	} | null> {
 		if (!executionContext.credentials) return null;
 
 		try {
 			const context = toCredentialContext(
 				await this.cipher.decryptV2(executionContext.credentials),
 			);
-			return await this.n8nIdentifier.resolve(context, {});
+			const source = context.metadata?.source;
+			const resource = context.metadata?.resource;
+			const userId = await this.resolveUserId(context);
+			if (userId === null) return null;
+			return {
+				userId,
+				authorizationHeader: `Bearer ${context.identity.replace(/^Bearer\s+/i, '')}`,
+				source: typeof source === 'string' ? source : 'manual-execution',
+				...(typeof resource === 'string' ? { resource } : {}),
+			};
 		} catch (error) {
 			this.logger.debug('Could not identify the user behind a credential-status check', {
 				workflowId,
@@ -105,14 +140,20 @@ export class CredentialCheckService implements DynamicCredentialCheckProxyProvid
 			return null;
 		}
 	}
-}
 
-function collectCredentialIds(nodes: INode[]): string[] {
-	const ids = new Set<string>();
-	for (const node of nodes) {
-		for (const credential of Object.values(node.credentials ?? {})) {
-			if (credential.id) ids.add(credential.id);
+	/**
+	 * Same identity rule as `CredentialResolverService`: an MCP client presents an
+	 * instance-issued OAuth token (`n8n-oauth`), everything else an auth cookie.
+	 */
+	private async resolveUserId(context: ICredentialContext): Promise<string | null> {
+		if (context.metadata?.source === 'n8n-oauth') {
+			const resource = context.metadata.resource;
+			const { user } = await this.oauthTokenVerifier.verifyOAuthAccessToken(
+				context.identity,
+				typeof resource === 'string' ? resource : undefined,
+			);
+			return user?.id ?? null;
 		}
+		return await this.n8nIdentifier.resolve(context, {});
 	}
-	return [...ids];
 }

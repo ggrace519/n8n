@@ -85,6 +85,8 @@ const FAIR_CODE_LICENSED_FEATURES: readonly BooleanLicenseFeature[] = [
 	// Multi-main (#133 wave 5): leader election rebuilt in E10; source control now takes a
 	// cluster-wide lease, so every main can serve it.
 	LICENSE_FEATURES.MULTIPLE_MAIN_INSTANCES,
+	// Dynamic (end-user) credentials (#133 wave 5): E12 plus the external endpoints (E12b).
+	LICENSE_FEATURES.DYNAMIC_CREDENTIALS,
 ];
 
 /** Numeric quotas those fair-code features need to be fully usable (an ungated

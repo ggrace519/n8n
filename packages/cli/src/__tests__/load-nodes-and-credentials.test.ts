@@ -6,7 +6,7 @@ import { Service } from '@n8n/di';
 import watcher from '@parcel/watcher';
 import fs from 'fs/promises';
 import { CUSTOM_NODES_PACKAGE_NAME, DirectoryLoader } from 'n8n-core';
-import type { INodeProperties, INodeTypeDescription } from 'n8n-workflow';
+import type { INodeProperties, INodeType, INodeTypeDescription } from 'n8n-workflow';
 import type { Mock } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
@@ -512,6 +512,42 @@ describe('LoadNodesAndCredentials', () => {
 					hookName: ['credentials.bearerToken'],
 				},
 			});
+		});
+
+		it('matches hooks on the package-qualified type when a node is loaded via getNode', () => {
+			// A loaded node class's own description carries the bare name, not the package prefix.
+			const description: INodeTypeDescription = {
+				name: 'webhook',
+				displayName: 'Webhook',
+				group: ['trigger'],
+				description: 'A webhook trigger',
+				version: 1,
+				defaults: {},
+				inputs: [],
+				outputs: ['main'],
+				properties: [],
+			};
+			instance.loaders = {
+				'n8n-nodes-base': mock<DirectoryLoader>({
+					getNode: () => ({ type: { description } as INodeType, sourcePath: '' }),
+				}),
+			};
+			mockExecutionContextHookRegistry.getHookForTriggerType.mockImplementation((type) =>
+				type === 'n8n-nodes-base.webhook'
+					? [{ hookDescription: { name: 'BearerTokenExtractor', options: [] } }]
+					: [],
+			);
+
+			instance.getNode('n8n-nodes-base.webhook');
+
+			expect(mockExecutionContextHookRegistry.getHookForTriggerType).toHaveBeenCalledWith(
+				'n8n-nodes-base.webhook',
+			);
+			expect(description.properties.map((p) => p.name)).toEqual([
+				'executionsHooksVersion',
+				'contextEstablishmentHooks',
+				'contextHooksNotice',
+			]);
 		});
 	});
 

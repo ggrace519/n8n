@@ -138,7 +138,7 @@ async function provisionGatedWorkflow(
 }
 
 test.describe(
-	'MCP Trigger credential gate @capability:dynamic-credentials @licensed @mode:multi-main',
+	'MCP Trigger credential gate @capability:dynamic-credentials @mode:multi-main',
 	{
 		annotation: [{ type: 'owner', description: 'Identity & Access' }],
 	},

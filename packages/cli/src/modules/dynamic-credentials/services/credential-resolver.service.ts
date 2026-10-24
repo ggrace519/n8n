@@ -22,6 +22,10 @@ import { OAuthTokenVerifierProxy } from '@/services/oauth-token-verifier-proxy.s
 
 import { SYSTEM_RESOLVER_ID } from '../constants';
 import { N8NIdentifier } from '../credential-resolvers/identifiers/n8n-identifier';
+import {
+	EXTERNAL_IDENTITY_SOURCE,
+	OAuth2UserinfoIdentifier,
+} from '../credential-resolvers/identifiers/oauth2-userinfo-identifier';
 import { DynamicCredentialEntryStorage } from '../credential-resolvers/storage/dynamic-credential-entry-storage';
 import { DynamicCredentialUserEntryStorage } from '../credential-resolvers/storage/dynamic-credential-user-entry-storage';
 import { DynamicCredentialResolverRepository } from '../database/repositories/credential-resolver.repository';
@@ -52,6 +56,7 @@ export class CredentialResolverService
 		private readonly logger: Logger,
 		private readonly cipher: Cipher,
 		private readonly n8nIdentifier: N8NIdentifier,
+		private readonly oauth2UserinfoIdentifier: OAuth2UserinfoIdentifier,
 		private readonly oauthTokenVerifier: OAuthTokenVerifierProxy,
 		private readonly resolverRepository: DynamicCredentialResolverRepository,
 		private readonly userEntryStorage: DynamicCredentialUserEntryStorage,
@@ -161,9 +166,40 @@ export class CredentialResolverService
 	}
 
 	/**
+	 * Identifies the external subject `identity` names under a non-system
+	 * resolver. Only resolver types that can *verify* the identity are accepted;
+	 * the raw identity string is never used as a storage key, so an unverifiable
+	 * caller can't claim (or mint) another subject's credential data.
+	 */
+	async resolveExternalSubject(
+		resolverId: string,
+		identity: string,
+		credentialId: string,
+	): Promise<string> {
+		const resolver = await this.resolverRepository.findById(resolverId, {});
+		if (!resolver) {
+			this.logger.warn('End-user credential points at a resolver that no longer exists', {
+				credentialId,
+				resolverId,
+			});
+			throw new CredentialResolutionError(UNRESOLVED_MESSAGE);
+		}
+
+		const config = await this.decryptResolverConfig(resolver.config, resolverId);
+		if (!OAuth2UserinfoIdentifier.supports(resolver.type, config)) {
+			this.logger.warn('Credential resolver type cannot verify external identities', {
+				resolverId,
+				type: resolver.type,
+			});
+			throw new CredentialResolutionError(UNRESOLVED_MESSAGE);
+		}
+		return await this.oauth2UserinfoIdentifier.resolve(identity, config);
+	}
+
+	/**
 	 * Turns the context identity into the key the credential data is stored
-	 * under. The system resolver maps it to an n8n user; any other resolver
-	 * treats the identity itself as an opaque external subject.
+	 * under. The system resolver maps it to an n8n user; any other resolver must
+	 * verify the identity (see `resolveExternalSubject`).
 	 */
 	private async resolveSubject(
 		credentialContext: ICredentialContext,
@@ -171,16 +207,30 @@ export class CredentialResolverService
 		metadata: { id: string },
 	): Promise<ResolvedSubject> {
 		if (resolverId !== SYSTEM_RESOLVER_ID) {
-			await this.assertResolverExists(resolverId, metadata.id);
-			return { subjectId: credentialContext.identity };
+			// Never forward an n8n session or n8n-issued token to a third-party provider.
+			if (credentialContext.metadata?.source !== EXTERNAL_IDENTITY_SOURCE) {
+				this.logger.debug('Refusing to send a non-external identity to a credential resolver', {
+					credentialId: metadata.id,
+					resolverId,
+				});
+				throw new CredentialResolutionError(UNRESOLVED_MESSAGE);
+			}
+			return {
+				subjectId: await this.resolveExternalSubject(
+					resolverId,
+					credentialContext.identity,
+					metadata.id,
+				),
+			};
 		}
 
 		const source = credentialContext.metadata?.source;
 
 		if (source === 'n8n-oauth') {
 			const resource = credentialContext.metadata?.resource;
+			// Links and callbacks carry the identity as an Authorization header; the verifier wants the bare token.
 			const { user } = await this.oauthTokenVerifier.verifyOAuthAccessToken(
-				credentialContext.identity,
+				credentialContext.identity.replace(/^Bearer\s+/i, ''),
 				typeof resource === 'string' ? resource : undefined,
 			);
 			if (!user) throw new CredentialResolutionError(UNRESOLVED_MESSAGE);
@@ -191,15 +241,19 @@ export class CredentialResolverService
 		return { subjectId: userId, userId };
 	}
 
-	private async assertResolverExists(resolverId: string, credentialId: string): Promise<void> {
-		const resolver = await this.resolverRepository.findById(resolverId, {});
-		if (resolver) return;
-
-		this.logger.warn('End-user credential points at a resolver that no longer exists', {
-			credentialId,
-			resolverId,
-		});
-		throw new CredentialResolutionError(UNRESOLVED_MESSAGE);
+	private async decryptResolverConfig(
+		config: string,
+		resolverId: string,
+	): Promise<Record<string, unknown>> {
+		try {
+			return jsonParse<Record<string, unknown>>(await this.cipher.decryptV2(config));
+		} catch (error) {
+			this.logger.warn('Credential resolver configuration could not be decrypted', {
+				resolverId,
+				error,
+			});
+			throw new CredentialResolutionError(UNRESOLVED_MESSAGE);
+		}
 	}
 
 	private async decryptEntry(

@@ -409,11 +409,19 @@ export class LoadNodesAndCredentials {
 			`Injecting context establishment hooks for ${triggerNodes.length} trigger nodes`,
 		);
 
-		triggerNodes.forEach(this.augmentNodeTypeDescription);
+		for (const node of triggerNodes) this.augmentNodeTypeDescription(node);
 	}
 
-	private augmentNodeTypeDescription = (node: INodeTypeDescription) => {
-		const hooks = this.executionContextHookRegistry.getHookForTriggerType(node.name);
+	/**
+	 * Hooks match on the package-qualified type (`n8n-nodes-base.webhook`). The
+	 * frontend type list already carries it as `name`; a loaded node class's own
+	 * description has the bare name, so `getNode` passes the qualified one.
+	 */
+	private augmentNodeTypeDescription = (
+		node: INodeTypeDescription,
+		fullNodeType: string = node.name,
+	) => {
+		const hooks = this.executionContextHookRegistry.getHookForTriggerType(fullNodeType);
 
 		if (hooks.length > 0) {
 			this.logger.debug(`Found ${hooks.length} hooks for trigger node: ${node.name}`);
@@ -633,7 +641,7 @@ export class LoadNodesAndCredentials {
 			this.shouldInjectContextEstablishmentHooks() &&
 			'properties' in loadedNode.type.description
 		) {
-			this.augmentNodeTypeDescription(loadedNode.type.description);
+			this.augmentNodeTypeDescription(loadedNode.type.description, fullNodeType);
 		}
 		return loadedNode;
 	}
