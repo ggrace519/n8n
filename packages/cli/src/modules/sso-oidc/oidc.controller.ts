@@ -53,13 +53,18 @@ export class OidcController {
 	}
 
 	/** Returns the provider authorization URL that starts an OIDC login. */
+	/**
+	 * The sign-in page navigates the browser here (`SSOLogin.vue` sets
+	 * `window.location.href` to `loginUrl`), so answer with a redirect to the
+	 * provider rather than a JSON body the browser would just display.
+	 */
 	@Get('/login', { skipAuth: true })
 	@Licensed('feat:oidc')
-	async login(_req: AuthlessRequest, res: Response): Promise<string> {
+	async login(_req: AuthlessRequest, res: Response): Promise<void> {
 		if (!this.oidcService.isOidcLoginActive()) {
 			throw new ForbiddenError('OIDC login is not enabled');
 		}
-		return await this.oidcService.createAuthorizationUrl(res);
+		res.redirect(await this.oidcService.createAuthorizationUrl(res));
 	}
 
 	/**

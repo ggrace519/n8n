@@ -306,9 +306,13 @@ export class ExternalSecretsManager implements IExternalSecretsManager {
 
 	// #region legacy settings operations
 
+	/** Every catalogued provider type, configured or not, so a fresh instance can set one up. */
 	getLegacyProviderSummaries(includeProperties = false): LegacyProviderSummary[] {
-		const settings = this.settingsStore.getCached() ?? {};
-		return Object.keys(settings)
+		const names = new Set([
+			...Object.keys(this.externalSecretsProviders.providers),
+			...Object.keys(this.settingsStore.getCached() ?? {}),
+		]);
+		return [...names]
 			.map((providerName) => this.buildLegacySummary(providerName, includeProperties))
 			.filter((summary): summary is LegacyProviderSummary => summary !== undefined);
 	}
@@ -324,9 +328,13 @@ export class ExternalSecretsManager implements IExternalSecretsManager {
 		providerName: string,
 		includeProperties: boolean,
 	): LegacyProviderSummary | undefined {
-		const entry = this.settingsStore.getCached()?.[providerName];
-		const provider = this.providerRegistry.get(providerName);
-		if (entry === undefined || provider === undefined) return undefined;
+		// An unconfigured but catalogued type answers with an empty, disconnected
+		// entry; only names that aren't a provider type at all are unknown.
+		const Provider = this.externalSecretsProviders.providers[providerName];
+		const provider =
+			this.providerRegistry.get(providerName) ?? (Provider ? new Provider() : undefined);
+		if (provider === undefined) return undefined;
+		const entry = this.settingsStore.getCached()?.[providerName] ?? this.emptyEntry();
 
 		const summary: LegacyProviderSummary = {
 			name: providerName,
