@@ -54,6 +54,37 @@ const FAIR_CODE_LICENSED_FEATURES: readonly BooleanLicenseFeature[] = [
 	LICENSE_FEATURES.PERSONAL_SPACE_POLICY,
 	LICENSE_FEATURES.MFA_ENFORCEMENT,
 	LICENSE_FEATURES.API_KEY_SCOPES,
+	// SSO (#133 wave 2): LDAP, SAML and OIDC rebuilt in E5-E7.
+	LICENSE_FEATURES.LDAP,
+	LICENSE_FEATURES.SAML,
+	LICENSE_FEATURES.OIDC,
+	// Data and infrastructure (#133 wave 3): log streaming (E9), variables (E2), external
+	// secrets (E8), source control (E3), worker view (E10), blob stores (PR #2), and the
+	// fair-code redaction, OTel and custom-registry features. Storage modes only take
+	// effect once an admin configures them.
+	LICENSE_FEATURES.LOG_STREAMING,
+	LICENSE_FEATURES.VARIABLES,
+	LICENSE_FEATURES.EXTERNAL_SECRETS,
+	LICENSE_FEATURES.SOURCE_CONTROL,
+	LICENSE_FEATURES.WORKER_VIEW,
+	LICENSE_FEATURES.DATA_REDACTION,
+	LICENSE_FEATURES.OTEL_CUSTOM_SPAN_ATTRIBUTES,
+	LICENSE_FEATURES.COMMUNITY_NODES_CUSTOM_REGISTRY,
+	LICENSE_FEATURES.BINARY_DATA_S3,
+	LICENSE_FEATURES.BINARY_DATA_AZURE,
+	LICENSE_FEATURES.EXECUTION_DATA_S3,
+	LICENSE_FEATURES.EXECUTION_DATA_AZURE,
+	// Workflow UX (#133 wave 4). Workflow reviews (E18) and token exchange also stay
+	// behind their N8N_ENV_FEAT_* opt-in flags.
+	LICENSE_FEATURES.ADVANCED_EXECUTION_FILTERS,
+	LICENSE_FEATURES.DEBUG_IN_EDITOR,
+	LICENSE_FEATURES.WORKFLOW_DIFFS,
+	LICENSE_FEATURES.NAMED_VERSIONS,
+	LICENSE_FEATURES.WORKFLOW_REVIEWS,
+	LICENSE_FEATURES.TOKEN_EXCHANGE,
+	// Multi-main (#133 wave 5): leader election rebuilt in E10; source control now takes a
+	// cluster-wide lease, so every main can serve it.
+	LICENSE_FEATURES.MULTIPLE_MAIN_INSTANCES,
 ];
 
 /** Numeric quotas those fair-code features need to be fully usable (an ungated
@@ -408,11 +439,6 @@ export class License implements LicenseProvider {
 	/** @deprecated Use `LicenseState.isExternalSecretsLicensed` instead. */
 	isExternalSecretsEnabled() {
 		return this.isLicensed(LICENSE_FEATURES.EXTERNAL_SECRETS);
-	}
-
-	/** @deprecated Use `LicenseState.isAPIDisabled` instead. */
-	isAPIDisabled() {
-		return this.isLicensed(LICENSE_FEATURES.API_DISABLED);
 	}
 
 	/** @deprecated Use `LicenseState.isWorkerViewLicensed` instead. */

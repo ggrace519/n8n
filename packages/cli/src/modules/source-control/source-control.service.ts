@@ -4,7 +4,7 @@ import type {
 	PushWorkFolderRequestDto,
 	SourceControlledFile,
 } from '@n8n/api-types';
-import { Logger } from '@n8n/backend-common';
+import { LockNamespace, LockService, Logger } from '@n8n/backend-common';
 import type { User } from '@n8n/db';
 import { SettingsRepository, SharedWorkflowRepository, WorkflowRepository } from '@n8n/db';
 import { OnPubSubEvent } from '@n8n/decorators';
@@ -84,19 +84,14 @@ const OWNER_VALIDATED_TYPES: ReadonlySet<SourceControlledFile['type']> = new Set
  * project-level `sourceControl:push`, with per-candidate ownership checks for
  * project-scoped callers.
  */
+
+const SOURCE_CONTROL_OPERATION_LOCK_KEY = 'source-control:workfolder-operation';
+
 @Service()
 export class SourceControlService {
 	private readonly gitFolder: string;
 
 	private readonly sshFolder: string;
-
-	/**
-	 * Serializes workfolder-mutating operations (status-with-reset, push, pull,
-	 * connect, disconnect, reset) within this process, so a reset can never run
-	 * mid-export and concurrent pushes cannot mix commits. Cluster-wide (multi-
-	 * main) locking is a documented follow-up.
-	 */
-	private operationQueue: Promise<unknown> = Promise.resolve();
 
 	constructor(
 		// Kept as raw (unscoped) logger: tests construct this service with a
@@ -133,14 +128,21 @@ export class SourceControlService {
 		}
 	}
 
-	/** Run `operation` once all previously queued workfolder operations settled. */
+	/**
+	 * Serializes workfolder-mutating operations (status-with-reset, push, pull,
+	 * connect, disconnect, reset) so a reset can never run mid-export and
+	 * concurrent pushes cannot mix commits or double-import. `LockService` is
+	 * in-process on a single main and Redis-backed under multi-main, so this
+	 * holds across every main in the cluster. The lease is renewed while the
+	 * operation runs; a crashed holder's lease expires after `leaseTtlMs`.
+	 */
 	private async withOperationLock<T>(operation: () => Promise<T>): Promise<T> {
-		const run = this.operationQueue.then(operation, operation);
-		this.operationQueue = run.then(
-			() => undefined,
-			() => undefined,
+		return await Container.get(LockService).withLease(
+			LockNamespace.KNOWN_LOCKS,
+			SOURCE_CONTROL_OPERATION_LOCK_KEY,
+			async () => await operation(),
+			{ leaseTtlMs: 60_000 },
 		);
-		return await run;
 	}
 
 	@OnPubSubEvent('reload-source-control-config')

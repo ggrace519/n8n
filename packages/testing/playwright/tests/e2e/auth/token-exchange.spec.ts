@@ -21,7 +21,7 @@ test.use({
 });
 
 test.describe(
-	'Token Exchange @licensed',
+	'Token Exchange',
 	{
 		annotation: [{ type: 'owner', description: 'Identity & Access' }],
 	},

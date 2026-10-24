@@ -1660,7 +1660,6 @@ export class TelemetryEventRelay extends EventRelay {
 			variables: this.licenseState.isVariablesLicensed(),
 			sourceControl: this.licenseState.isSourceControlLicensed(),
 			externalSecrets: this.licenseState.isExternalSecretsLicensed(),
-			apiDisabled: this.licenseState.isAPIDisabled(),
 			workerView: this.licenseState.isWorkerViewLicensed(),
 			projectRoleAdmin: this.licenseState.isProjectRoleAdminLicensed(),
 			projectRoleEditor: this.licenseState.isProjectRoleEditorLicensed(),

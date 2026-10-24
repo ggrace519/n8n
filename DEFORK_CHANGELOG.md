@@ -16,6 +16,56 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are ISO-86
 
 ## [Unreleased]
 
+### 2026-10-24 — Multi-main without a license; source control locks cluster-wide (#133 wave 5)
+
+**Ungate + fix; no `.ee` source involved.** Source-control workfolder
+operations (status-with-reset, push, pull, connect, disconnect, reset) were
+serialized by an in-process promise queue, so two mains could run them at once
+and mix commits or double-import. They now take a lease through the existing
+`LockService` (in-process on one main, Redis-backed under multi-main), renewed
+while the operation runs. With that, `feat:multipleMainInstances` (leader
+election rebuilt in E10) joins `FAIR_CODE_LICENSED_FEATURES`; before, a follower
+main retried for about a minute and then exited with `FeatureNotLicensedError`.
+Verified with two mains on Postgres + Redis: one leader, one follower, and a
+session created on one is served by the other.
+
+### 2026-10-24 — Inverse license flags removed (#133 wave 6)
+
+**Removal; no `.ee` source involved.** `feat:apiDisabled` and
+`feat:showNonProdBanner` were the only license flags whose *presence* took
+something away: one disabled the public API, the other showed a "not licensed
+for production" banner. Neither can mean anything in a build with no license, so
+both are gone, along with the `isAPIDisabled` shims, the telemetry field, the
+`showNonProdBanner` frontend setting, and the `NON_PRODUCTION_LICENSE` banner,
+schema entry and string. `N8N_PUBLIC_API_DISABLED` remains the switch for the
+public API.
+
+### 2026-10-24 — Workflow UX features on without a license (#133 wave 4)
+
+**Ungate; no `.ee` source involved.** Advanced execution filters (with the E19
+annotations), debug-in-editor, workflow diffs, named versions, workflow reviews
+(E18) and token exchange are now in `FAIR_CODE_LICENSED_FEATURES`. Workflow
+reviews and token exchange additionally keep their `N8N_ENV_FEAT_*` opt-in flags.
+The token-exchange E2E spec drops `@licensed`.
+
+### 2026-10-24 — Data and infrastructure features on without a license (#133 wave 3)
+
+**Ungate; no `.ee` source involved.** Log streaming (E9), variables (E2),
+external secrets (E8), source control (E3), worker view (E10), the S3/Azure
+binary- and execution-data stores (PR #2), data redaction, OTel custom span
+attributes and custom community-node registries are now in
+`FAIR_CODE_LICENSED_FEATURES`. Before, their routes were license-rejected and
+choosing S3 or Azure storage made the process exit at startup. Storage modes still
+only apply once an admin configures them. Source control remains single-main
+only until its cluster lock lands (#133 wave 5). Their E2E specs drop `@licensed`.
+
+### 2026-10-24 — LDAP, SAML and OIDC on without a license (#133 wave 2)
+
+**Ungate; no `.ee` source involved.** The SSO backends rebuilt in E5–E7 were
+gated on `feat:ldap` / `feat:saml` / `feat:oidc`, so their settings routes
+answered 403 and the login options never appeared. They are now in
+`FAIR_CODE_LICENSED_FEATURES`; the OIDC E2E spec drops its `@licensed` tag.
+
 ### 2026-10-24 — Sharing, team projects and RBAC on without a license (#133 wave 1)
 
 **Ungate; no `.ee` source involved.** Sharing, team projects and their admin/

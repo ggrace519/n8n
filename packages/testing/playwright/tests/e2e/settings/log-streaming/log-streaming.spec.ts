@@ -27,8 +27,7 @@ test.describe(
 			});
 		});
 
-		// @licensed - requires enterprise license (module routes only exist with license at startup)
-		test.describe('licensed @licensed', () => {
+		test.describe('enabled', () => {
 			test.beforeEach(async ({ n8n }) => {
 				await n8n.api.enableFeature('logStreaming');
 				await n8n.api.deleteAllLogStreamingDestinations();

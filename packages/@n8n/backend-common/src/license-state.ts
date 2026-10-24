@@ -158,10 +158,6 @@ export class LicenseState {
 		return this.isLicensed('feat:externalSecrets');
 	}
 
-	isAPIDisabled() {
-		return this.isLicensed('feat:apiDisabled');
-	}
-
 	isWorkerViewLicensed() {
 		return this.isLicensed('feat:workerView');
 	}

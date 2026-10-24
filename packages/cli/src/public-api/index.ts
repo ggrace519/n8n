@@ -14,7 +14,6 @@ import { PublicApiControllerRegistry } from './public-api-controller.registry';
 import { sendPublicApiErrorResponse } from './v1/public-api-error-response';
 
 import { EventService } from '@/events/event.service';
-import { License } from '@/license';
 import { createN8nPackageMulterOptions } from '@/modules/n8n-packages/utils/import-package-upload';
 import { AuthStrategyRegistry } from '@/services/auth-strategy.registry';
 import { LastActiveAtService } from '@/services/last-active-at.service';
@@ -485,5 +484,5 @@ export const loadPublicApiVersions = async (
 };
 
 export function isApiEnabled(): boolean {
-	return !Container.get(GlobalConfig).publicApi.disabled && !Container.get(License).isAPIDisabled();
+	return !Container.get(GlobalConfig).publicApi.disabled;
 }

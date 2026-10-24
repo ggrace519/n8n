@@ -2,7 +2,7 @@ import type { PushMessage } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
 import { ExecutionsConfig } from '@n8n/config';
 import type { BooleanLicenseFeature, NumericLicenseFeature } from '@n8n/constants';
-import { LICENSE_FEATURES, LICENSE_QUOTAS, UNLIMITED_LICENSE_QUOTA } from '@n8n/constants';
+import { LICENSE_QUOTAS, UNLIMITED_LICENSE_QUOTA } from '@n8n/constants';
 import {
 	AuthRolesService,
 	GLOBAL_ADMIN_ROLE,
@@ -93,51 +93,12 @@ type PushRequest = Request<
 
 @RestController('/e2e')
 export class E2EController {
-	private enabledFeatures: Record<BooleanLicenseFeature, boolean> = {
-		[LICENSE_FEATURES.DYNAMIC_CREDENTIALS]: false,
-		[LICENSE_FEATURES.SHARING]: false,
-		[LICENSE_FEATURES.LDAP]: false,
-		[LICENSE_FEATURES.SAML]: false,
-		[LICENSE_FEATURES.LOG_STREAMING]: false,
-		[LICENSE_FEATURES.ADVANCED_EXECUTION_FILTERS]: false,
-		[LICENSE_FEATURES.SOURCE_CONTROL]: false,
-		[LICENSE_FEATURES.VARIABLES]: false,
-		[LICENSE_FEATURES.API_DISABLED]: false,
-		[LICENSE_FEATURES.EXTERNAL_SECRETS]: false,
-		[LICENSE_FEATURES.SHOW_NON_PROD_BANNER]: false,
-		[LICENSE_FEATURES.DEBUG_IN_EDITOR]: false,
-		[LICENSE_FEATURES.BINARY_DATA_S3]: false,
-		[LICENSE_FEATURES.BINARY_DATA_AZURE]: false,
-		[LICENSE_FEATURES.EXECUTION_DATA_S3]: false,
-		[LICENSE_FEATURES.EXECUTION_DATA_AZURE]: false,
-		[LICENSE_FEATURES.MULTIPLE_MAIN_INSTANCES]: false,
-		[LICENSE_FEATURES.WORKER_VIEW]: false,
-		[LICENSE_FEATURES.ADVANCED_PERMISSIONS]: false,
-		[LICENSE_FEATURES.PROJECT_ROLE_ADMIN]: false,
-		[LICENSE_FEATURES.PROJECT_ROLE_EDITOR]: false,
-		[LICENSE_FEATURES.PROJECT_ROLE_VIEWER]: false,
-		[LICENSE_FEATURES.AI_ASSISTANT]: false,
-		[LICENSE_FEATURES.COMMUNITY_NODES_CUSTOM_REGISTRY]: false,
-		[LICENSE_FEATURES.ASK_AI]: false,
-		[LICENSE_FEATURES.AI_CREDITS]: false,
-		[LICENSE_FEATURES.AI_GATEWAY]: false,
-		[LICENSE_FEATURES.FOLDERS]: false,
-		[LICENSE_FEATURES.INSIGHTS_VIEW_SUMMARY]: false,
-		[LICENSE_FEATURES.INSIGHTS_VIEW_DASHBOARD]: false,
-		[LICENSE_FEATURES.INSIGHTS_VIEW_HOURLY_DATA]: false,
-		[LICENSE_FEATURES.API_KEY_SCOPES]: false,
-		[LICENSE_FEATURES.OIDC]: false,
-		[LICENSE_FEATURES.MFA_ENFORCEMENT]: false,
-		[LICENSE_FEATURES.WORKFLOW_DIFFS]: false,
-		[LICENSE_FEATURES.NAMED_VERSIONS]: false,
-		[LICENSE_FEATURES.CUSTOM_ROLES]: false,
-		[LICENSE_FEATURES.AI_BUILDER]: false,
-		[LICENSE_FEATURES.PERSONAL_SPACE_POLICY]: false,
-		[LICENSE_FEATURES.TOKEN_EXCHANGE]: false,
-		[LICENSE_FEATURES.DATA_REDACTION]: false,
-		[LICENSE_FEATURES.WORKFLOW_REVIEWS]: false,
-		[LICENSE_FEATURES.OTEL_CUSTOM_SPAN_ATTRIBUTES]: false,
-	};
+	/**
+	 * Per-test overrides set through `PATCH /e2e/feature`. A feature without an
+	 * override falls through to the real `License.isLicensed`, so E2E sees the same
+	 * always-on fair-code features a production instance of this fork does (#133).
+	 */
+	private enabledFeatures: Partial<Record<BooleanLicenseFeature, boolean>> = {};
 
 	private static readonly numericFeaturesDefaults: Record<NumericLicenseFeature, number> = {
 		[LICENSE_QUOTAS.TRIGGER_LIMIT]: -1,
@@ -197,7 +158,9 @@ export class E2EController {
 		private readonly logStreamingDestinationsService: LogStreamingDestinationService,
 		private readonly scheduledJobRepository: ScheduledJobRepository,
 	) {
-		license.isLicensed = (feature: BooleanLicenseFeature) => this.enabledFeatures[feature] ?? false;
+		const shippedIsLicensed = license.isLicensed.bind(license);
+		license.isLicensed = (feature: BooleanLicenseFeature) =>
+			this.enabledFeatures[feature] ?? shippedIsLicensed(feature);
 
 		// Ugly hack to satisfy biome parser
 		const getFeatureValue = <T extends keyof FeatureReturnType>(
@@ -583,9 +546,7 @@ export class E2EController {
 	}
 
 	private resetFeatures() {
-		for (const feature of Object.keys(this.enabledFeatures)) {
-			this.enabledFeatures[feature as BooleanLicenseFeature] = false;
-		}
+		this.enabledFeatures = {};
 
 		for (const feature of Object.keys(this.numericFeatures)) {
 			this.numericFeatures[feature as NumericLicenseFeature] =

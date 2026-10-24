@@ -7,7 +7,7 @@
  * per-destination enable toggle end-to-end.
  *
  * Prerequisites:
- * - Log streaming feature enabled (enterprise license, @licensed)
+ * - Log streaming feature enabled (enterprise license,)
  * - @capability:proxy tag to bring up the MockServer proxy
  */
 import type { ProxyServer, RequestMade } from 'n8n-containers/services/proxy';
@@ -114,7 +114,7 @@ async function triggerApiKeyDeletedEvent(api: ApiHelpers): Promise<void> {
 }
 
 test.describe(
-	'Log Streaming delivery @capability:proxy @licensed',
+	'Log Streaming delivery @capability:proxy',
 	{
 		annotation: [{ type: 'owner', description: 'Lifecycle & Governance' }],
 	},

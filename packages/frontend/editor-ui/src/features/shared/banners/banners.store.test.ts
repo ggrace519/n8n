@@ -34,13 +34,6 @@ describe('Banners store', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('should add non-production license banner to stack based on enterprise settings', () => {
-		bannersStore.loadStaticBanners({
-			banners: ['NON_PRODUCTION_LICENSE'],
-		});
-		expect(bannersStore.bannerStack).toContain('NON_PRODUCTION_LICENSE');
-	});
-
 	it("should add V1 banner to stack if it's not dismissed", () => {
 		bannersStore.loadStaticBanners({
 			banners: ['V1'],
